@@ -1,0 +1,23 @@
+[Unit]
+Description=Brain Core Backend (Node.js/Express + Socket.IO)
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=brain-core
+Group=brain-core
+WorkingDirectory=/opt/brain-core/backend
+EnvironmentFile=/opt/brain-core/backend/.env
+Environment=HOST=127.0.0.1
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node /opt/brain-core/backend/dist/index.js
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=brain-core-backend
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

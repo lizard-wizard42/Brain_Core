@@ -1,0 +1,19 @@
+[Unit]
+Description=Brain Core Frontend (Static PWA, porta 8001)
+After=network.target
+
+[Service]
+Type=simple
+User=brain-core
+Group=brain-core
+WorkingDirectory=/opt/brain-core/frontend
+ExecStart=/usr/bin/npx serve dist -l tcp://127.0.0.1:8001 -s
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=brain-core-frontend
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

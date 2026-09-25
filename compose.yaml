@@ -1,0 +1,66 @@
+services:
+  database:
+    build: ./deploy/postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-brain_core}
+      POSTGRES_USER: ${POSTGRES_USER:-brain_core}
+      POSTGRES_PASSWORD_FILE: /run/brain-core-secrets/postgres_password
+      BRAIN_CORE_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+    volumes:
+      - brain-core-postgres:/var/lib/postgresql/data
+      - brain-core-secrets:/run/brain-core-secrets
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3001
+      NODE_ENV: production
+      DB_HOST: database
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-brain_core}
+      DB_USER: ${POSTGRES_USER:-brain_core}
+      BRAIN_CORE_JWT_SECRET: ${JWT_SECRET:-}
+      CORS_ORIGIN: http://localhost:8080,http://127.0.0.1:8080
+      AUTH_COOKIE_SECURE: "false"
+      INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
+      INITIAL_ADMIN_NAME: ${INITIAL_ADMIN_NAME:-}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-false}
+      PAGE_VERSION_RETENTION: ${PAGE_VERSION_RETENTION:-100}
+      UPLOADS_DIR: /app/uploads
+      UPLOADS_MAX_BYTES: ${UPLOADS_MAX_BYTES:-5368709120}
+      TERMINAL_ENABLED: "false"
+      CELTWO_MEMORY_MODE: offline
+    volumes:
+      - brain-core-uploads:/app/uploads
+      - brain-core-secrets:/run/brain-core-secrets
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  web:
+    build: ./frontend
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  brain-core-postgres:
+  brain-core-uploads:
+  brain-core-secrets:

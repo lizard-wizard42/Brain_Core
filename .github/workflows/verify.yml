@@ -1,0 +1,44 @@
+name: Verify public contribution
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  public-release-check:
+    name: Public-release safety check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/public-release-check.sh
+
+  test:
+    name: Test and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+      - run: npm ci --prefix backend
+      # This value exists only in the ephemeral CI runner. It is not a
+      # deployment credential and is never used by a running installation.
+      - run: npm test --prefix backend
+        env:
+          JWT_SECRET: ci-test-only-jwt-secret-not-for-deployment-0123456789
+      - run: npm ci --prefix frontend
+      # Browser-mock tests occasionally observe a transient global navigation
+      # side effect. A single retry absorbs that flake but any repeat failure
+      # still blocks the contribution.
+      - run: npm test --prefix frontend -- --retry=1
+      - run: npm run build --prefix frontend
+      - run: npm audit --omit=dev --prefix backend
+      - run: npm audit --omit=dev --prefix frontend

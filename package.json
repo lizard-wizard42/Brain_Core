@@ -1,0 +1,9 @@
+{
+  "name": "brain-core",
+  "private": true,
+  "description": "A private, local-first workspace for notes, visual thinking, and personal knowledge.",
+  "scripts": {
+    "build": "./build.sh",
+    "dev": "./dev-up.sh"
+  }
+}

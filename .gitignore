@@ -1,0 +1,29 @@
+# Node.js
+node_modules/
+*.log
+
+# Per-instance data (never publish)
+/uploads/
+/backups/
+/docs/private/
+/docs/security-review-*.md
+/docs/superpowers/
+/backend/uploads/
+
+# Secrets and machine-specific environment
+.env
+.env.docker
+.env.*
+!.env.example
+!**/.env.example
+!**/.env.*.example
+
+# Generated artifacts
+frontend/dist/
+frontend/coverage/
+frontend/knip-report.txt
+backend/dist/
+
+# OS Files
+.DS_Store
+Thumbs.db

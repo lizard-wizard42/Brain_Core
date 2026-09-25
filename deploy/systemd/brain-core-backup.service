@@ -1,0 +1,26 @@
+[Unit]
+Description=Brain Core complete daily backup
+Documentation=file:/opt/brain-core/docs/BACKUP_BRAIN_CORE.md
+Requires=postgresql.service
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=brain-core
+Group=brain-core
+WorkingDirectory=/opt/brain-core
+RuntimeDirectory=brain-core-backup
+RuntimeDirectoryMode=0700
+UMask=0077
+ExecStart=/usr/bin/flock -n /run/brain-core-backup/backup.lock /usr/bin/node /opt/brain-core/scripts/backup-brain-core.mjs
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/brain-core/backups/brain-core
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
