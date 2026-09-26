@@ -14,7 +14,7 @@ These screenshots use fictional content.
 
 ![Brain Core dashboard with fictional notes and pages](docs/images/dashboard-demo.png)
 
-![Brain Core timeline with fictional recording transcripts](docs/images/timeline-demo.png)
+![Brain Core timeline with fictional recording transcripts](docs/images/timeline-memory-demo.png)
 
 ![Brain Core support page with the public donation link](docs/images/support-demo.png)
 
