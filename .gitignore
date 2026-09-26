@@ -9,6 +9,7 @@ node_modules/
 /docs/security-review-*.md
 /docs/superpowers/
 /backend/uploads/
+/data/memory/
 
 # Secrets and machine-specific environment
 .env
@@ -20,6 +21,7 @@ node_modules/
 
 # Generated artifacts
 frontend/dist/
+frontend/dist-tailnet/
 frontend/coverage/
 frontend/knip-report.txt
 backend/dist/
@@ -31,6 +33,17 @@ android/local.properties
 *.aab
 *.jks
 *.keystore
+*.db
+*.sqlite
+*.sqlite3
+*.m4a
+*.wav
+*.webm
+*.ogg
+*.opus
+*.pem
+__pycache__/
+.pytest_cache/
 
 # OS Files
 .DS_Store

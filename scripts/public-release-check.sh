@@ -10,7 +10,7 @@ fail() {
 
 # These paths are instance data or machine configuration, never source code for
 # the public repository. Examples remain allowed because they contain no value.
-blocked_paths="$(git ls-files | rg '(^|/)(backups/|uploads/|\.env($|\.)|.*\.(pem|key|p12|pfx)$)' | rg -v '(^|/)\.env[^/]*\.example$' || true)"
+blocked_paths="$(git ls-files | grep -E '(^|/)(backups/|uploads/|data/memory/|\.env($|\.)|.*\.(pem|key|p12|pfx|db|sqlite|sqlite3|m4a|wav|webm|ogg|opus|apk|aab|jks|keystore)$)' | grep -Ev '(^|/)\.env[^/]*\.example$' || true)"
 if [[ -n "$blocked_paths" ]]; then
   printf '%s\n' "$blocked_paths" >&2
   fail 'tracked instance data, environment, database, or key file detected'

@@ -116,12 +116,12 @@ describe('TerminalDrawer', () => {
     const ready = socketHandlers.get('terminal:ready') as (...args: unknown[]) => unknown;
     ready({
       sessionId: 'sess-1',
-      cwd: '/home/example/apps/brain-core',
+      cwd: '/workspace/brain-core',
       workspaceKey: 'k2',
     });
 
     await waitFor(() => expect(screen.getByText('ready')).toBeInTheDocument());
-    expect(screen.getByText('/home/example/apps/brain-core')).toBeInTheDocument();
+    expect(screen.getByText('/workspace/brain-core')).toBeInTheDocument();
   });
 
   it('fecha sessão ativa quando drawer é fechado', async () => {
