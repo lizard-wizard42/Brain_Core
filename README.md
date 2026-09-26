@@ -41,7 +41,7 @@ Brain Core gives you a personal workspace you can run and manage yourself.
 
 Brain Core has a user-started browser recorder and an [Android companion app](android/README.md). The Android app saves short `.m4a` chunks locally, keeps an upload queue across network interruptions, and checks each chunk's hash when the server accepts it. Recording starts when you press **Gravar**; neither client records continuously by default.
 
-The optional memory service organizes sessions in the **Timeline**, transcribes audio, supports transcript search, and lets you review speaker suggestions and corrections. GPU processing can run locally. The standard Docker installation starts with the memory integration **offline**. A fresh installation therefore has no transcripts until you configure that service and connect a recorder. The service's data and token belong on your own server, outside Git.
+The optional memory service organizes sessions in the **Timeline**, transcribes audio, supports transcript search, and lets you review speaker suggestions and corrections. The standard Docker installation starts with the memory integration **offline**. Enable the [private CPU service](docs/REMEMBER_TIMELINE.md#enable-the-local-cpu-transcription-service) when you are ready to connect a recorder. Its data and token belong on your own server, outside Git.
 
 Read [the timeline guide](docs/REMEMBER_TIMELINE.md) before enabling transcription. Obtain consent before recording other people and protect audio, transcripts, and backups.
 

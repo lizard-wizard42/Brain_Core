@@ -1,0 +1,43 @@
+# Explicit opt-in: docker compose -f compose.yaml -f compose.memory.yaml
+# --env-file .env.memory up --build -d
+services:
+  backend:
+    environment:
+      CELTWO_MEMORY_MODE: proxy
+      CELTWO_MEMORY_URL: http://memory-api:8765
+      CELTWO_MEMORY_TOKEN: ${CELTWO_MEMORY_TOKEN:?Set CELTWO_MEMORY_TOKEN in .env.memory}
+    depends_on:
+      memory-api:
+        condition: service_healthy
+
+  memory-api:
+    build:
+      context: ./services/memory
+    command: ["uvicorn", "services.memory.api.main:app", "--host", "0.0.0.0", "--port", "8765"]
+    environment:
+      CELTWO_MEMORY_API_TOKEN: ${CELTWO_MEMORY_TOKEN:?Set CELTWO_MEMORY_TOKEN in .env.memory}
+    volumes:
+      - brain-core-memory:/data/memory
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=3).close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  memory-worker:
+    build:
+      context: ./services/memory
+    command: ["python", "-m", "services.memory.worker.worker"]
+    environment:
+      CELTWO_MEMORY_WHISPER_MODEL: ${CELTWO_MEMORY_WHISPER_MODEL:-small}
+      CELTWO_MEMORY_WHISPER_LANGUAGE: ${CELTWO_MEMORY_WHISPER_LANGUAGE:-pt}
+    volumes:
+      - brain-core-memory:/data/memory
+    depends_on:
+      memory-api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  brain-core-memory:

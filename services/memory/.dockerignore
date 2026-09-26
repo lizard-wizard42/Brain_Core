@@ -1,0 +1,16 @@
+**/__pycache__/
+**/.pytest_cache/
+**/*.pyc
+.venv/
+data/
+models/
+*.db
+*.sqlite*
+*.m4a
+*.wav
+*.ogg
+*.opus
+*.webm
+*.pem
+.env*
+tests/
