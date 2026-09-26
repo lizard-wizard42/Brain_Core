@@ -17,6 +17,10 @@ tailscale serve status
 
 Open the resulting `https://<computer>.<tailnet>.ts.net` address in the phone's browser. Replace the example below with your own address only in your local, untracked `.env.docker`:
 
+```bash
+test -e .env.docker || cp .env.docker.example .env.docker
+```
+
 ```dotenv
 CORS_ORIGIN=https://computer.example-tailnet.ts.net
 AUTH_COOKIE_SECURE=true

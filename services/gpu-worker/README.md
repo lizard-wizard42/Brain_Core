@@ -17,7 +17,8 @@ directory at a time. It returns transcript segments to the Memory API.
 ## 1. Start Brain Core and the Memory API
 
 Complete the [Docker quick start](../../README.md#quick-start), then create
-`.env.memory` as described in the [timeline guide](../../docs/REMEMBER_TIMELINE.md).
+`.env.docker` if it does not exist and `.env.memory` as described in the
+[timeline guide](../../docs/REMEMBER_TIMELINE.md).
 From the repository root:
 
 ```bash

@@ -12,11 +12,15 @@ The standard Docker Compose installation sets `CELTWO_MEMORY_MODE=offline`. This
 
 ## Enable the local CPU transcription service
 
-The optional Compose file starts a private API and a CPU worker. On the host,
-create an ignored environment file and set a unique token:
+The optional Compose file starts a private API and a CPU worker. If you used
+the standard quick start, first create `.env.docker`: the commands below use
+it even though the initial installation does not require it. Keep any CORS or
+secure-cookie changes you already made in that file. Then create an ignored
+Memory environment file and set a unique token:
 
 ```bash
-cp .env.memory.example .env.memory
+test -e .env.docker || cp .env.docker.example .env.docker
+test -e .env.memory || cp .env.memory.example .env.memory
 chmod 600 .env.memory
 openssl rand -hex 32
 ```

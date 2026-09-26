@@ -1,14 +1,16 @@
 # Brain Core
 
-> A self-hosted workspace for notes, visual thinking, and personal knowledge.
+> A self-hosted workspace for notes, visual thinking, recordings, and personal knowledge.
 
-Brain Core runs in Docker on a machine you control. It stores pages, attachments,
-and database data in volumes attached to that installation. A standard setup
-needs no cloud account or external sync.
+Brain Core runs on a computer you control. Its database, uploads, and optional
+recordings live in persistent local volumes. The standard Docker installation
+needs no cloud account, API key, GPU, or external sync service.
 
 ![Brain Core logo](docs/images/brain-core.png)
 
 ### Screenshots
+
+These screenshots use fictional content.
 
 ![Brain Core dashboard with fictional notes and pages](docs/images/dashboard-demo.png)
 
@@ -19,124 +21,167 @@ needs no cloud account or external sync.
 **Built with:** React 19 · TypeScript · Vite · Tailwind CSS · Tiptap · tldraw ·
 Node.js · Express · Socket.IO · PostgreSQL · Docker
 
-## Why Brain Core?
+## Features
 
-Brain Core gives you a personal workspace you can run and manage yourself.
+### Pages, notes, and canvas
 
-- **Self-hosted storage.** Your database and uploads stay in Docker volumes on the machine running your installation.
-- **One-command onboarding.** Run Docker Compose, open the browser, and create the first administrator account.
-- **A flexible workspace.** Combine rich notes, nested pages, tags, dates, versions, trash, and visual canvases.
-- **Security-conscious defaults.** The database is not exposed to the host; the web entrypoint binds to loopback; terminal and external integrations start disabled.
+| Area | What you can do |
+| --- | --- |
+| Rich pages | Write and format content in Tiptap; organize pages and subpages in a tree; add tags, status, and due dates. |
+| Quick notes | Capture short notes and reminders on a compact board and search them. Telegram reminders are optional and require your own bot configuration. |
+| Visual pages | Sketch and arrange ideas on an infinite tldraw canvas. |
+| History and recovery | Review page versions and restore pages from trash. Trash is cleaned up after 30 days by default. |
+| Attachments | Upload supported images and documents with server-side type and content checks. Read an attached PDF inside the page; download other supported documents. |
+| Sharing | Add another registered user as a contact, then share a page or folder with viewer or editor permission. There are no public share links. |
+| Live work | See page updates across browser tabs through Socket.IO. Use app tabs, themes, and a mobile-friendly layout. |
 
-## What it includes
+Authentication uses session cookies, login throttling, optional TOTP
+two-factor authentication, and trusted-device support. The first account is
+created through a one-time setup wizard. Optional AI organization and the
+host terminal require separate configuration; the standard Docker profile
+starts with the terminal disabled.
 
-- Rich-text editor, page tree, subpages, tags, status, due dates, version history, and trash.
-- Infinite visual canvas powered by tldraw.
-- Authenticated attachments with file-type/content validation and local storage limits. Attach a PDF to a page and read it in the editor; other supported documents can be downloaded.
-- Live updates between browser tabs through Socket.IO.
-- Cookie-based authentication, login throttling, optional 2FA, and trusted-device support.
-- Optional AI organization, Telegram reminders, and memory-device integration—off by default.
+### Recording, Timeline, and transcription
 
-## Recording and transcription
+Recording starts only after a user action. In the browser, grant microphone
+access and start a recording from the Timeline. On Android, tap **Gravar** in
+**Linha do tempo**; the app stores roughly two-minute `.m4a` chunks in its
+private storage. Its upload queue survives network loss and app restarts, and
+marks a chunk uploaded only after the server confirms its SHA-256. Recordings
+remain tied to the linked account.
 
-Brain Core has a user-started browser recorder and an [Android companion app](android/README.md). The Android app saves short `.m4a` chunks locally, keeps an upload queue across network interruptions, and checks each chunk's hash when the server accepts it. Recording starts when you press **Gravar**; neither client records continuously by default.
+The optional Memory service can transcribe recordings locally, group sessions
+by date, search transcripts, show speaker turns, and let you review or correct
+participant suggestions. You can turn transcript content into a Brain Core
+note or reminder. A voice sample is only a suggestion for speaker matching;
+review the result before assigning a person. The standard installation keeps
+Memory **offline**. Phone recording and local playback work without it, but
+server upload and transcription require the private Memory API and worker.
 
-The optional memory service organizes sessions in the **Timeline**, transcribes audio, supports transcript search, and lets you review speaker suggestions and corrections. The standard Docker installation starts with the memory integration **offline**. Enable the [private CPU service](docs/REMEMBER_TIMELINE.md#enable-the-local-cpu-transcription-service) when you are ready to connect a recorder. An [optional NVIDIA GPU worker](services/gpu-worker/README.md) has a separate setup guide. Its data and token belong on your own server, outside Git.
+Use the [Timeline and CPU setup guide](docs/REMEMBER_TIMELINE.md) to enable the
+service. The default worker runs on CPU in Docker. For acceleration on a Linux
+computer with a compatible NVIDIA GPU, use the [GPU worker guide](services/gpu-worker/README.md).
+AMD and Intel users can use the CPU worker; ROCm and oneAPI GPU execution have
+not been validated in this project. No model, recording, voiceprint, token, or
+transcript is included in the repository or APK.
 
-Read [the timeline guide](docs/REMEMBER_TIMELINE.md) before enabling transcription. Obtain consent before recording other people and protect audio, transcripts, and backups.
+### Android app and private HTTPS access
 
-### Android APK and Tailscale
+Download the signed [Android APK](https://github.com/lizard-wizard42/Brain_Core/releases/latest/download/brain-core-android.apk)
+and compare its SHA-256 with the [latest release notes](https://github.com/lizard-wizard42/Brain_Core/releases/latest).
+The app requires Android 7.0 or newer and uses the package
+`com.example.braincore`. It has a local recorder and Timeline, plus a **PC** tab
+that opens your own Brain Core web interface. The APK contains no server
+address, account, recording, or service token. Local Android notes are not
+synchronized with web notes in this version.
 
-Download the signed [Brain Core Android APK](https://github.com/lizard-wizard42/Brain_Core/releases/latest/download/brain-core-android.apk) from the latest release and verify its SHA-256 against the release notes. To connect the phone to your self-hosted Brain Core without exposing it to the public internet, follow the [Tailscale Serve setup guide](docs/ANDROID.md). The app accepts your own HTTPS server origin; no personal server address is embedded in the APK.
+For phone access without publishing Brain Core to the internet, follow the
+[Tailscale Serve guide](docs/ANDROID.md). Install Tailscale on the computer and
+phone, give the local web entrypoint a private HTTPS address, enter that origin
+in **Ajustes**, sign in through **PC**, and select **Vincular gravações**.
+The device credential is protected by Android Keystore. Use Tailscale **Serve**,
+not Funnel; only the web entrypoint should be reachable from the phone.
 
 ## Quick start
 
-**Requirement:** Docker Engine with Docker Compose.
+**Requirement:** Docker Engine with Docker Compose. On a new machine:
 
 ```bash
 git clone https://github.com/lizard-wizard42/Brain_Core.git
 cd Brain_Core
 docker compose up --build -d
+docker compose ps
 ```
 
-Open [http://localhost:8080](http://localhost:8080). On a fresh installation,
-the browser opens the **first-access wizard**. Create the administrator account
-there and you are ready to work.
+Open [http://localhost:8080](http://localhost:8080). The first-access wizard
+creates the administrator account; its setup endpoint closes after that first
+account exists. No `.env` file is needed for this standard installation.
+Compose generates the PostgreSQL password and JWT secret once and stores them
+in a private local volume.
 
-No `.env` file is needed for a standard installation. Compose generates the
-PostgreSQL password and JWT secret once and keeps them in a private local
-volume. The setup endpoint closes permanently after the first account exists.
-
-To start with clearly fictional sample content, copy `.env.docker.example` to
-`.env.docker`, set `SEED_DEMO_DATA=true`, then run:
+To start a **new** database with fictional sample pages, first copy
+`.env.docker.example` to your own ignored `.env.docker`, set
+`SEED_DEMO_DATA=true`, and run:
 
 ```bash
+cp .env.docker.example .env.docker
 docker compose --env-file .env.docker up --build -d
 ```
 
-## How data stays local
+The demo seed and optional `INITIAL_ADMIN_*` settings only apply when the
+database is empty. Remove bootstrap credentials from `.env.docker` after first
+use. See the [Docker guide](docs/DOCKER.md) for updates, storage limits, and
+diagnostics.
+
+### Add transcription later
+
+From the repository root, create `.env.docker` if you did not create one during
+the quick start. Then create a private Memory token in `.env.memory` as shown
+in the [Timeline guide](docs/REMEMBER_TIMELINE.md):
+
+```bash
+test -e .env.docker || cp .env.docker.example .env.docker
+test -e .env.memory || cp .env.memory.example .env.memory
+chmod 600 .env.memory
+```
+
+Set a unique `CELTWO_MEMORY_TOKEN` in `.env.memory` before starting the
+optional stack. The complete commands and model options are in the Timeline
+guide. The CPU API and worker use a private Compose network with no published
+host port. The NVIDIA override exposes the Memory API only on host loopback;
+never expose that API publicly.
+
+## Data, backups, and network boundaries
 
 ```mermaid
 flowchart LR
-  B[Browser\nlocalhost:8080] --> W[Nginx web entrypoint]
+  B[Browser or Android PC tab] --> W[Nginx web entrypoint]
   W --> A[Express API]
   A --> D[(PostgreSQL volume)]
   A --> U[(Uploads volume)]
   S[Generated secrets volume] --> A
   S --> D
+  A -. optional private token .-> M[(Memory API and volume)]
 ```
 
-- Only the web entrypoint is published, at `127.0.0.1:8080` by default.
-- PostgreSQL has no host port.
-- Uploads and database contents use separate persistent local volumes.
-- The terminal is a privileged feature and is disabled in the Docker profile.
+- The standard web entrypoint binds to `127.0.0.1:8080`; PostgreSQL has no
+  published host port. The terminal and Memory integration start disabled.
+- `brain-core-postgres`, `brain-core-uploads`, and `brain-core-secrets` persist
+  independently. Enabling Memory adds `brain-core-memory` for recordings,
+  transcripts, models, and its index. Back up the volumes you use and protect
+  those backups like the original data.
+- `docker compose down` stops services without deleting volumes. **Do not use
+  `down -v`** unless you intend to erase persisted data.
+- For LAN or internet exposure, configure TLS, secure cookies, an explicit
+  CORS origin, and a trusted-proxy policy first. Changing the port binding
+  alone is insufficient. See the [Docker guide](docs/DOCKER.md).
 
-For LAN or internet exposure, do not simply change the port binding. Configure
-a TLS reverse proxy, secure cookies, explicit CORS origins, and trusted proxies
-first. See [the Docker guide](docs/DOCKER.md).
+Obtain consent before recording other people. Protect audio, transcripts,
+voice samples, devices, and backups. For a lost or changed phone account,
+unlink the old device before linking it to another account or server.
 
-## Architecture and security
+## Development and architecture
 
-The browser talks to a local Nginx proxy, which forwards API, upload, and
-Socket.IO traffic to the Express backend. The backend owns authentication,
-upload validation, application rules, and PostgreSQL persistence.
+```bash
+cd backend && npm install && npm run build && npm test
+cd ../frontend && npm install && npm run lint && npm test && npm run build
+```
 
-- [Architecture overview](docs/ARQUITETURA.md)
+The Android source is in [`android/`](android/README.md); its README shows the
+debug build and unit-test commands. The [architecture overview](docs/ARQUITETURA.md)
+explains the Nginx, Express, PostgreSQL, and Socket.IO boundaries.
+
 - [Docker installation and operations](docs/DOCKER.md)
+- [Android and Tailscale Serve](docs/ANDROID.md)
+- [Timeline and CPU transcription](docs/REMEMBER_TIMELINE.md)
+- [NVIDIA GPU worker](services/gpu-worker/README.md)
 - [Security policy](SECURITY.md)
-- [Public-release plan and audit trail](docs/PLANO_REPOSITORIO_PUBLICO.md)
+- [Contributing](CONTRIBUTING.md)
 
-## Development
+## Support and license
 
-```bash
-cd backend && npm install
-cd ../frontend && npm install
-cd ..
-./dev-up.sh
-```
-
-Run the checks with:
-
-```bash
-cd backend && npm test
-cd ../frontend && npm test && npm run build
-```
-
-## Contributing
-
-Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md)
-before opening an issue or pull request. For vulnerabilities, follow the
-private reporting instructions in [SECURITY.md](SECURITY.md) instead of opening
-a public issue.
-
-## Support the project
-
-If Brain Core is useful to you and you would like to support its continued
-development, you can [buy the creator a coffee](https://buymeacoffee.com/lizardwizard).
-
-## License
-
-Brain Core is available under the [MIT License](LICENSE). You may use, modify,
-and redistribute the code, including commercially, while preserving the license
-notice. The project name and visual identity do not imply endorsement or
-affiliation.
+If Brain Core is useful to you, you can [support its development](https://buymeacoffee.com/lizardwizard).
+Brain Core is available under the [MIT License](LICENSE). You may use,
+modify, and redistribute the code, including commercially, while preserving
+the license notice. The project name and visual identity do not imply
+endorsement or affiliation.
