@@ -33,6 +33,13 @@ Install JavaScript dependencies with `npm ci` in the affected package. Backend t
 
 Do not include `.env` files, keys, databases, uploads, recordings, real transcripts, personal screenshots, or generated build artifacts in a PR. Use placeholders for server addresses and credentials. Review the diff and commit history before pushing, including image metadata and APK contents when relevant.
 
+Before committing to a public branch, configure Git to use your own
+[GitHub-provided `noreply` address](https://docs.github.com/en/account-and-profile/how-tos/email-preferences/setting-your-commit-email-address)
+and check both author and committer metadata. Do the same for any
+`Co-authored-by` trailer when a collaborator wants their address kept private.
+The release check also examines commit history for known private identity
+markers; a clean file diff alone is not enough.
+
 If you find a vulnerability or accidental exposure, follow the private reporting process in [SECURITY.md](SECURITY.md) instead of posting exploit details in a public issue.
 
 ## Pull request checklist
