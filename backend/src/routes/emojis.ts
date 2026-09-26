@@ -2,11 +2,12 @@ import fs from 'fs';
 import path from 'path';
 import { Router } from 'express';
 import multer from 'multer';
+import { config } from '../config';
 import { createCustomEmoji, listCustomEmojis } from '../controllers/emojisController';
 
 const router = Router();
 
-const EMOJI_UPLOADS_DIR = path.join(__dirname, '..', '..', '..', 'uploads', 'emojis');
+const EMOJI_UPLOADS_DIR = path.join(config.UPLOADS_DIR, 'emojis');
 fs.mkdirSync(EMOJI_UPLOADS_DIR, { recursive: true });
 
 const storage = multer.diskStorage({

@@ -2,6 +2,7 @@ import { Router, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { coverImageFilter } from '../services/uploadSafety';
 import path from 'path';
+import { config } from '../config';
 import { query } from '../config/database';
 import { AuthRequest } from '../middleware/auth';
 import { canEdit, pageRole } from '../services/pageAccess';
@@ -24,8 +25,7 @@ import {
   emptyTrash,
 } from '../controllers/pagesController';
 
-// Use project root (two levels up from src/routes/) regardless of __dirname at runtime
-const UPLOADS_DIR = path.join(__dirname, '..', '..', '..', 'uploads');
+const UPLOADS_DIR = config.UPLOADS_DIR;
 
 const storage = multer.diskStorage({
   destination: UPLOADS_DIR,
