@@ -25,8 +25,8 @@ Paste the generated value after `CELTWO_MEMORY_TOKEN=` in `.env.memory`. Then
 start the same stack with the optional file:
 
 ```bash
-docker compose --env-file .env.memory -f compose.yaml -f compose.memory.yaml up --build -d
-docker compose --env-file .env.memory -f compose.yaml -f compose.memory.yaml ps
+docker compose --env-file .env.docker --env-file .env.memory -f compose.yaml -f compose.memory.yaml up --build -d
+docker compose --env-file .env.docker --env-file .env.memory -f compose.yaml -f compose.memory.yaml ps
 ```
 
 The `memory-api` and `memory-worker` services have no published host port. The
@@ -40,12 +40,12 @@ with Portuguese as the selected language. Change those settings in
 Check the backend health and service logs after enabling it:
 
 ```bash
-docker compose --env-file .env.memory -f compose.yaml -f compose.memory.yaml logs --tail=80 backend memory-api memory-worker
+docker compose --env-file .env.docker --env-file .env.memory -f compose.yaml -f compose.memory.yaml logs --tail=80 backend memory-api memory-worker
 ```
 
 To stop the worker and API while keeping their data, run `docker compose
---env-file .env.memory -f compose.yaml -f compose.memory.yaml down` and start
-the regular `docker compose up -d` stack. Do not add `-v`: that would delete
+--env-file .env.docker --env-file .env.memory -f compose.yaml -f compose.memory.yaml down` and start
+the regular `docker compose --env-file .env.docker up -d` stack. Do not add `-v`: that would delete
 all Compose volumes. For phone access, expose only the Brain Core web entrypoint
 through your HTTPS reverse proxy or [Tailscale Serve](ANDROID.md).
 
