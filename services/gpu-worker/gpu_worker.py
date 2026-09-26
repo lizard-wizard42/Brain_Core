@@ -6,13 +6,47 @@ Denoise opcional: deepfilternet + torch + torchaudio.
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
+import fcntl
 import gc
 from functools import lru_cache
 import json
 import os
+from pathlib import Path
+import re
+import stat
 import sys
 import tempfile
 import time
+
+
+_AUDIO_NAME = re.compile(r"^audio-[A-Za-z0-9_-]+\.opus(?:\.denoised\.wav)?$")
+
+
+@contextmanager
+def private_audio_dir():
+    """Own the worker's private scratch space and clear interrupted jobs."""
+    path = Path(tempfile.gettempdir()) / f"celtwo-gpu-worker-{os.getuid()}"
+    try:
+        path.mkdir(mode=0o700)
+    except FileExistsError:
+        pass
+    info = path.lstat()
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
+        raise RuntimeError(f"unsafe GPU worker audio directory: {path}")
+    lock_fd = os.open(path / ".lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    try:
+        lock_info = os.fstat(lock_fd)
+        if (not stat.S_ISREG(lock_info.st_mode) or lock_info.st_uid != os.getuid()
+                or stat.S_IMODE(lock_info.st_mode) != 0o600):
+            raise RuntimeError("unsafe GPU worker lock file")
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        for entry in path.iterdir():
+            if _AUDIO_NAME.fullmatch(entry.name) and not entry.is_dir():
+                entry.unlink()
+        yield path
+    finally:
+        os.close(lock_fd)
 
 
 def parse_args(argv):
@@ -257,7 +291,8 @@ def maybe_denoise(in_path, *, enhance=None):
     pcm = np.asarray(decode_audio(in_path, sampling_rate=16000), dtype=np.float32)
     clean = np.asarray(enhance(pcm, 16000), dtype=np.float32)
     out_path = in_path + ".denoised.wav"
-    with wave.open(out_path, "wb") as w:
+    fd = os.open(out_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, "wb") as output, wave.open(output, "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
         w.setframerate(16000)
@@ -299,6 +334,11 @@ def _client_factory():
 
 
 def run(args, *, client_factory=_client_factory, transcribe=None):
+    with private_audio_dir() as audio_dir:
+        return _run_with_audio_dir(args, audio_dir, client_factory=client_factory, transcribe=transcribe)
+
+
+def _run_with_audio_dir(args, audio_dir, *, client_factory, transcribe):
     done = 0
     owns_model = False
     idle_since = None
@@ -330,7 +370,7 @@ def run(args, *, client_factory=_client_factory, transcribe=None):
                         f"/chunks/{job['session_id']}/{job['chunk_num']}/audio"
                     )
                     audio.raise_for_status()
-                    with tempfile.NamedTemporaryFile(suffix=".opus", delete=False) as fh:
+                    with tempfile.NamedTemporaryFile(prefix="audio-", suffix=".opus", dir=audio_dir, delete=False) as fh:
                         fh.write(audio.content)
                         tmp = fh.name
                     denoise_started = time.perf_counter()

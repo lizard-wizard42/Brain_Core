@@ -9,8 +9,10 @@ GPU on the **same computer** as the Docker stack. The Memory API binds only to
 
 Models, recordings, tokens, benchmarks and virtual environments are not
 included in Git. The worker downloads its model on first use. It temporarily
-downloads each claimed audio chunk, deletes the temporary copy when the job
-finishes, and returns transcript segments to the Memory API.
+downloads each claimed audio chunk into a private, worker-owned directory,
+deletes the raw and denoised copies when the job finishes, and removes leftover
+audio from interrupted runs at startup. Only one GPU worker can use that
+directory at a time. It returns transcript segments to the Memory API.
 
 ## 1. Start Brain Core and the Memory API
 
