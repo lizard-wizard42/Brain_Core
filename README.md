@@ -163,9 +163,12 @@ unlink the old device before linking it to another account or server.
 ## Development and architecture
 
 ```bash
-cd backend && npm install && npm run build && npm test
+cd backend && npm install && JWT_SECRET=0123456789abcdef0123456789abcdef npm test
 cd ../frontend && npm install && npm run lint && npm test && npm run build
 ```
+
+The JWT value above is only a synthetic test fixture. Never use it in a
+running installation; Docker generates a different private secret for you.
 
 The Android source is in [`android/`](android/README.md); its README shows the
 debug build and unit-test commands. The [architecture overview](docs/ARQUITETURA.md)
