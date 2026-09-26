@@ -23,6 +23,14 @@ frontend/dist/
 frontend/coverage/
 frontend/knip-report.txt
 backend/dist/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.apk
+*.aab
+*.jks
+*.keystore
 
 # OS Files
 .DS_Store

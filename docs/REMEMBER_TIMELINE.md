@@ -1,48 +1,17 @@
-# Experimental timeline and companion recorder
+# Timeline, recording, and transcription
 
-## What it is
+**Timeline** groups recorded sessions by date. Once the optional memory service is connected, it can show transcription progress, searchable text, speaker turns, and reviewed participant names. A user can turn part of a transcript into a Brain Core note or reminder.
 
-Timeline (shown in the interface as **Memória** or **Linha do tempo**) is a
-personal chronological view of captured sessions. It can show recording status,
-sessions by day, transcripts, search results, and speaker labels. Sessions can
-also be turned into notes or reminders inside Brain Core.
+## How audio enters the system
 
-## What records audio
+- The browser recorder starts only after a user presses its control and grants microphone access.
+- The [Android companion](../android/README.md) records locally in short `.m4a` chunks. Its account-bound queue survives restarts and network loss. The backend verifies the chunk digest before confirming an upload.
+- The backend sends authorized audio and session metadata to the separately configured memory service. The service stores the corpus and can process transcription locally; a GPU worker is optional.
 
-Brain Core's web interface does not perform continuous microphone capture. The
-timeline expects a separate Android companion recorder to capture audio and a
-local processing service to transcribe and store the resulting sessions. That
-service may use local GPU processing for transcription. Brain Core talks only
-to the service through its backend proxy.
+The standard Docker Compose installation sets `CELTWO_MEMORY_MODE=offline`. This keeps a new installation useful for notes and attachments without starting an audio-processing service. Recording on a phone does not automatically enable server transcription. To use transcripts, configure the memory service, its storage, and the same private bearer token in the backend and service. Keep its port private; expose only the Brain Core web entrypoint through your HTTPS reverse proxy or [Tailscale Serve](ANDROID.md).
 
-The short microphone capture in the **voiceprint** panel is different: it is an
-optional, one-off sample used to help identify the account owner's voice in
-already captured transcripts.
+## Review and ownership
 
-## Current status
+Transcripts may propose speaker labels. Review or correct each segment rather than treating a voice sample as proof of identity. The backend ties mobile devices and sessions to the linked account. The memory service requires a bearer token and scopes history, search, and transcript reads to the account ID supplied by the authenticated backend.
 
-This integration is experimental and still under development/testing. The
-Android companion APK, device onboarding, and parts of the recording workflow
-are not part of the standard Docker distribution. A fresh Docker installation
-intentionally keeps the integration offline; an empty timeline or an unavailable
-recorder control in that mode is expected behavior, not a failed Brain Core
-installation.
-
-The private integration settings are intentionally not documented as a public
-installation path yet. Keep any future recorder-service address or access token
-in a private `.env` file only, never in Git. The service should stay on a trusted
-local network unless it has appropriate transport security and access controls.
-
-## Privacy and consent
-
-Timeline data may contain conversations, voices, transcripts, and information
-about other people. Before recording, obtain consent where required, use a
-retention policy, and protect backups just as carefully as the live database.
-This repository is for a personal self-hosted instance; it does not provide a
-multi-user privacy boundary for the companion recorder corpus.
-
-## Scope of Brain Core
-
-Brain Core provides the interface and backend proxy for viewing, searching, and
-organizing sessions. It does not ship an APK, start an Android recording service,
-or upload recordings to a cloud provider by default.
+Voice recordings and transcripts can contain sensitive information about other people. Obtain consent before recording, choose a retention period, and protect the device, memory storage, and backups. Do not commit recordings, database files, tokens, voiceprints, or real server addresses to Git.

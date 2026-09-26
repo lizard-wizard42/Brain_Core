@@ -32,28 +32,22 @@ Brain Core gives you a personal workspace you can run and manage yourself.
 
 - Rich-text editor, page tree, subpages, tags, status, due dates, version history, and trash.
 - Infinite visual canvas powered by tldraw.
-- Authenticated attachments with file-type/content validation and local storage limits.
+- Authenticated attachments with file-type/content validation and local storage limits. Attach a PDF to a page and read it in the editor; other supported documents can be downloaded.
 - Live updates between browser tabs through Socket.IO.
 - Cookie-based authentication, login throttling, optional 2FA, and trusted-device support.
 - Optional AI organization, Telegram reminders, and memory-device integration—off by default.
 
-## Experimental timeline and companion recorder
+## Recording and transcription
 
-**Timeline** is an experimental, opt-in memory workspace. It organizes sessions
-chronologically, lets you search transcripts, and can help distinguish speakers
-from a short voice sample. It is designed for a personal, self-hosted setup.
+Brain Core has a user-started browser recorder and an [Android companion app](android/README.md). The Android app saves short `.m4a` chunks locally, keeps an upload queue across network interruptions, and checks each chunk's hash when the server accepts it. Recording starts when you press **Gravar**; neither client records continuously by default.
 
-The browser does **not** continuously record audio. Capturing sessions requires
-a separately configured Android companion recorder and a local processing
-service, which can use local GPU processing for transcription. Those components
-are not bundled with this repository or the standard Docker setup.
-Docker starts with the integration offline, so an empty timeline in a fresh
-installation is expected.
+The optional memory service organizes sessions in the **Timeline**, transcribes audio, supports transcript search, and lets you review speaker suggestions and corrections. GPU processing can run locally. The standard Docker installation starts with the memory integration **offline**. A fresh installation therefore has no transcripts until you configure that service and connect a recorder. The service's data and token belong on your own server, outside Git.
 
-See [the timeline integration guide](docs/REMEMBER_TIMELINE.md) before enabling
-it. The companion APK and its recording workflow are still under development
-and testing; treat this as an experimental integration and obtain consent from
-anyone whose voice may be recorded.
+Read [the timeline guide](docs/REMEMBER_TIMELINE.md) before enabling transcription. Obtain consent before recording other people and protect audio, transcripts, and backups.
+
+### Android APK and Tailscale
+
+Download the signed [Brain Core Android APK](https://github.com/lizard-wizard42/Brain_Core/releases/latest/download/brain-core-android.apk) from the latest release and verify its SHA-256 against the release notes. To connect the phone to your self-hosted Brain Core without exposing it to the public internet, follow the [Tailscale Serve setup guide](docs/ANDROID.md). The app accepts your own HTTPS server origin; no personal server address is embedded in the APK.
 
 ## Quick start
 
