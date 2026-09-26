@@ -8,7 +8,13 @@ needs no cloud account or external sync.
 
 ![Brain Core logo](docs/images/brain-page.jpeg)
 
-![Brain Core workspace showing a Workshop Journal page](docs/images/workshop-journal.png)
+### Screenshots
+
+![Brain Core dashboard with fictional notes and pages](docs/images/dashboard-demo.png)
+
+![Brain Core timeline with fictional recording transcripts](docs/images/timeline-demo.png)
+
+![Brain Core support page with the public donation link](docs/images/support-demo.png)
 
 **Built with:** React 19 · TypeScript · Vite · Tailwind CSS · Tiptap · tldraw ·
 Node.js · Express · Socket.IO · PostgreSQL · Docker
