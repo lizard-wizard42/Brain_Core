@@ -70,6 +70,7 @@ export const config = {
   CELTWO_MEMORY_URL: process.env.CELTWO_MEMORY_URL || '',
   CELTWO_MEMORY_TOKEN: process.env.CELTWO_MEMORY_TOKEN || '',
   CELTWO_MEMORY_MODE: (process.env.CELTWO_MEMORY_MODE || (process.env.NODE_ENV === 'production' ? 'offline' : 'mock')) as 'mock' | 'proxy' | 'offline',
+  CELTWO_MEMORY_UPLOAD_TIMEOUT_MS: parseInt(process.env.CELTWO_MEMORY_UPLOAD_TIMEOUT_MS || '120000', 10),
   CELTWO_MEMORY_TIMEOUT_MS: parseInt(process.env.CELTWO_MEMORY_TIMEOUT_MS || '5000', 10),
   OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
   OPENAI_ORGANIZE_MODEL: process.env.OPENAI_ORGANIZE_MODEL || 'gpt-4o-mini',

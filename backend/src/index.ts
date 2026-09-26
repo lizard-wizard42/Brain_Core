@@ -10,6 +10,7 @@ import multer from 'multer';
 
 import { config } from './config/index';
 import { ensureAppSchema } from './config/bootstrap';
+import { ensureAccountOwnership } from './config/accountOwnership';
 import { ensureInitialAdmin } from './config/bootstrapAdmin';
 import { seedDemoData } from './config/seedDemo';
 import foldersRouter from './routes/folders';
@@ -19,8 +20,12 @@ import rememberRouter from './routes/remember';
 import healthRouter from './routes/health';
 import authRouter from './routes/auth';
 import aiRouter from './routes/ai';
+import mobileRouter from './routes/mobile';
+import contactsRouter from './routes/contacts';
 import { AuthRequest, authMiddleware } from './middleware/auth';
 import { perUserRateLimit } from './middleware/rateLimit';
+import { ownerOnly } from './middleware/ownerOnly';
+import { recordUploadedAsset, requireUploadedAssetOwner } from './services/uploadOwnership';
 import { registerSocketHandlers } from './services/socketService';
 import { closeTerminalSession, closeTerminalSessionsByWorkspaceKey } from './services/terminalService';
 import { deleteTerminalTab, listTerminalTabs, upsertTerminalTab } from './services/terminalTabsService';
@@ -107,7 +112,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(morgan('dev'));
 
 // Serve uploaded files — path relative to project root, not dist/
-app.use('/uploads', authMiddleware, (req, res, next) => {
+app.use('/uploads', authMiddleware, requireUploadedAssetOwner, (req, res, next) => {
   if (!isAllowedStoredUploadPath(req.path)) {
     res.status(404).json({ error: 'Arquivo não encontrado' });
     return;
@@ -125,6 +130,9 @@ app.use('/uploads', authMiddleware, (req, res, next) => {
 }));
 
 app.use('/api/auth', authRouter);
+app.use('/api/mobile', mobileRouter);
+app.use('/api/contacts', authMiddleware, contactsRouter);
+app.use('/api/terminal', authMiddleware, ownerOnly);
 app.use('/api/folders', authMiddleware, foldersRouter);
 app.use('/api/pages', authMiddleware, pagesRouter);
 app.use('/api/emojis', authMiddleware, emojisRouter);
@@ -137,7 +145,7 @@ app.use('/api/ai', authMiddleware, perUserRateLimit({ burst: 5, ratePerMin: 10 }
 const uploadRateLimit = perUserRateLimit({ burst: 3, ratePerMin: 6 });
 
 // Upload de imagem inline — retorna { url: '/uploads/filename.ext' }
-app.post('/api/upload/image', authMiddleware, uploadRateLimit, ensureUploadStorageCapacity, uploadImage.single('image'), validateUploadedFileContent, (req, res) => {
+app.post('/api/upload/image', authMiddleware, uploadRateLimit, ensureUploadStorageCapacity, uploadImage.single('image'), validateUploadedFileContent, async (req, res) => {
   const authReq = req as AuthRequest;
   if (!req.file) { res.status(400).json({ error: 'Nenhum arquivo enviado' }); return; }
   const originalName = normalizeOriginalName(req.file.originalname);
@@ -148,7 +156,10 @@ app.post('/api/upload/image', authMiddleware, uploadRateLimit, ensureUploadStora
     storedUrl: `/uploads/${req.file.filename}`,
     userId: authReq.userId ?? null,
   });
-  res.json({ url: `/uploads/${req.file.filename}` });
+  try {
+    await recordUploadedAsset(req.file.filename, authReq.userId!);
+    res.json({ url: `/uploads/${req.file.filename}` });
+  } catch { res.status(503).json({ error: 'Não foi possível registrar o arquivo' }); }
 });
 
 // Upload de arquivo para anexos (pdf/doc/xls/csv/etc)
@@ -185,12 +196,15 @@ app.post('/api/upload/file', authMiddleware, uploadRateLimit, ensureUploadStorag
       storedUrl: `/uploads/${req.file.filename}`,
       userId: authReq.userId ?? null,
     });
-    res.json({
+    try {
+      await recordUploadedAsset(req.file.filename, authReq.userId!);
+      res.json({
       url: `/uploads/${req.file.filename}`,
       name: originalName,
       size: req.file.size,
       mimeType: req.file.mimetype,
-    });
+      });
+    } catch { res.status(503).json({ error: 'Não foi possível registrar o arquivo' }); }
   });
 });
 
@@ -280,11 +294,12 @@ if (config.TERMINAL_ENABLED) app.delete('/api/terminal/tabs/:requestKey', authMi
 
 app.use('/api', healthRouter);
 
-registerSocketHandlers(io, { terminalEnabled: config.TERMINAL_ENABLED });
+registerSocketHandlers(io);
 
 async function startServer() {
   await ensureAppSchema();
   await ensureInitialAdmin();
+  await ensureAccountOwnership();
   await seedDemoData();
   startRememberReminderWorker();
   startTrashRetentionWorker();

@@ -15,6 +15,8 @@ export async function ensureAppSchema(): Promise<void> {
     )
   `);
 
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'member'`);
+
   await query(`
     CREATE TABLE IF NOT EXISTS pages (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -140,6 +142,40 @@ export async function ensureAppSchema(): Promise<void> {
   `);
 
   await query(`
+    CREATE TABLE IF NOT EXISTS mobile_devices (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      session_version INTEGER NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      last_used_at TIMESTAMPTZ,
+      revoked_at TIMESTAMPTZ
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS mobile_sessions (
+      session_id UUID PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      device_id UUID NOT NULL REFERENCES mobile_devices(id),
+      started_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS browser_recording_sessions (
+      session_id UUID PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      started_at TIMESTAMPTZ NOT NULL,
+      completed_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await query(`CREATE INDEX IF NOT EXISTS idx_browser_recording_sessions_user ON browser_recording_sessions(user_id, started_at DESC)`);
+
+  await query(`
     ALTER TABLE remember_notes
     ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}'
   `);
@@ -152,6 +188,30 @@ export async function ensureAppSchema(): Promise<void> {
 
   await query(`CREATE INDEX IF NOT EXISTS idx_page_versions_page_created ON page_versions(page_id, created_at DESC)`);
   await query(`CREATE INDEX IF NOT EXISTS idx_pages_parent_page_id ON pages(parent_page_id)`);
+  await query(`ALTER TABLE pages ADD COLUMN IF NOT EXISTS revision BIGINT NOT NULL DEFAULT 0`);
+  await query(`ALTER TABLE page_versions
+    ADD COLUMN IF NOT EXISTS author_user_id UUID REFERENCES users(id),
+    ADD COLUMN IF NOT EXISTS page_revision BIGINT`);
+  await query(`CREATE TABLE IF NOT EXISTS page_grants (
+    page_id UUID NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role TEXT NOT NULL CHECK (role IN ('editor', 'viewer')),
+    granted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (page_id, user_id)
+  )`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_page_grants_user ON page_grants(user_id, page_id)`);
+  await query(`CREATE TABLE IF NOT EXISTS contacts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    requester_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    addressee_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (requester_user_id <> addressee_user_id)
+  )`);
+  await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_contacts_pair ON contacts(requester_user_id, addressee_user_id)`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_contacts_addressee ON contacts(addressee_user_id, status)`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_contacts_requester ON contacts(requester_user_id, status)`);
   await query(`CREATE INDEX IF NOT EXISTS idx_pages_deleted_at ON pages(deleted_at DESC)`);
   await query(`CREATE INDEX IF NOT EXISTS idx_pages_status ON pages(status)`);
   await query(`CREATE INDEX IF NOT EXISTS idx_pages_due_date ON pages(due_date)`);
@@ -160,4 +220,6 @@ export async function ensureAppSchema(): Promise<void> {
   await query(`CREATE INDEX IF NOT EXISTS idx_remember_notes_user_updated ON remember_notes(user_id, updated_at DESC)`);
   await query(`CREATE INDEX IF NOT EXISTS idx_remember_notes_user_reminder ON remember_notes(user_id, reminder_date ASC NULLS LAST)`);
   await query(`CREATE INDEX IF NOT EXISTS idx_trusted_devices_user_expires ON trusted_devices(user_id, expires_at DESC)`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_mobile_devices_user ON mobile_devices(user_id, revoked_at)`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_mobile_sessions_user ON mobile_sessions(user_id, started_at DESC)`);
 }

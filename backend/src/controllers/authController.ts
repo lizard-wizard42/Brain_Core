@@ -466,8 +466,8 @@ export async function completeInitialSetup(req: Request, res: Response): Promise
     }
 
     const created = await client.query<Pick<UserRow, 'id' | 'email' | 'name' | 'session_version'>>(
-      `INSERT INTO users (email, password_hash, name)
-       VALUES ($1, $2, $3)
+      `INSERT INTO users (email, password_hash, name, role)
+       VALUES ($1, $2, $3, 'owner')
        RETURNING id, email, name, session_version`,
       [normalizedEmail, passwordHash, normalizedName],
     );

@@ -1,0 +1,6 @@
+fastapi==0.115.6
+uvicorn==0.34.3
+faster-whisper==1.2.1
+onnxruntime==1.29.0
+kaldi-native-fbank==1.22.3
+numpy>=1.26

@@ -15,9 +15,8 @@ export interface RememberSession {
   device_id: string | null;
   status: 'recording' | 'syncing' | 'processing' | 'transcribing' | 'ready' | 'error';
   text: string | null;
-  duration_seconds?: number;
   turns?: RememberTurn[];
-  speakers?: RememberSpeakerCluster[];
+  progress?: { total: number; done: number; processing: number; pending: number; failed: number; percent: number; models?: string[] };
 }
 
 export interface RememberDay {
@@ -34,42 +33,17 @@ export interface RememberTranscript {
   status: RememberSession['status'];
   text: string | null;
   turns?: RememberTurn[];
+  progress?: RememberSession['progress'];
 }
 
 export type RememberSpeaker = 'me' | 'other' | 'unknown';
 
 export interface RememberTurn {
+  id?: number;
   speaker: RememberSpeaker | null;
   text: string;
-  segment_ids?: number[];
-  cluster?: number | null;
-  start_ms?: number;
-  end_ms?: number;
-}
-
-export interface RememberSpeakerCluster {
-  cluster: number;
-  status: 'pending' | 'confirmed';
-  person_id: number | null;
-  name: string | null;
-  is_me: boolean;
-  suggested: { person_id: number; name: string; score: number } | null;
-  sample_segment_id: number | null;
-  sample_segment_ids?: number[];
-  total_ms: number;
-  turn_count: number;
-}
-
-export interface RememberPerson {
-  id: number;
-  name: string;
-  is_me: boolean;
-  sample_seconds: number;
-  segment_count: number;
-  session_count: number;
-  sample_segment_id: number | null;
-  sample_segment_ids?: number[];
-  updated_at: string;
+  start_at?: string | null;
+  end_at?: string | null;
 }
 
 export interface RememberVoiceprint {
@@ -77,6 +51,7 @@ export interface RememberVoiceprint {
   updated_at: string | null;
   sample_seconds: number | null;
   model: string | null;
+  relabel?: { pending: number; processing: number; failed: number };
 }
 
 export interface RememberSearchResult {

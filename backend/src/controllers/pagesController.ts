@@ -1,11 +1,11 @@
 import { Request, Response } from 'express';
 import { createHash } from 'crypto';
-import { unlink } from 'fs/promises';
-import { query } from '../config/database';
-import { config } from '../config';
+import { pool, query } from '../config/database';
 import { InfiniteDoc, Page, PageSummary, PageVersion, TiptapDoc, TiptapNode } from '../types';
 import { AuthRequest } from '../middleware/auth';
 import { logError, logInfo } from '../utils/logger';
+import { recordUploadedAsset } from '../services/uploadOwnership';
+import { savePageRevision, PageConflict, PageMissing, pageRole } from '../services/pageAccess';
 
 /**
  * Propagates a page's title and/or icon change to all subPageBlock nodes
@@ -16,28 +16,27 @@ export async function propagateSubPageBlockAttrs(
   title: string | null,
   icon: string | null
 ): Promise<void> {
+  const source = await query<{ owner_user_id: string; title: string; icon: string | null }>(
+    'SELECT owner_user_id, title, icon FROM pages WHERE id = $1 AND deleted_at IS NULL', [pageId],
+  );
+  if (!source.length) return;
   // If icon not provided, fetch it from the page itself so we always sync the latest
   let resolvedIcon = icon;
   let resolvedTitle = title;
   if (resolvedIcon === null || resolvedTitle === null) {
-    const pageRows = await query<{ title: string; icon: string | null }>(
-      `SELECT title, icon FROM pages WHERE id = $1 AND deleted_at IS NULL`,
-      [pageId]
-    );
-    if (pageRows.length) {
-      if (resolvedTitle === null) resolvedTitle = pageRows[0].title;
-      if (resolvedIcon === null) resolvedIcon = pageRows[0].icon ?? '';
-    }
+    if (resolvedTitle === null) resolvedTitle = source[0].title;
+    if (resolvedIcon === null) resolvedIcon = source[0].icon ?? '';
   }
 
   // Find all pages whose content contains a subPageBlock referencing pageId
   const rows = await query<{ id: string; content: TiptapDoc }>(
     `SELECT id, content FROM pages
      WHERE deleted_at IS NULL
+       AND owner_user_id = $3
        AND id != $1
        AND content::text LIKE '%subPageBlock%'
        AND content::text LIKE $2`,
-    [pageId, `%${pageId}%`]
+    [pageId, `%${pageId}%`, source[0].owner_user_id]
   );
 
   for (const row of rows) {
@@ -69,8 +68,8 @@ export async function propagateSubPageBlockAttrs(
     const updatedContent = { ...doc, content: updateNodes(doc.content) };
     if (changed) {
       await query(
-        `UPDATE pages SET content = $1 WHERE id = $2`,
-        [JSON.stringify(updatedContent), row.id]
+        `UPDATE pages SET content = $1 WHERE id = $2 AND owner_user_id = $3`,
+        [JSON.stringify(updatedContent), row.id, source[0].owner_user_id]
       );
     }
   }
@@ -117,6 +116,30 @@ function collectPageRefs(nodes: TiptapNode[], out: Set<string>) {
   }
 }
 
+function hideSubpageLabels(content: TiptapDoc | InfiniteDoc): TiptapDoc | InfiniteDoc {
+  const clean = JSON.parse(JSON.stringify(content));
+  function scrub(nodes: TiptapNode[]) {
+    for (const node of nodes) {
+      if (node.type === 'subPageBlock') node.attrs = { pageId: null, title: 'Página privada', icon: '' };
+      if (node.content) scrub(node.content);
+    }
+  }
+  if (Array.isArray(clean?.content)) scrub(clean.content);
+  return clean;
+}
+
+// Shared by GET/PUT/PATCH so every page response for a non-owner carries the
+// same authorized field set.
+function redactPageForRole<T extends Record<string, unknown>>(page: T, role: string | null): T {
+  if (role === 'owner') return page;
+  const clean = JSON.parse(JSON.stringify(page));
+  delete clean.working_directory;
+  delete clean.markdown_source;
+  delete clean.owner_user_id;
+  if (clean.content) clean.content = hideSubpageLabels(clean.content);
+  return clean;
+}
+
 function normalizeTags(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   return raw
@@ -148,8 +171,7 @@ function computeSnapshotHash(title: string, content: TiptapDoc | InfiniteDoc): s
 export async function createVersionSnapshot(
   pageId: string,
   reason: string,
-  explicit?: { title: string; content: TiptapDoc | InfiniteDoc },
-  opts?: { force?: boolean }
+  explicit?: { title: string; content: TiptapDoc | InfiniteDoc }
 ): Promise<void> {
   let title = explicit?.title;
   let content = explicit?.content;
@@ -169,30 +191,17 @@ export async function createVersionSnapshot(
     `SELECT content_hash FROM page_versions WHERE page_id = $1 ORDER BY created_at DESC LIMIT 1`,
     [pageId]
   );
-  if (!opts?.force && latest[0]?.content_hash === hash) return;
+  if (latest[0]?.content_hash === hash) return;
 
   await query(
     `INSERT INTO page_versions (page_id, title, content, reason, content_hash)
      VALUES ($1, $2, $3, $4, $5)`,
     [pageId, title, JSON.stringify(content), reason, hash]
   );
-
-  const keep = Math.max(1, Math.min(1000, config.PAGE_VERSION_RETENTION));
-  await query(
-    `DELETE FROM page_versions
-     WHERE page_id = $1
-       AND id IN (
-         SELECT id FROM page_versions
-         WHERE page_id = $1
-         ORDER BY created_at DESC, id DESC
-         OFFSET $2
-       )`,
-    [pageId, keep],
-  );
 }
 
 export async function getPage(req: Request, res: Response): Promise<void> {
-  const { id } = req.params;
+  const id = String(req.params.id);
   try {
     const rows = await query<Page>('SELECT * FROM pages WHERE id = $1 AND deleted_at IS NULL', [id]);
     if (!rows.length) {
@@ -200,6 +209,13 @@ export async function getPage(req: Request, res: Response): Promise<void> {
       return;
     }
     const page = rows[0];
+    const role = await pageRole(id, (req as AuthRequest).userId!);
+    if (!role) { res.status(404).json({ error: 'Page not found' }); return; }
+    if (role !== 'owner') {
+      // Embedded subpage labels and local working directories are private to
+      // the owning account. A grant never implies access to descendants.
+      res.json(redactPageForRole(page as unknown as Record<string, unknown>, role)); return;
+    }
 
     if (page.type === 'infinite' && !isInfiniteDoc(page.content)) {
       const normalized = normalizeInfiniteContent(page.content);
@@ -213,8 +229,7 @@ export async function getPage(req: Request, res: Response): Promise<void> {
 
     res.json(page);
   } catch (err) {
-    logError('page.get.error', { detail: err instanceof Error ? err.message : String(err) });
-    res.status(500).json({ error: 'Failed to fetch page' });
+    res.status(500).json({ error: 'Failed to fetch page', detail: String(err) });
   }
 }
 
@@ -232,9 +247,20 @@ export async function createPage(req: Request, res: Response): Promise<void> {
 
   const normalizedTags = normalizeTags(tags);
   try {
-    const rows = await query<Page>(
-      `INSERT INTO pages (parent_page_id, title, slug, type, content, sort_order, status, due_date, tags)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    const ownerUserId = (req as AuthRequest).userId;
+    if (!ownerUserId) { res.status(401).json({ error: 'Não autenticado' }); return; }
+    if (parent_page_id) {
+      const parent = await query('SELECT id FROM pages WHERE id = $1 AND owner_user_id = $2 AND deleted_at IS NULL',
+        [parent_page_id, ownerUserId]);
+      if (!parent.length) { res.status(404).json({ error: 'Página pai não encontrada' }); return; }
+    }
+    const client = await pool.connect();
+    let rows: Page[];
+    try {
+      await client.query('BEGIN');
+      rows = (await client.query<Page>(
+      `INSERT INTO pages (parent_page_id, title, slug, type, content, sort_order, status, due_date, tags, owner_user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
       [
         parent_page_id ?? null,
@@ -246,9 +272,17 @@ export async function createPage(req: Request, res: Response): Promise<void> {
         status ?? null,
         due_date ?? null,
         normalizedTags,
+        ownerUserId,
       ]
-    );
-    createVersionSnapshot(rows[0].id, 'create', { title: rows[0].title, content: rows[0].content }).catch(() => {});
+      )).rows;
+      await client.query(`INSERT INTO page_versions
+        (page_id, title, content, reason, content_hash, author_user_id, page_revision)
+        VALUES ($1, $2, $3, 'create', $4, $5, $6)`, [rows[0].id, rows[0].title,
+        JSON.stringify(rows[0].content), computeSnapshotHash(rows[0].title, rows[0].content),
+        ownerUserId, 0]);
+      await client.query('COMMIT');
+    } catch (error) { await client.query('ROLLBACK'); throw error; }
+    finally { client.release(); }
     logInfo('page.create', {
       pageId: rows[0].id,
       parentPageId: rows[0].parent_page_id,
@@ -265,12 +299,12 @@ export async function createPage(req: Request, res: Response): Promise<void> {
       title,
       userId: (req as AuthRequest).userId ?? null,
     });
-    res.status(500).json({ error: 'Failed to create page' });
+    res.status(500).json({ error: 'Failed to create page', detail: String(err) });
   }
 }
 
 export async function getSubPages(req: Request, res: Response): Promise<void> {
-  const { id } = req.params;
+  const id = String(req.params.id);
   const status = typeof req.query.status === 'string' && req.query.status.trim() ? req.query.status.trim() : null;
   const tag = typeof req.query.tag === 'string' && req.query.tag.trim() ? req.query.tag.trim() : null;
   const dueFrom = typeof req.query.due_from === 'string' && req.query.due_from.trim() ? req.query.due_from.trim() : null;
@@ -280,24 +314,27 @@ export async function getSubPages(req: Request, res: Response): Promise<void> {
       `SELECT id, parent_page_id, title, slug, type, icon, tags, status, due_date, working_directory, sort_order, updated_at
        FROM pages
        WHERE parent_page_id = $1
+         AND owner_user_id = $6
          AND deleted_at IS NULL
          AND ($2::text IS NULL OR status = $2::text)
          AND ($3::text IS NULL OR $3::text = ANY(tags))
          AND ($4::date IS NULL OR due_date >= $4::date)
          AND ($5::date IS NULL OR due_date <= $5::date)
        ORDER BY sort_order, title`,
-      [id, status, tag, dueFrom, dueTo]
+      [id, status, tag, dueFrom, dueTo, (req as AuthRequest).userId]
     );
     res.json(rows);
   } catch (err) {
-    logError('page.subpages.error', { detail: err instanceof Error ? err.message : String(err) });
-    res.status(500).json({ error: 'Failed to fetch sub-pages' });
+    res.status(500).json({ error: 'Failed to fetch sub-pages', detail: String(err) });
   }
 }
 
 export async function getReferences(req: Request, res: Response): Promise<void> {
-  const { id } = req.params as { id: string };
+  const id = String(req.params.id);
   try {
+    if (await pageRole(id, (req as AuthRequest).userId!) !== 'owner') {
+      res.json({ incoming: [], outgoing: [] }); return;
+    }
     const current = await query<{ id: string; content: TiptapDoc }>(
       `SELECT id, content FROM pages WHERE id = $1 AND deleted_at IS NULL`,
       [id]
@@ -315,10 +352,11 @@ export async function getReferences(req: Request, res: Response): Promise<void> 
       `SELECT id, parent_page_id, title, slug, icon, tags, status, due_date, sort_order, updated_at, content
        FROM pages
        WHERE deleted_at IS NULL
+         AND owner_user_id = $3
          AND id != $1
          AND content::text LIKE $2
        ORDER BY updated_at DESC`,
-      [id, `%${id}%`]
+      [id, `%${id}%`, (req as AuthRequest).userId]
     );
     const incoming = incomingCandidates.filter(candidate => {
       const refs = new Set<string>();
@@ -331,347 +369,88 @@ export async function getReferences(req: Request, res: Response): Promise<void> 
         `SELECT id, parent_page_id, title, slug, icon, tags, status, due_date, sort_order, updated_at
          FROM pages
          WHERE deleted_at IS NULL
+           AND owner_user_id = $2
            AND id = ANY($1::uuid[])
          ORDER BY title`,
-        [[...outgoingIds]]
+        [[...outgoingIds], (req as AuthRequest).userId]
       )
       : [];
 
     res.json({ incoming, outgoing });
   } catch (err) {
-    logError('page.references.error', { detail: err instanceof Error ? err.message : String(err) });
-    res.status(500).json({ error: 'Failed to fetch references' });
+    res.status(500).json({ error: 'Failed to fetch references', detail: String(err) });
   }
 }
 
 export async function getPageVersions(req: Request, res: Response): Promise<void> {
-  const { id } = req.params;
+  const id = String(req.params.id);
   const rawLimit = Number(req.query.limit ?? 30);
   const limit = Number.isFinite(rawLimit) ? Math.max(1, Math.min(100, rawLimit)) : 30;
   try {
+    const role = await pageRole(id, (req as AuthRequest).userId!);
+    if (!role || role === 'viewer') { res.status(404).json({ error: 'Page not found' }); return; }
     const rows = await query<PageVersion>(
-      `SELECT id, page_id, title, content, reason, content_hash, created_at
-       FROM page_versions
-       WHERE page_id = $1
-       ORDER BY created_at DESC
+      `SELECT v.id, v.page_id, v.title, v.content, v.reason, v.author_user_id,
+              u.name AS author_name, v.page_revision, v.created_at
+       FROM page_versions v LEFT JOIN users u ON u.id = v.author_user_id
+       WHERE v.page_id = $1
+       ORDER BY v.created_at DESC
        LIMIT $2`,
       [id, limit]
     );
-    res.json({ versions: rows });
+    res.json({ versions: role === 'owner' ? rows : rows.map(version => ({
+      ...version, content: hideSubpageLabels(version.content),
+    })) });
   } catch (err) {
-    logError('page.versions.error', { detail: err instanceof Error ? err.message : String(err) });
-    res.status(500).json({ error: 'Failed to fetch versions' });
+    res.status(500).json({ error: 'Failed to fetch versions', detail: String(err) });
   }
 }
 
-export async function restorePageVersion(req: Request, res: Response): Promise<void> {
-  const { id, versionId } = req.params as { id: string; versionId: string };
-  try {
-    const versions = await query<PageVersion>(
-      `SELECT id, page_id, title, content, reason, content_hash, created_at
-       FROM page_versions
-       WHERE id = $1 AND page_id = $2`,
-      [versionId, id]
-    );
-    if (!versions.length) {
-      res.status(404).json({ error: 'Version not found' });
-      return;
-    }
-    const version = versions[0];
-
-    const rows = await query<Page>(
-      `UPDATE pages
-       SET title = $1,
-           content = $2
-       WHERE id = $3 AND deleted_at IS NULL
-       RETURNING *`,
-      [version.title, JSON.stringify(version.content), id]
-    );
-    if (!rows.length) {
-      res.status(404).json({ error: 'Page not found' });
-      return;
-    }
-
-    createVersionSnapshot(id, 'restore', { title: rows[0].title, content: rows[0].content }).catch(() => {});
-    logInfo('page.version.restore', {
-      pageId: id,
-      restoredVersionId: versionId,
-      title: rows[0].title,
-      userId: (req as AuthRequest).userId ?? null,
-    });
-    res.json(rows[0]);
-  } catch (err) {
-    logError('page.version.restore.error', {
-      detail: String(err),
-      pageId: id,
-      restoredVersionId: versionId,
-      userId: (req as AuthRequest).userId ?? null,
-    });
-    res.status(500).json({ error: 'Failed to restore version' });
-  }
-}
-
-const SNAPSHOT_REASONS = ['ia', 'manual'] as const;
-
-export async function snapshotPageVersion(req: Request, res: Response): Promise<void> {
-  const { id } = req.params as { id: string };
-  const reasonRaw = (req.body?.reason ?? 'manual') as string;
-  const reason = (SNAPSHOT_REASONS as readonly string[]).includes(reasonRaw) ? reasonRaw : 'manual';
-  try {
-    const rows = await query<{ id: string; title: string; content: TiptapDoc | InfiniteDoc }>(
-      `SELECT id, title, content FROM pages WHERE id = $1 AND deleted_at IS NULL`,
-      [id]
-    );
-    if (!rows.length) {
-      res.status(404).json({ error: 'Page not found' });
-      return;
-    }
-    await createVersionSnapshot(
-      rows[0].id,
-      reason,
-      { title: rows[0].title, content: rows[0].content },
-      { force: true }
-    );
-    res.status(204).end();
-  } catch (err) {
-    logError('page.version.snapshot.error', { detail: String(err), pageId: id });
-    res.status(500).json({ error: 'Failed to snapshot version' });
-  }
+export async function restorePageVersion(_req: Request, res: Response): Promise<void> {
+  res.status(405).json({ error: 'Version restore unavailable' });
 }
 
 export async function savePage(req: Request, res: Response): Promise<void> {
-  const { id } = req.params as { id: string };
-  const { content, title } = req.body as Partial<Page>;
-  if (!content) {
-    res.status(400).json({ error: 'content is required' });
-    return;
+  const { content, title, revision } = req.body;
+  if (!content || !Number.isSafeInteger(revision)) {
+    res.status(400).json({ error: 'content and revision are required' }); return;
   }
   try {
-    const currentRows = await query<{ id: string; title: string; updated_at: string; content: TiptapDoc | InfiniteDoc }>(
-      `SELECT id, title, updated_at, content
-       FROM pages
-       WHERE id = $1 AND deleted_at IS NULL`,
-      [id]
-    );
-    if (!currentRows.length) {
-      res.status(404).json({ error: 'Page not found' });
-      return;
+    const row = await savePageRevision(String(req.params.id), (req as AuthRequest).userId!, revision,
+      { content, ...(title !== undefined ? { title } : {}) }, title !== undefined ? 'content+title' : 'content');
+    if (title !== undefined) {
+      // Best-effort sync of embedded subPageBlock labels; never fails the save.
+      propagateSubPageBlockAttrs(row.id as string, null, null).catch(() => {});
     }
-
-    const current = currentRows[0];
-    const nextTitle = title ?? current.title;
-    const isUnchanged = current.title === nextTitle
-      && JSON.stringify(current.content) === JSON.stringify(content);
-    if (isUnchanged) {
-      logInfo('page.save.noop', {
-        pageId: id,
-        hasTitleChange: Boolean(title),
-        userId: (req as AuthRequest).userId ?? null,
-      });
-      res.json(current);
-      return;
-    }
-
-    const rows = await query<Page>(
-      `UPDATE pages
-       SET content = $1, title = COALESCE($2, title)
-       WHERE id = $3 AND deleted_at IS NULL
-       RETURNING id, title, updated_at, content`,
-      [JSON.stringify(content), title ?? null, id]
-    );
-    if (!rows.length) {
-      res.status(404).json({ error: 'Page not found' });
-      return;
-    }
-    createVersionSnapshot(id, title ? 'content+title' : 'content', {
-      title: rows[0].title,
-      content: rows[0].content,
-    }).catch(() => {});
-    logInfo('page.save', {
-      pageId: id,
-      hasTitleChange: Boolean(title),
-      userId: (req as AuthRequest).userId ?? null,
-    });
-    res.json(rows[0]);
-  } catch (err) {
-    logError('page.save.error', {
-      detail: String(err),
-      pageId: id,
-      userId: (req as AuthRequest).userId ?? null,
-    });
-    res.status(500).json({ error: 'Failed to save page' });
+    const userId = (req as AuthRequest).userId!;
+    res.json(redactPageForRole(row, await pageRole(String(req.params.id), userId)));
+  } catch (error) {
+    if (error instanceof PageConflict) res.status(409).json({ error: 'Page revision conflict' });
+    else if (error instanceof PageMissing) res.status(404).json({ error: 'Page not found' });
+    else res.status(503).json({ error: 'Failed to save page' });
   }
 }
 
 export async function patchPage(req: Request, res: Response): Promise<void> {
-  const { id } = req.params as { id: string };
-  const {
-    title, sort_order, icon, cover_url, cover_position_y, parent_page_id, status, due_date, tags, working_directory, content
-  } = req.body as Partial<Page> & { parent_page_id?: string | null };
-  // parent_page_id uses a sentinel: undefined = don't touch, null = move to root, string = new parent
-  const hasParent = Object.prototype.hasOwnProperty.call(req.body, 'parent_page_id');
-  const hasStatus = Object.prototype.hasOwnProperty.call(req.body, 'status');
-  const hasDueDate = Object.prototype.hasOwnProperty.call(req.body, 'due_date');
-  const hasTags = Object.prototype.hasOwnProperty.call(req.body, 'tags');
-  const hasWorkingDirectory = Object.prototype.hasOwnProperty.call(req.body, 'working_directory');
-  const hasContent = Object.prototype.hasOwnProperty.call(req.body, 'content');
-  const normalizedTags = normalizeTags(tags);
-
+  const { revision, ...body } = req.body;
+  if (!Number.isSafeInteger(revision)) { res.status(400).json({ error: 'revision is required' }); return; }
   try {
-    // If parent is changing, remove the subPageBlock from the old parent's content
-    if (hasParent) {
-      const currentRows = await query<{ parent_page_id: string | null }>(
-        `SELECT parent_page_id FROM pages WHERE id = $1 AND deleted_at IS NULL`,
-        [id]
-      );
-      const oldParentId = currentRows[0]?.parent_page_id ?? null;
-      const newParentId = parent_page_id ?? null;
-
-      if (oldParentId !== newParentId) {
-        // Fetch the page being moved (for title/icon)
-        const movedRows = await query<{ title: string; icon: string | null }>(
-          `SELECT title, icon FROM pages WHERE id = $1 AND deleted_at IS NULL`,
-          [id]
-        );
-        const movedTitle = movedRows[0]?.title ?? '';
-        const movedIcon = movedRows[0]?.icon ?? '';
-
-        // Remove subPageBlock from old parent
-        if (oldParentId) {
-          const oldParentRows = await query<{ id: string; content: TiptapDoc }>(
-            `SELECT id, content FROM pages WHERE id = $1 AND deleted_at IS NULL`,
-            [oldParentId]
-          );
-          if (oldParentRows.length) {
-            const oldContent = oldParentRows[0].content as TiptapDoc;
-            if (oldContent?.content) {
-              const filtered = oldContent.content.filter(
-                (node: { type: string; attrs?: { pageId?: string } }) =>
-                  !(node.type === 'subPageBlock' && node.attrs?.pageId === id)
-              );
-              if (filtered.length !== oldContent.content.length) {
-                await query(
-                  `UPDATE pages SET content = $1 WHERE id = $2`,
-                  [JSON.stringify({ ...oldContent, content: filtered }), oldParentId]
-                );
-              }
-            }
-          }
-        }
-
-        // Add subPageBlock to new parent (if there is one)
-        if (newParentId) {
-          const newParentRows = await query<{ id: string; content: TiptapDoc }>(
-            `SELECT id, content FROM pages WHERE id = $1 AND deleted_at IS NULL`,
-            [newParentId]
-          );
-          if (newParentRows.length) {
-            const newContent = newParentRows[0].content as TiptapDoc;
-            const existingNodes = newContent?.content ?? [];
-            // Only add if not already present
-            const alreadyThere = existingNodes.some(
-              (n: { type: string; attrs?: { pageId?: string } }) =>
-                n.type === 'subPageBlock' && n.attrs?.pageId === id
-            );
-            if (!alreadyThere) {
-              const newBlock: TiptapNode = {
-                type: 'subPageBlock',
-                attrs: { pageId: id, title: movedTitle, icon: movedIcon },
-              };
-              // Insert before any trailing paragraph, or at end
-              const trailingPara = existingNodes.length > 0 &&
-                existingNodes[existingNodes.length - 1].type === 'paragraph' &&
-                !existingNodes[existingNodes.length - 1].content?.length;
-              const updatedNodes = trailingPara
-                ? [...existingNodes.slice(0, -1), newBlock, existingNodes[existingNodes.length - 1]]
-                : [...existingNodes, newBlock];
-              await query(
-                `UPDATE pages SET content = $1 WHERE id = $2`,
-                [JSON.stringify({ type: 'doc', content: updatedNodes }), newParentId]
-              );
-            }
-          }
-        }
-      }
+    const row = await savePageRevision(String(req.params.id), (req as AuthRequest).userId!, revision,
+      body, 'metadata');
+    if ('title' in body || 'icon' in body) {
+      propagateSubPageBlockAttrs(row.id as string, null, null).catch(() => {});
     }
-
-    const rows = await query<Page>(
-      `UPDATE pages
-       SET title = COALESCE($1, title),
-           sort_order = COALESCE($2, sort_order),
-           icon = CASE WHEN $3::text IS NOT NULL THEN $3 ELSE icon END,
-           cover_url = CASE WHEN $4::text IS NOT NULL THEN $4 ELSE cover_url END,
-           cover_position_y = COALESCE($6, cover_position_y),
-           parent_page_id = CASE WHEN $7 THEN $8::uuid ELSE parent_page_id END,
-           status = CASE WHEN $9 THEN $10::text ELSE status END,
-           due_date = CASE WHEN $11 THEN $12::date ELSE due_date END,
-           tags = CASE WHEN $13 THEN $14::text[] ELSE tags END,
-           working_directory = CASE WHEN $15 THEN $16::text ELSE working_directory END,
-           content = CASE WHEN $17 THEN $18::jsonb ELSE content END
-       WHERE id = $5 AND deleted_at IS NULL
-       RETURNING *`,
-      [
-        title ?? null,
-        sort_order ?? null,
-        icon ?? null,
-        cover_url ?? null,
-        id,
-        cover_position_y ?? null,
-        hasParent,
-        parent_page_id ?? null,
-        hasStatus,
-        status ?? null,
-        hasDueDate,
-        due_date ?? null,
-        hasTags,
-        normalizedTags,
-        hasWorkingDirectory,
-        working_directory ?? null,
-        hasContent,
-        hasContent ? JSON.stringify(content) : null,
-      ]
-    );
-    if (!rows.length) {
-      res.status(404).json({ error: 'Page not found' });
-      return;
-    }
-
-    // Propagate title/icon changes to subPageBlocks in other pages
-    if (title !== undefined || icon !== undefined) {
-      propagateSubPageBlockAttrs(
-        id,
-        title ?? null,
-        icon ?? null
-      ).catch(() => {/* silent */});
-    }
-    if (title !== undefined || hasStatus || hasDueDate || hasTags) {
-      createVersionSnapshot(id, 'metadata', { title: rows[0].title, content: rows[0].content }).catch(() => {});
-    }
-
-    logInfo('page.patch', {
-      pageId: id,
-      changedTitle: title !== undefined,
-      changedParent: hasParent,
-      changedContent: hasContent,
-      changedStatus: hasStatus,
-      changedDueDate: hasDueDate,
-      changedTags: hasTags,
-      changedWorkingDirectory: hasWorkingDirectory,
-      userId: (req as AuthRequest).userId ?? null,
-    });
-    res.json(rows[0]);
-  } catch (err) {
-    logError('page.patch.error', {
-      detail: String(err),
-      pageId: id,
-      userId: (req as AuthRequest).userId ?? null,
-    });
-    res.status(500).json({ error: 'Failed to patch page' });
+    const userId = (req as AuthRequest).userId!;
+    res.json(redactPageForRole(row, await pageRole(String(req.params.id), userId)));
+  } catch (error) {
+    if (error instanceof PageConflict) res.status(409).json({ error: 'Page revision conflict' });
+    else if (error instanceof PageMissing) res.status(404).json({ error: 'Page not found' });
+    else res.status(503).json({ error: 'Failed to patch page' });
   }
 }
 
 export async function removeCover(req: Request, res: Response): Promise<void> {
-  const { id } = req.params;
+  const id = String(req.params.id);
   try {
     const rows = await query<Page>(
       `UPDATE pages SET cover_url = NULL WHERE id = $1 AND deleted_at IS NULL RETURNING *`,
@@ -683,13 +462,12 @@ export async function removeCover(req: Request, res: Response): Promise<void> {
     }
     res.json(rows[0]);
   } catch (err) {
-    logError('page.cover.remove.error', { detail: err instanceof Error ? err.message : String(err) });
-    res.status(500).json({ error: 'Failed to remove cover' });
+    res.status(500).json({ error: 'Failed to remove cover', detail: String(err) });
   }
 }
 
 export async function uploadCover(req: Request, res: Response): Promise<void> {
-  const { id } = req.params;
+  const id = String(req.params.id);
   const file = req.file;
   if (!file) {
     res.status(400).json({ error: 'No file uploaded' });
@@ -697,12 +475,12 @@ export async function uploadCover(req: Request, res: Response): Promise<void> {
   }
   const cover_url = `/uploads/${file.filename}`;
   try {
+    await recordUploadedAsset(file.filename, (req as AuthRequest).userId!);
     const rows = await query<Page>(
       `UPDATE pages SET cover_url = $1 WHERE id = $2 AND deleted_at IS NULL RETURNING *`,
       [cover_url, id]
     );
     if (!rows.length) {
-      await unlink(file.path).catch(() => {});
       res.status(404).json({ error: 'Page not found' });
       return;
     }
@@ -713,18 +491,17 @@ export async function uploadCover(req: Request, res: Response): Promise<void> {
     });
     res.json(rows[0]);
   } catch (err) {
-    await unlink(file.path).catch(() => {});
     logError('page.cover.upload.error', {
       detail: String(err),
       pageId: id,
       userId: (req as AuthRequest).userId ?? null,
     });
-    res.status(500).json({ error: 'Failed to upload cover' });
+    res.status(500).json({ error: 'Failed to upload cover', detail: String(err) });
   }
 }
 
 export async function deletePage(req: Request, res: Response): Promise<void> {
-  const { id } = req.params;
+  const id = String(req.params.id);
   try {
     const rows = await query(
       `UPDATE pages SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
@@ -745,7 +522,7 @@ export async function deletePage(req: Request, res: Response): Promise<void> {
       pageId: id,
       userId: (req as AuthRequest).userId ?? null,
     });
-    res.status(500).json({ error: 'Failed to delete page' });
+    res.status(500).json({ error: 'Failed to delete page', detail: String(err) });
   }
 }
 
@@ -753,17 +530,17 @@ export async function getTrash(req: Request, res: Response): Promise<void> {
   try {
     const rows = await query<Page>(
       `SELECT id, parent_page_id, title, slug, icon, tags, status, due_date, sort_order, updated_at, deleted_at
-       FROM pages WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC`
+       FROM pages WHERE owner_user_id = $1 AND deleted_at IS NOT NULL ORDER BY deleted_at DESC`,
+      [(req as AuthRequest).userId],
     );
     res.json(rows);
   } catch (err) {
-    logError('page.trash.list.error', { detail: err instanceof Error ? err.message : String(err) });
-    res.status(500).json({ error: 'Failed to fetch trash' });
+    res.status(500).json({ error: 'Failed to fetch trash', detail: String(err) });
   }
 }
 
 export async function restorePage(req: Request, res: Response): Promise<void> {
-  const { id } = req.params;
+  const id = String(req.params.id);
   try {
     const rows = await query<Page>(
       `UPDATE pages SET deleted_at = NULL WHERE id = $1 AND deleted_at IS NOT NULL RETURNING *`,
@@ -784,12 +561,12 @@ export async function restorePage(req: Request, res: Response): Promise<void> {
       pageId: id,
       userId: (req as AuthRequest).userId ?? null,
     });
-    res.status(500).json({ error: 'Failed to restore page' });
+    res.status(500).json({ error: 'Failed to restore page', detail: String(err) });
   }
 }
 
 export async function permanentDeletePage(req: Request, res: Response): Promise<void> {
-  const { id } = req.params;
+  const id = String(req.params.id);
   try {
     const rows = await query(
       `DELETE FROM pages WHERE id = $1 AND deleted_at IS NOT NULL RETURNING id`,
@@ -810,16 +587,16 @@ export async function permanentDeletePage(req: Request, res: Response): Promise<
       pageId: id,
       userId: (req as AuthRequest).userId ?? null,
     });
-    res.status(500).json({ error: 'Failed to permanently delete page' });
+    res.status(500).json({ error: 'Failed to permanently delete page', detail: String(err) });
   }
 }
 
 export async function emptyTrash(req: Request, res: Response): Promise<void> {
   try {
-    await query(`DELETE FROM pages WHERE deleted_at IS NOT NULL`);
+    await query(`DELETE FROM pages WHERE owner_user_id = $1 AND deleted_at IS NOT NULL`,
+      [(req as AuthRequest).userId]);
     res.json({ deleted: true });
   } catch (err) {
-    logError('page.trash.empty.error', { detail: err instanceof Error ? err.message : String(err) });
-    res.status(500).json({ error: 'Failed to empty trash' });
+    res.status(500).json({ error: 'Failed to empty trash', detail: String(err) });
   }
 }

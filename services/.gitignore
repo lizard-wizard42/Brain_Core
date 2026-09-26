@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.venv/
+**/.venv/
+**/data/
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.m4a
+*.wav
+*.webm
+*.ogg
+*.opus
+*.onnx
+*.bin

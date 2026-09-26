@@ -1,7 +1,8 @@
 import { Server as SocketIO } from 'socket.io';
 import { query } from '../config/database';
+import { config } from '../config';
 import { TiptapDoc } from '../types';
-import { createVersionSnapshot, propagateSubPageBlockAttrs } from '../controllers/pagesController';
+import { savePageRevision, pageRole, PageConflict, PageMissing } from './pageAccess';
 import { authenticateAccessToken, extractAccessToken } from '../middleware/auth';
 import { logError, logInfo, logWarn } from '../utils/logger';
 import {
@@ -21,9 +22,21 @@ interface SavePayload {
   pageId: string;
   content: TiptapDoc;
   title: string;
+  revision: number;
 }
 
-export function registerSocketHandlers(io: SocketIO, options: { terminalEnabled: boolean }): void {
+let pageIo: SocketIO | null = null;
+export function notifyPageGrantChanged(pageId: string, userId: string): void {
+  if (!pageIo) return;
+  for (const socket of pageIo.sockets.sockets.values()) {
+    if (socket.data.userId !== userId) continue;
+    socket.leave(`page:${pageId}`);
+    socket.emit('share:changed', { pageId });
+  }
+}
+
+export function registerSocketHandlers(io: SocketIO): void {
+  pageIo = io;
   io.use(async (socket, next) => {
     const rawToken = extractAccessToken(socket.handshake.headers);
 
@@ -38,13 +51,25 @@ export function registerSocketHandlers(io: SocketIO, options: { terminalEnabled:
       return;
     }
 
-    socket.data.userId = payload.sub;
-    next();
+    try {
+      const rows = await query<{ role: string }>('SELECT role FROM users WHERE id = $1', [payload.sub]);
+      if (!rows.length) { next(new Error('Unauthorized')); return; }
+      socket.data.userId = payload.sub;
+      socket.data.role = rows[0].role;
+      next();
+    } catch { next(new Error('Unavailable')); }
   });
 
   io.on('connection', (socket) => {
     const userId = String(socket.data.userId || '');
+    const canUseTerminal = config.TERMINAL_ENABLED && socket.data.role === 'owner';
     logInfo('socket.connect', { socketId: socket.id, userId });
+
+    function denyTerminal(): boolean {
+      if (canUseTerminal) return false;
+      socket.emit('terminal:error', { message: 'Terminal disponível apenas ao proprietário do PC' });
+      return true;
+    }
 
     function bindTerminalSession(session: ReturnType<typeof createTerminalSession>): void {
       const boundRevision = session.revision;
@@ -64,73 +89,36 @@ export function registerSocketHandlers(io: SocketIO, options: { terminalEnabled:
       });
     }
 
-    socket.on('page:join', ({ pageId }: { pageId: string }) => {
-      socket.join(`page:${pageId}`);
+    socket.on('page:join', async (payload?: { pageId: string }) => {
+      const pageId = payload?.pageId;
+      if (typeof pageId !== 'string') return;
+      try {
+        if (await pageRole(pageId, userId)) socket.join(`page:${pageId}`);
+        else socket.emit('page:error', { pageId, message: 'Page not found' });
+      } catch { socket.emit('page:error', { pageId, message: 'Unavailable' }); }
     });
 
     socket.on('page:leave', ({ pageId }: { pageId: string }) => {
       socket.leave(`page:${pageId}`);
     });
 
-    socket.on('page:save', async ({ pageId, content, title }: SavePayload) => {
+    socket.on('page:save', async (payload: SavePayload) => {
+      const { pageId, content, title, revision } = payload || {} as SavePayload;
+      if (!pageId || !content) return;
       try {
-        const currentRows = await query<{ updated_at: string; title: string; content: TiptapDoc }>(
-          `SELECT updated_at, title, content
-           FROM pages
-           WHERE id = $1 AND deleted_at IS NULL`,
-          [pageId]
-        );
-        if (!currentRows.length) {
-          logWarn('socket.page.save.missing', { pageId, socketId: socket.id, userId });
-          socket.emit('page:error', { pageId, message: 'Page not found' });
-          return;
-        }
-
-        const current = currentRows[0];
-        const nextTitle = title ?? current.title;
-        const isUnchanged = current.title === nextTitle
-          && JSON.stringify(current.content) === JSON.stringify(content);
-        if (isUnchanged) {
-          logInfo('socket.page.save.noop', { pageId, socketId: socket.id, userId });
-          socket.emit('page:saved', { pageId, updated_at: current.updated_at });
-          return;
-        }
-
-        const rows = await query<{ updated_at: string; title: string; content: TiptapDoc }>(
-          `UPDATE pages
-           SET content = $1, title = COALESCE($2, title)
-           WHERE id = $3 AND deleted_at IS NULL
-           RETURNING updated_at, title, content`,
-          [JSON.stringify(content), title ?? null, pageId]
-        );
-        if (!rows.length) {
-          logWarn('socket.page.save.missing', { pageId, socketId: socket.id, userId });
-          socket.emit('page:error', { pageId, message: 'Page not found' });
-          return;
-        }
-        logInfo('socket.page.save', { pageId, socketId: socket.id, userId });
-        void createVersionSnapshot(pageId, title ? 'content+title' : 'content', {
-          title: rows[0].title,
-          content: rows[0].content,
-        }).catch(() => {});
-        socket.emit('page:saved', { pageId, updated_at: rows[0].updated_at });
-
-        // Propagate title change to subPageBlocks referencing this page in other pages
-        if (title) {
-          propagateSubPageBlockAttrs(pageId, title, null).catch(() => {/* silent */});
-        }
-      } catch (err) {
-        logError('socket.page.save.error', {
-          detail: String(err),
-          pageId,
-          socketId: socket.id,
-          userId,
+        const row = await savePageRevision(pageId, userId, revision,
+          { content, ...(title !== undefined ? { title } : {}) }, 'content');
+        socket.emit('page:saved', { pageId, updated_at: row.updated_at, revision: row.revision });
+        socket.to(`page:${pageId}`).emit('page:updated', {
+          pageId, revision: row.revision, updated_at: row.updated_at,
         });
-        socket.emit('page:error', { pageId, message: 'Failed to save' });
+      } catch (error) {
+        socket.emit('page:error', { pageId, message: error instanceof PageConflict ? 'Conflict' :
+          error instanceof PageMissing ? 'Page not found' : 'Unavailable' });
       }
     });
 
-    if (options.terminalEnabled) socket.on('terminal:create', ({
+    socket.on('terminal:create', ({
       cwd,
       cols,
       rows,
@@ -141,6 +129,7 @@ export function registerSocketHandlers(io: SocketIO, options: { terminalEnabled:
       rows?: number;
       workspaceKey?: string;
     }) => {
+      if (denyTerminal()) return;
       try {
         const session = createTerminalSession({
           ownerSocketId: socket.id,
@@ -180,7 +169,7 @@ export function registerSocketHandlers(io: SocketIO, options: { terminalEnabled:
       }
     });
 
-    if (options.terminalEnabled) socket.on('terminal:attach', ({
+    socket.on('terminal:attach', ({
       sessionId,
       cols,
       rows,
@@ -189,6 +178,7 @@ export function registerSocketHandlers(io: SocketIO, options: { terminalEnabled:
       cols?: number;
       rows?: number;
     }) => {
+      if (denyTerminal()) return;
       try {
         const session = attachTerminalSession(
           sessionId,
@@ -227,7 +217,8 @@ export function registerSocketHandlers(io: SocketIO, options: { terminalEnabled:
       }
     });
 
-    if (options.terminalEnabled) socket.on('terminal:input', ({ sessionId, data }: { sessionId: string; data: string }) => {
+    socket.on('terminal:input', ({ sessionId, data }: { sessionId: string; data: string }) => {
+      if (denyTerminal()) return;
       if (!sessionId || typeof data !== 'string') return;
       if (!writeTerminalSession(sessionId, userId, data)) {
         logWarn('terminal.session.write.invalid', { sessionId, socketId: socket.id, userId });
@@ -235,7 +226,8 @@ export function registerSocketHandlers(io: SocketIO, options: { terminalEnabled:
       }
     });
 
-    if (options.terminalEnabled) socket.on('terminal:resize', ({ sessionId, cols, rows }: { sessionId: string; cols: number; rows: number }) => {
+    socket.on('terminal:resize', ({ sessionId, cols, rows }: { sessionId: string; cols: number; rows: number }) => {
+      if (denyTerminal()) return;
       if (!sessionId || !Number.isFinite(cols) || !Number.isFinite(rows)) return;
       if (!resizeTerminalSession(sessionId, userId, Math.round(cols), Math.round(rows))) {
         logWarn('terminal.session.resize.invalid', {
@@ -249,16 +241,18 @@ export function registerSocketHandlers(io: SocketIO, options: { terminalEnabled:
       }
     });
 
-    if (options.terminalEnabled) socket.on('terminal:close', ({ sessionId }: { sessionId: string }) => {
+    socket.on('terminal:close', ({ sessionId }: { sessionId: string }) => {
+      if (denyTerminal()) return;
       if (!sessionId) return;
       logInfo('terminal.session.close.request', { sessionId, socketId: socket.id, userId });
       closeTerminalSession(sessionId, userId);
     });
 
-    if (options.terminalEnabled) socket.on('terminal:navigate', ({ sessionId, action }: {
+    socket.on('terminal:navigate', ({ sessionId, action }: {
       sessionId: string;
       action: 'page_up' | 'page_down' | 'top' | 'bottom';
     }) => {
+      if (denyTerminal()) return;
       if (!sessionId || !action) return;
       if (!navigateTerminalSession(sessionId, userId, action)) {
         socket.emit('terminal:error', { sessionId, message: 'Nao foi possivel navegar no historico do terminal' });
@@ -266,7 +260,7 @@ export function registerSocketHandlers(io: SocketIO, options: { terminalEnabled:
     });
 
     socket.on('disconnect', () => {
-      if (options.terminalEnabled) detachTerminalSessionsForSocket(socket.id);
+      detachTerminalSessionsForSocket(socket.id);
       logInfo('socket.disconnect', { socketId: socket.id, userId });
     });
   });

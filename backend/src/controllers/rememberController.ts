@@ -2,8 +2,8 @@ import { Response } from 'express';
 import { query } from '../config/database';
 import { AuthRequest } from '../middleware/auth';
 import { CeltwoUnavailableError } from '../remember/celtwoClient';
-import { logError } from '../utils/logger';
-import { deleteRememberVoiceprint, enrollRememberVoiceprint, enrollRememberVoiceprintFromSession, setRememberSegmentsSpeaker, getRememberDay, getRememberDays, getRememberMonths, getRememberSearch, getRememberSessions, getRememberStatus, getRememberTranscript, getRememberVoiceprint, getRememberYears, setRememberRecording, setRememberCluster, getRememberPeople, renameRememberPerson, mergeRememberPeople, deleteRememberPerson, getRememberSegmentAudio, getRememberClusterSampleAudio, backfillRememberSpeakers } from '../remember/service';
+import { ownedDates, ownedSessionIds } from '../remember/ownership';
+import { deleteRememberVoiceprint, enrollRememberVoiceprint, enrollRememberVoiceprintFromSession, getRememberDay, getRememberDays, getRememberMonths, getRememberSearch, getRememberSessions, getRememberStatus, getRememberTranscript, getRememberVoiceprint, getRememberYears, setRememberRecording } from '../remember/service';
 
 interface RememberChecklistItem {
   id: string;
@@ -161,7 +161,7 @@ export async function updateRememberNote(req: AuthRequest, res: Response): Promi
     return;
   }
 
-  const { id } = req.params;
+  const id = String(req.params.id);
   const title = typeof req.body?.title === 'string' ? req.body.title.trim().slice(0, 160) : '';
   const body = typeof req.body?.body === 'string' ? req.body.body.trim().slice(0, 5000) : '';
   const checklist = normalizeChecklist(req.body?.checklist);
@@ -223,7 +223,7 @@ export async function deleteRememberNote(req: AuthRequest, res: Response): Promi
     return;
   }
 
-  const { id } = req.params;
+  const id = String(req.params.id);
   const rows = await query<{ id: string }>(
     `DELETE FROM remember_notes
      WHERE id = $1
@@ -249,6 +249,12 @@ function requireUserId(req: AuthRequest, res: Response): string | null {
 export async function rememberStatus(req: AuthRequest, res: Response): Promise<void> {
   const userId = requireUserId(req, res);
   if (!userId) return;
+  const roles = await query<{ role: string }>('SELECT role FROM users WHERE id = $1', [userId]);
+  if (roles[0]?.role !== 'owner') {
+    res.json({ state: 'stopped', started_at: null, last_communication_at: null,
+      device_id: null, message: 'Grave neste aparelho para criar uma memória pessoal' });
+    return;
+  }
   res.json(await getRememberStatus(userId));
 }
 
@@ -274,29 +280,35 @@ export async function stopRemember(req: AuthRequest, res: Response): Promise<voi
   await changeRecording(req, res, false);
 }
 
-export async function rememberYears(_req: AuthRequest, res: Response): Promise<void> {
-  try { res.json({ years: await getRememberYears() }); }
-  catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'Serviço de gravação offline' }); }
+export async function rememberYears(req: AuthRequest, res: Response): Promise<void> {
+  try { res.json({ years: [...new Set((await ownedDates(req.userId!)).map((day) => Number(day.slice(0, 4))))] }); }
+  catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'Celtwo offline' }); }
 }
 
 export async function rememberMonths(req: AuthRequest, res: Response): Promise<void> {
-  try { res.json({ months: await getRememberMonths(Number(req.params.year)) }); }
-  catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'Serviço de gravação offline' }); }
+  try { res.json({ months: [...new Set((await ownedDates(req.userId!)).filter((day) => day.startsWith(`${String(req.params.year)}-`)).map((day) => Number(day.slice(5, 7))))] }); }
+  catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'Celtwo offline' }); }
 }
 
 export async function rememberDays(req: AuthRequest, res: Response): Promise<void> {
-  try { res.json({ days: await getRememberDays(Number(req.params.year), Number(req.params.month)) }); }
-  catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'Serviço de gravação offline' }); }
+  try { res.json({ days: (await ownedDates(req.userId!)).filter((day) => day.startsWith(`${String(req.params.year)}-${String(Number(String(req.params.month))).padStart(2, '0')}-`)) }); }
+  catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'Celtwo offline' }); }
 }
 
 export async function rememberDay(req: AuthRequest, res: Response): Promise<void> {
-  const { date } = req.params as { date: string };
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(req.params.date))) {
     res.status(400).json({ error: 'Data inválida' });
     return;
   }
-  try { res.json(await getRememberDay(date)); }
-  catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'Serviço de gravação offline' }); }
+  try {
+    const owned = await ownedSessionIds(req.userId!);
+    const day = await getRememberDay(String(req.params.date), req.userId!);
+    const sessions = day.sessions.filter((item) => owned.has(item.id));
+    const totalSeconds = sessions.reduce((sum, item) => item.ended_at
+      ? sum + Math.max(0, Math.floor((Date.parse(item.ended_at) - Date.parse(item.started_at)) / 1000)) : sum, 0);
+    res.json({ ...day, sessions, session_count: sessions.length, total_seconds: totalSeconds });
+  }
+  catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'Celtwo offline' }); }
 }
 
 export async function rememberSessions(req: AuthRequest, res: Response): Promise<void> {
@@ -305,14 +317,21 @@ export async function rememberSessions(req: AuthRequest, res: Response): Promise
     res.status(400).json({ error: 'Data inválida' });
     return;
   }
-  try { res.json({ sessions: await getRememberSessions(date) }); }
-  catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'Serviço de gravação offline' }); }
+  try {
+    const owned = await ownedSessionIds(req.userId!);
+    res.json({ sessions: (await getRememberSessions(req.userId!, date)).filter((item) => owned.has(item.id)) });
+  }
+  catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'Celtwo offline' }); }
 }
 
 export async function rememberTranscript(req: AuthRequest, res: Response): Promise<void> {
-  const { sessionId } = req.params as { sessionId: string };
-  try { res.json(await getRememberTranscript(sessionId)); }
-  catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'Serviço de gravação offline' }); }
+  try {
+    if (!(await ownedSessionIds(req.userId!)).has(String(req.params.sessionId))) {
+      res.status(404).json({ error: 'Sessão não encontrada' }); return;
+    }
+    res.json(await getRememberTranscript(String(req.params.sessionId), req.userId!));
+  }
+  catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'Celtwo offline' }); }
 }
 
 export async function rememberSearch(req: AuthRequest, res: Response): Promise<void> {
@@ -325,7 +344,9 @@ export async function rememberSearch(req: AuthRequest, res: Response): Promise<v
   const limit = Number.isFinite(limitRaw) ? limitRaw : undefined;
   const speaker = typeof req.query.speaker === 'string' ? req.query.speaker : undefined;
   try {
-    res.json(await getRememberSearch(q, limit, speaker));
+    const owned = await ownedSessionIds(req.userId!);
+    const found = await getRememberSearch(req.userId!, q, 100, speaker);
+    res.json({ ...found, results: found.results.filter((item) => owned.has(item.session_id)).slice(0, limit ?? 20) });
   } catch (error) {
     if (error instanceof CeltwoUnavailableError) {
       res.status(503).json({ error: error.message });
@@ -336,8 +357,8 @@ export async function rememberSearch(req: AuthRequest, res: Response): Promise<v
 }
 
 export async function rememberVoiceprintGet(req: AuthRequest, res: Response): Promise<void> {
-  try { res.json(await getRememberVoiceprint()); }
-  catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'Serviço de gravação offline' }); }
+  try { res.json(await getRememberVoiceprint(req.userId!)); }
+  catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'Celtwo offline' }); }
 }
 
 export async function rememberVoiceprintPost(req: AuthRequest, res: Response): Promise<void> {
@@ -348,7 +369,7 @@ export async function rememberVoiceprintPost(req: AuthRequest, res: Response): P
   }
   const contentType = typeof req.headers['content-type'] === 'string' ? req.headers['content-type'] : 'application/octet-stream';
   try {
-    res.status(201).json(await enrollRememberVoiceprint(body, contentType));
+    res.status(201).json(await enrollRememberVoiceprint(req.userId!, body, contentType));
   } catch (error) {
     if (error instanceof CeltwoUnavailableError) {
       res.status(error.statusCode === 400 ? 400 : 503).json({ error: error.message });
@@ -359,160 +380,21 @@ export async function rememberVoiceprintPost(req: AuthRequest, res: Response): P
 }
 
 export async function rememberVoiceprintDelete(req: AuthRequest, res: Response): Promise<void> {
-  try { res.json(await deleteRememberVoiceprint()); }
-  catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'Serviço de gravação offline' }); }
+  try { res.json(await deleteRememberVoiceprint(req.userId!)); }
+  catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'Celtwo offline' }); }
 }
 
 export async function rememberVoiceprintFromSession(req: AuthRequest, res: Response): Promise<void> {
-  const { sessionId } = req.params as { sessionId: string };
   try {
-    res.status(201).json(await enrollRememberVoiceprintFromSession(sessionId));
+    if (!(await ownedSessionIds(req.userId!)).has(String(req.params.sessionId))) {
+      res.status(404).json({ error: 'Sessão não encontrada' }); return;
+    }
+    res.status(201).json(await enrollRememberVoiceprintFromSession(req.userId!, String(req.params.sessionId)));
   } catch (error) {
     if (error instanceof CeltwoUnavailableError) {
       res.status(error.statusCode && error.statusCode >= 400 && error.statusCode < 500 ? error.statusCode : 503).json({ error: error.message });
       return;
     }
-    throw error;
-  }
-}
-
-export async function rememberSegmentsSpeaker(req: AuthRequest, res: Response): Promise<void> {
-  const ids = Array.isArray(req.body?.segment_ids)
-    ? req.body.segment_ids.filter((n: unknown): n is number => typeof n === 'number')
-    : [];
-  const speaker = req.body?.speaker ?? null;
-  if (ids.length === 0) {
-    res.status(400).json({ error: 'segment_ids obrigatório' });
-    return;
-  }
-  if (speaker !== null && !['me', 'other', 'unknown'].includes(speaker)) {
-    res.status(400).json({ error: 'speaker inválido' });
-    return;
-  }
-  try {
-    res.json(await setRememberSegmentsSpeaker(ids, speaker));
-  } catch (error) {
-    if (error instanceof CeltwoUnavailableError) {
-      res.status(error.statusCode === 400 ? 400 : 503).json({ error: error.message });
-      return;
-    }
-    throw error;
-  }
-}
-
-const CLUSTER_ACTIONS = ['confirm_new', 'confirm_person', 'reject', 'set_me'];
-
-function celtwoStatus(error: CeltwoUnavailableError): number {
-  return error.statusCode && error.statusCode >= 400 && error.statusCode < 500 ? error.statusCode : 503;
-}
-
-export async function rememberClusters(req: AuthRequest, res: Response): Promise<void> {
-  const b = req.body ?? {};
-  if (typeof b.session_id !== 'string' || typeof b.cluster !== 'number' || !CLUSTER_ACTIONS.includes(b.action)) {
-    res.status(400).json({ error: 'session_id, cluster e action obrigatórios' });
-    return;
-  }
-  const name = typeof b.name === 'string' ? b.name.trim() : undefined;
-  const personId = typeof b.person_id === 'number' && Number.isInteger(b.person_id) ? b.person_id : undefined;
-  if (b.action === 'confirm_person' && personId === undefined) {
-    res.status(400).json({ error: 'person_id obrigatório para confirm_person' });
-    return;
-  }
-  if (b.action === 'confirm_new' && !name) {
-    res.status(400).json({ error: 'name obrigatório para confirm_new' });
-    return;
-  }
-  try {
-    res.json(await setRememberCluster({
-      session_id: b.session_id, cluster: b.cluster, action: b.action,
-      name,
-      person_id: personId,
-    }));
-  } catch (error) {
-    if (error instanceof CeltwoUnavailableError) { res.status(celtwoStatus(error)).json({ error: error.message }); return; }
-    throw error;
-  }
-}
-
-export async function rememberPeople(_req: AuthRequest, res: Response): Promise<void> {
-  try { res.json(await getRememberPeople()); }
-  catch (error) {
-    if (error instanceof CeltwoUnavailableError) { res.status(celtwoStatus(error)).json({ error: error.message }); return; }
-    throw error;
-  }
-}
-
-export async function rememberPeopleRename(req: AuthRequest, res: Response): Promise<void> {
-  const id = Number(req.params.id);
-  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
-  if (!Number.isInteger(id) || !name) { res.status(400).json({ error: 'id e name obrigatórios' }); return; }
-  try { res.json(await renameRememberPerson(id, name)); }
-  catch (error) {
-    if (error instanceof CeltwoUnavailableError) { res.status(celtwoStatus(error)).json({ error: error.message }); return; }
-    throw error;
-  }
-}
-
-export async function rememberPeopleMerge(req: AuthRequest, res: Response): Promise<void> {
-  const into = req.body?.into_id, from = req.body?.from_id;
-  const isInt = (x: unknown): x is number => typeof x === 'number' && Number.isInteger(x);
-  if (!isInt(into) || !isInt(from)) { res.status(400).json({ error: 'into_id e from_id obrigatórios' }); return; }
-  if (into === from) { res.status(400).json({ error: 'into_id e from_id não podem ser iguais' }); return; }
-  try { res.json(await mergeRememberPeople(into, from)); }
-  catch (error) {
-    if (error instanceof CeltwoUnavailableError) { res.status(celtwoStatus(error)).json({ error: error.message }); return; }
-    throw error;
-  }
-}
-
-export async function rememberPeopleDelete(req: AuthRequest, res: Response): Promise<void> {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id)) { res.status(400).json({ error: 'id inválido' }); return; }
-  try { res.json(await deleteRememberPerson(id)); }
-  catch (error) {
-    if (error instanceof CeltwoUnavailableError) { res.status(celtwoStatus(error)).json({ error: error.message }); return; }
-    throw error;
-  }
-}
-
-export async function rememberSegmentAudio(req: AuthRequest, res: Response): Promise<void> {
-  const rawIds = typeof req.query.ids === 'string' ? req.query.ids : null;
-  try {
-    let upstream: Awaited<ReturnType<typeof getRememberSegmentAudio>>;
-    if (rawIds !== null) {
-      const ids = rawIds.split(',').filter(Boolean).map(Number);
-      if (!ids.length || ids.length > 10 || ids.some((id) => !Number.isInteger(id) || id <= 0)) {
-        res.status(400).json({ error: 'ids inválidos' });
-        return;
-      }
-      upstream = await getRememberClusterSampleAudio(ids);
-    } else {
-      const id = Number(req.params.id);
-      if (!Number.isInteger(id)) { res.status(400).json({ error: 'id inválido' }); return; }
-      upstream = await getRememberSegmentAudio(id);
-    }
-    res.status(upstream.status);
-    const ct = upstream.headers.get('content-type') ?? 'audio/wav';
-    res.set('Content-Type', ct.startsWith('audio/') ? ct : 'audio/wav');
-    res.set('X-Content-Type-Options', 'nosniff');
-    res.set('Cache-Control', 'private, max-age=3600');
-    res.send(Buffer.from(await upstream.arrayBuffer()));
-  } catch (error) {
-    if (error instanceof CeltwoUnavailableError) {
-      res.status(celtwoStatus(error)).json({ error: error.message });
-      return;
-    }
-    logError('remember.segment.audio.error', { detail: String(error) });
-    if (!res.headersSent) res.status(502).json({ error: 'Falha ao ler o áudio' });
-  }
-}
-
-export async function rememberBackfillSpeakers(req: AuthRequest, res: Response): Promise<void> {
-  const { sessionId } = req.params as { sessionId: string };
-  if (!sessionId) { res.status(400).json({ error: 'sessionId obrigatório' }); return; }
-  try { res.json(await backfillRememberSpeakers(sessionId)); }
-  catch (error) {
-    if (error instanceof CeltwoUnavailableError) { res.status(celtwoStatus(error)).json({ error: error.message }); return; }
     throw error;
   }
 }

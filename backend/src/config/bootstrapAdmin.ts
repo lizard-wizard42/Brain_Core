@@ -19,8 +19,8 @@ export async function ensureInitialAdmin(): Promise<void> {
 
   const passwordHash = await bcrypt.hash(password, 12);
   await query(
-    `INSERT INTO users (email, password_hash, name)
-     VALUES ($1, $2, $3)`,
+    `INSERT INTO users (email, password_hash, name, role)
+     VALUES ($1, $2, $3, 'owner')`,
     [email, passwordHash, config.INITIAL_ADMIN_NAME || null],
   );
 }

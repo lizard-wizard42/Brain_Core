@@ -27,8 +27,8 @@ services:
       DB_NAME: ${POSTGRES_DB:-brain_core}
       DB_USER: ${POSTGRES_USER:-brain_core}
       BRAIN_CORE_JWT_SECRET: ${JWT_SECRET:-}
-      CORS_ORIGIN: http://localhost:8080,http://127.0.0.1:8080
-      AUTH_COOKIE_SECURE: "false"
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080,http://127.0.0.1:8080}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
       INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-}
       INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
       INITIAL_ADMIN_NAME: ${INITIAL_ADMIN_NAME:-}
