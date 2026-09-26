@@ -61,6 +61,9 @@ server upload and transcription require the private Memory API and worker.
 Use the [Timeline and CPU setup guide](docs/REMEMBER_TIMELINE.md) to enable the
 service. The default worker runs on CPU in Docker. For acceleration on a Linux
 computer with a compatible NVIDIA GPU, use the [GPU worker guide](services/gpu-worker/README.md).
+The maintainer has tested local transcription on an RTX 2060 (6 GB) with
+`medium` and `int8_float16` and reports that it works quickly; this is a
+firsthand usage report, not a benchmark or a guarantee for other GPUs.
 AMD and Intel users can use the CPU worker; ROCm and oneAPI GPU execution have
 not been validated in this project. No model, recording, voiceprint, token, or
 transcript is included in the repository or APK.

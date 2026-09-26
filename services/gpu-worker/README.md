@@ -86,6 +86,9 @@ python gpu_worker.py --loop
 The default model in code is `medium`; setting `small` explicitly gives a
 lower resource starting point. Other faster-whisper model names can be set in
 `CELTWO_GPU_WHISPER_MODEL`, such as `medium`, `large-v3-turbo` or `large-v3`.
+The maintainer has tested an RTX 2060 (6 GB) with `medium` and `int8_float16`
+and reports successful, fast transcription. This is a usage report rather than
+a benchmark; start with `small` and adjust for your own GPU and recordings.
 Try `float16` if supported and enough GPU memory is available. On a memory
 allocation error, return to `small` or use `int8_float16`. The worker loads
 its model when it receives a job and releases it after an idle period
