@@ -18,11 +18,9 @@ import {
 } from './terminalService';
 import { deleteTerminalTab } from './terminalTabsService';
 
-interface SavePayload {
-  pageId: string;
-  content: TiptapDoc;
-  title: string;
-  revision: number;
+function recordPayload(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown> : null;
 }
 
 let pageIo: SocketIO | null = null;
@@ -89,8 +87,8 @@ export function registerSocketHandlers(io: SocketIO): void {
       });
     }
 
-    socket.on('page:join', async (payload?: { pageId: string }) => {
-      const pageId = payload?.pageId;
+    socket.on('page:join', async (raw: unknown) => {
+      const pageId = recordPayload(raw)?.pageId;
       if (typeof pageId !== 'string') return;
       try {
         if (await pageRole(pageId, userId)) socket.join(`page:${pageId}`);
@@ -98,16 +96,22 @@ export function registerSocketHandlers(io: SocketIO): void {
       } catch { socket.emit('page:error', { pageId, message: 'Unavailable' }); }
     });
 
-    socket.on('page:leave', ({ pageId }: { pageId: string }) => {
+    socket.on('page:leave', (raw: unknown) => {
+      const pageId = recordPayload(raw)?.pageId;
+      if (typeof pageId !== 'string') return;
       socket.leave(`page:${pageId}`);
     });
 
-    socket.on('page:save', async (payload: SavePayload) => {
-      const { pageId, content, title, revision } = payload || {} as SavePayload;
-      if (!pageId || !content) return;
+    socket.on('page:save', async (raw: unknown) => {
+      const payload = recordPayload(raw);
+      if (!payload) return;
+      const { pageId, content, title, revision } = payload;
+      if (typeof pageId !== 'string' || !pageId || !content || typeof content !== 'object'
+        || typeof revision !== 'number' || !Number.isInteger(revision)
+        || (title !== undefined && typeof title !== 'string')) return;
       try {
         const row = await savePageRevision(pageId, userId, revision,
-          { content, ...(title !== undefined ? { title } : {}) }, 'content');
+          { content: content as TiptapDoc, ...(title !== undefined ? { title } : {}) }, 'content');
         socket.emit('page:saved', { pageId, updated_at: row.updated_at, revision: row.revision });
         socket.to(`page:${pageId}`).emit('page:updated', {
           pageId, revision: row.revision, updated_at: row.updated_at,
@@ -118,26 +122,23 @@ export function registerSocketHandlers(io: SocketIO): void {
       }
     });
 
-    socket.on('terminal:create', ({
-      cwd,
-      cols,
-      rows,
-      workspaceKey,
-    }: {
-      cwd?: string | null;
-      cols?: number;
-      rows?: number;
-      workspaceKey?: string;
-    }) => {
+    socket.on('terminal:create', (raw: unknown) => {
       if (denyTerminal()) return;
+      const payload = recordPayload(raw);
+      if (!payload) return;
+      const { cwd, cols, rows, workspaceKey } = payload;
+      if ((cwd !== undefined && cwd !== null && typeof cwd !== 'string')
+        || (cols !== undefined && (typeof cols !== 'number' || !Number.isFinite(cols)))
+        || (rows !== undefined && (typeof rows !== 'number' || !Number.isFinite(rows)))
+        || (workspaceKey !== undefined && typeof workspaceKey !== 'string')) return;
       try {
         const session = createTerminalSession({
           ownerSocketId: socket.id,
           userId,
-          workspaceKey: workspaceKey || `socket:${socket.id}`,
-          requestedCwd: cwd,
-          cols,
-          rows,
+          workspaceKey: (workspaceKey as string) || `socket:${socket.id}`,
+          requestedCwd: cwd as string | null | undefined,
+          cols: cols as number | undefined,
+          rows: rows as number | undefined,
         });
 
         bindTerminalSession(session);
@@ -153,7 +154,7 @@ export function registerSocketHandlers(io: SocketIO): void {
           socketId: socket.id,
           userId,
           cwd: session.cwd,
-          workspaceKey: workspaceKey || `socket:${socket.id}`,
+          workspaceKey: (workspaceKey as string) || `socket:${socket.id}`,
         });
       } catch (err) {
         logError('terminal.session.create.error', {
@@ -161,7 +162,7 @@ export function registerSocketHandlers(io: SocketIO): void {
           socketId: socket.id,
           userId,
           cwd: cwd ?? null,
-          workspaceKey: workspaceKey || `socket:${socket.id}`,
+          workspaceKey: (workspaceKey as string) || `socket:${socket.id}`,
         });
         socket.emit('terminal:error', {
           message: err instanceof Error ? err.message : 'Falha ao iniciar terminal',
@@ -169,23 +170,21 @@ export function registerSocketHandlers(io: SocketIO): void {
       }
     });
 
-    socket.on('terminal:attach', ({
-      sessionId,
-      cols,
-      rows,
-    }: {
-      sessionId: string;
-      cols?: number;
-      rows?: number;
-    }) => {
+    socket.on('terminal:attach', (raw: unknown) => {
       if (denyTerminal()) return;
+      const payload = recordPayload(raw);
+      if (!payload) return;
+      const { sessionId, cols, rows } = payload;
+      if (typeof sessionId !== 'string' || !sessionId
+        || (cols !== undefined && (typeof cols !== 'number' || !Number.isFinite(cols)))
+        || (rows !== undefined && (typeof rows !== 'number' || !Number.isFinite(rows)))) return;
       try {
         const session = attachTerminalSession(
           sessionId,
           userId,
           socket.id,
-          cols,
-          rows,
+          cols as number | undefined,
+          rows as number | undefined,
         );
 
         if (!session) {
@@ -217,18 +216,26 @@ export function registerSocketHandlers(io: SocketIO): void {
       }
     });
 
-    socket.on('terminal:input', ({ sessionId, data }: { sessionId: string; data: string }) => {
+    socket.on('terminal:input', (raw: unknown) => {
       if (denyTerminal()) return;
-      if (!sessionId || typeof data !== 'string') return;
+      const payload = recordPayload(raw);
+      const sessionId = payload?.sessionId;
+      const data = payload?.data;
+      if (typeof sessionId !== 'string' || !sessionId || typeof data !== 'string') return;
       if (!writeTerminalSession(sessionId, userId, data)) {
         logWarn('terminal.session.write.invalid', { sessionId, socketId: socket.id, userId });
         socket.emit('terminal:error', { sessionId, message: 'Sessão de terminal inválida' });
       }
     });
 
-    socket.on('terminal:resize', ({ sessionId, cols, rows }: { sessionId: string; cols: number; rows: number }) => {
+    socket.on('terminal:resize', (raw: unknown) => {
       if (denyTerminal()) return;
-      if (!sessionId || !Number.isFinite(cols) || !Number.isFinite(rows)) return;
+      const payload = recordPayload(raw);
+      const sessionId = payload?.sessionId;
+      const cols = payload?.cols;
+      const rows = payload?.rows;
+      if (typeof sessionId !== 'string' || !sessionId || typeof cols !== 'number'
+        || typeof rows !== 'number' || !Number.isFinite(cols) || !Number.isFinite(rows)) return;
       if (!resizeTerminalSession(sessionId, userId, Math.round(cols), Math.round(rows))) {
         logWarn('terminal.session.resize.invalid', {
           sessionId,
@@ -241,19 +248,21 @@ export function registerSocketHandlers(io: SocketIO): void {
       }
     });
 
-    socket.on('terminal:close', ({ sessionId }: { sessionId: string }) => {
+    socket.on('terminal:close', (raw: unknown) => {
       if (denyTerminal()) return;
-      if (!sessionId) return;
+      const sessionId = recordPayload(raw)?.sessionId;
+      if (typeof sessionId !== 'string' || !sessionId) return;
       logInfo('terminal.session.close.request', { sessionId, socketId: socket.id, userId });
       closeTerminalSession(sessionId, userId);
     });
 
-    socket.on('terminal:navigate', ({ sessionId, action }: {
-      sessionId: string;
-      action: 'page_up' | 'page_down' | 'top' | 'bottom';
-    }) => {
+    socket.on('terminal:navigate', (raw: unknown) => {
       if (denyTerminal()) return;
-      if (!sessionId || !action) return;
+      const payload = recordPayload(raw);
+      const sessionId = payload?.sessionId;
+      const action = payload?.action;
+      if (typeof sessionId !== 'string' || !sessionId
+        || (action !== 'page_up' && action !== 'page_down' && action !== 'top' && action !== 'bottom')) return;
       if (!navigateTerminalSession(sessionId, userId, action)) {
         socket.emit('terminal:error', { sessionId, message: 'Nao foi possivel navegar no historico do terminal' });
       }
