@@ -26,6 +26,11 @@ if git grep -n -I -E '/home/[^/]+/|192\.168\.[0-9]{1,3}\.[0-9]{1,3}' -- ':!scrip
   fail 'machine-specific path or private IP detected'
 fi
 
+# Commit metadata is public even when the checked-out files are clean.
+if git log HEAD --format='%an <%ae> %cn <%ce>' | grep -Eiq 'guilherme|@gmail\.com'; then
+  fail 'personal author or committer metadata exists in release ancestry'
+fi
+
 if (( failures )); then
   exit 1
 fi
