@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { NodeViewWrapper } from '@tiptap/react';
 import type { NodeViewProps } from '@tiptap/react';
 import { PdfViewer } from '../Viewer/PdfViewer';
-import { resolveAssetUrl } from '../../api/assetUrl';
+import { resolveAttachmentUrl } from '../../api/assetUrl';
 
 function normalizeAttachmentName(name: string): string {
   if (!name) return 'Arquivo';
@@ -39,16 +39,17 @@ function attachmentIcon(name: string, mimeType: string): string {
 export function AttachmentBlockView({ node, deleteNode }: NodeViewProps) {
   const attrs = node.attrs as { url: string; name: string; size?: number; mimeType?: string };
   const rawUrl = attrs.url ?? '';
-  const url = resolveAssetUrl(rawUrl);
+  const url = resolveAttachmentUrl(rawUrl);
   const name = normalizeAttachmentName(attrs.name ?? 'Arquivo');
   const size = Number(attrs.size ?? 0);
   const mimeType = attrs.mimeType ?? '';
   const ext = name.split('.').pop()?.toLowerCase() ?? '';
-  const urlExt = url.split('?')[0].split('#')[0].split('.').pop()?.toLowerCase() ?? '';
+  const urlExt = url?.split('.').pop()?.toLowerCase() ?? '';
   const isPdf = mimeType.includes('pdf') || ext === 'pdf' || urlExt === 'pdf';
   const [showPreview, setShowPreview] = useState(false);
 
   const handleOpen = () => {
+    if (!url) return;
     if (isPdf) {
       setShowPreview(v => !v);
       return;
@@ -57,6 +58,7 @@ export function AttachmentBlockView({ node, deleteNode }: NodeViewProps) {
   };
 
   const handleDownload = () => {
+    if (!url) return;
     const a = document.createElement('a');
     a.href = url;
     a.download = name;
@@ -82,6 +84,7 @@ export function AttachmentBlockView({ node, deleteNode }: NodeViewProps) {
 
         <div className="flex items-center gap-1.5 shrink-0">
           <button
+            disabled={!url}
             title={isPdf ? 'Visualizar PDF' : 'Abrir arquivo'}
             className="px-2 py-1 text-[11px] rounded text-gray-400 hover:text-gray-100 hover:bg-white/5 transition-colors"
             onClick={handleOpen}
@@ -89,6 +92,7 @@ export function AttachmentBlockView({ node, deleteNode }: NodeViewProps) {
             {isPdf ? (showPreview ? 'Fechar' : 'Visualizar') : 'Abrir'}
           </button>
           <button
+            disabled={!url}
             title="Baixar arquivo"
             className="px-2 py-1 text-[11px] rounded text-gray-500 hover:text-gray-200 hover:bg-white/5 transition-colors"
             onClick={handleDownload}
@@ -104,7 +108,7 @@ export function AttachmentBlockView({ node, deleteNode }: NodeViewProps) {
           </button>
         </div>
       </div>
-      {isPdf && showPreview && (
+      {url && isPdf && showPreview && (
         <div className="mt-2 rounded-lg border border-[#2a2a2a] overflow-hidden" contentEditable={false}>
           <PdfViewer url={url} title={name} />
         </div>

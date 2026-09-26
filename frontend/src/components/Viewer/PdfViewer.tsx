@@ -17,6 +17,7 @@ export function PdfViewer({ url, title, className }: PdfViewerProps) {
       <div className="p-4 flex items-center justify-center bg-[#101010]">
         <iframe
           src={url}
+          sandbox="allow-scripts"
           title={title ?? 'Documento PDF'}
           className="w-full h-[700px] rounded border border-[#222] bg-white"
         />
