@@ -1,12 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../api/client';
 import type { CurrentUser } from '../../api/client';
 import type { PageSummary, RememberDay, RememberNote, RememberSession } from '../../types';
 import { rememberService } from '../../services/rememberService';
 import { NotasBoard } from '../Notas/NotasBoard';
-import { onRememberStatus, REMEMBER_PENDING_STATES } from '../Remember/rememberEvents';
-import { spTodayIso } from '../Remember/rememberTime';
 import { useNotas } from '../Notas/useNotas';
 
 function greeting(): string {
@@ -18,7 +16,15 @@ function greeting(): string {
 }
 
 function hhmm(iso: string): string {
-  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
+}
+
+function saoPauloDate(instant: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(instant);
+}
+
+function nextUtcDate(date: string): string {
+  return new Date(Date.parse(`${date}T12:00:00Z`) + 86400000).toISOString().slice(0, 10);
 }
 
 function relative(iso: string): string {
@@ -42,11 +48,11 @@ function formatDuration(seconds: number): string {
 }
 
 function sessionMeta(session: RememberSession): string {
-  const secs = session.duration_seconds
-    ?? Math.max(0, Math.round((Date.now() - new Date(session.started_at).getTime()) / 1000));
-  const day = session.started_at.slice(0, 10);
-  const suffix = day !== spTodayIso() ? ` · ${day.split('-').reverse().join('/')}` : '';
-  return formatDuration(secs) + suffix;
+  const end = session.ended_at ? new Date(session.ended_at).getTime() : Date.now();
+  const dur = formatDuration(Math.max(0, Math.round((end - new Date(session.started_at).getTime()) / 1000)));
+  const day = saoPauloDate(new Date(session.started_at));
+  const suffix = day !== saoPauloDate() ? ` · ${day.split('-').reverse().join('/')}` : '';
+  return dur + suffix;
 }
 
 const RECALL_TARGETS = [
@@ -74,17 +80,17 @@ function pickRecall(notes: RememberNote[]) {
 
 function StatCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="rounded-2xl border border-[#2a2a2a] bg-[#1e1e1e] p-4">
+    <div className="min-w-0 rounded-2xl border border-[#2a2a2a] bg-[#1e1e1e] p-4">
       <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-gray-500">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
+      <p className="mt-2 break-words text-2xl font-semibold text-white">{value}</p>
       {hint && <p className="mt-1 text-xs text-gray-500">{hint}</p>}
     </div>
   );
 }
 
-function Panel({ title, action, children }: { title: React.ReactNode; action?: React.ReactNode; children: React.ReactNode }) {
+function Panel({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-[#2a2a2a] bg-[#1e1e1e] p-5">
+    <section className="min-w-0 rounded-2xl border border-[#2a2a2a] bg-[#1e1e1e] p-5">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-gray-400">{title}</h2>
         {action}
@@ -97,41 +103,36 @@ function Panel({ title, action, children }: { title: React.ReactNode; action?: R
 export function DashboardHome({ onOpenPage }: { onOpenPage: (page: { id: string; title: string; icon?: string | null }) => void }) {
   const navigate = useNavigate();
   const { notes, loading, error, createNote, saveNote, deleteNote } = useNotas();
-  const todayIso = spTodayIso();
+  const [todayIso, setTodayIso] = useState(saoPauloDate);
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [pages, setPages] = useState<PageSummary[]>([]);
-  const [today, setToday] = useState<RememberDay | null>(null);
-  const [recording, setRecording] = useState(false);
+  const [loadedDay, setToday] = useState<RememberDay | null>(null);
+  const today = loadedDay?.date === todayIso ? loadedDay : null;
 
-  const refreshToday = useCallback(() => {
-    rememberService.getDay(spTodayIso())
-      .then(setToday)
-      .catch(() => undefined);
-    rememberService.getStatus()
-      .then((s) => setRecording(s.state === 'recording'))
-      .catch(() => undefined);
+  useEffect(() => {
+    const timer = window.setInterval(() => setTodayIso(saoPauloDate()), 60000);
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
+    let active = true;
     api.getMe().then(setUser).catch(() => undefined);
     api.getTree().then((r) => setPages(r.pages ?? [])).catch(() => undefined);
-    refreshToday();
-  }, [refreshToday]);
+    // The memory service indexes UTC dates. A São Paulo day can span two
+    // UTC dates, so fetch both and keep only sessions from the local day.
+    Promise.all([rememberService.getDay(todayIso), rememberService.getDay(nextUtcDate(todayIso))])
+      .then(([first, second]) => {
+        if (!active) return;
+        const sessions = [...first.sessions, ...second.sessions]
+          .filter((session) => saoPauloDate(new Date(session.started_at)) === todayIso);
+        const total_seconds = sessions.reduce((sum, session) => session.ended_at
+          ? sum + Math.max(0, Math.round((Date.parse(session.ended_at) - Date.parse(session.started_at)) / 1000)) : sum, 0);
+        setToday({ date: todayIso, sessions, session_count: sessions.length, total_seconds });
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [todayIso]);
 
-  // Live indicator: refetch on capture-status events + poll while anything is in flight.
-  useEffect(() => onRememberStatus((s) => { setRecording(s.state === 'recording'); refreshToday(); }), [refreshToday]);
-
-  const pipelineBusy =
-    recording ||
-    (today?.sessions ?? []).some((s) => REMEMBER_PENDING_STATES.has(s.status));
-
-  useEffect(() => {
-    const id = window.setInterval(refreshToday, pipelineBusy ? 6000 : 30000);
-    return () => window.clearInterval(id);
-  }, [pipelineBusy, refreshToday]);
-
-  // Só as gravações de hoje. Dia sem gravação → painel vazio (não mostra o
-  // último dia gravado).
   const memories = useMemo(
     () => (today?.sessions ?? [])
       .slice()
@@ -147,11 +148,11 @@ export function DashboardHome({ onOpenPage }: { onOpenPage: (page: { id: string;
   const recall = useMemo(() => pickRecall(notes), [notes]);
 
   return (
-    <div className="flex-1 overflow-y-auto bg-[#191919]">
+    <div className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-[#191919]">
       <div className="mx-auto w-full max-w-[1240px] px-4 py-8 sm:px-8">
         <header className="mb-8">
           <h1 className="text-3xl font-semibold text-white">
-            {greeting()}, {user?.name || 'usuário'}
+            {greeting()}{user?.name?.trim() ? `, ${user.name.trim()}` : ''}
           </h1>
           <p className="mt-1 text-sm text-gray-500">Aqui está o resumo do seu dia no Brain Core.</p>
         </header>
@@ -164,23 +165,12 @@ export function DashboardHome({ onOpenPage }: { onOpenPage: (page: { id: string;
             value={recentPages[0]?.title ?? '—'}
             hint={recentPages[0] ? `editado ${relative(recentPages[0].updated_at)}` : 'sem atividade recente'}
           />
-          <StatCard label="Total de Notas" value={notes.length.toLocaleString('pt-BR')} hint="notas registradas" />
+          <StatCard label="Total de memórias" value={notes.length.toLocaleString('pt-BR')} hint="notas registradas" />
         </div>
 
         <div className="mt-6 grid gap-4 lg:grid-cols-2">
           <Panel
-            title={
-              <span className="inline-flex items-center gap-2">
-                Memórias de hoje
-                {pipelineBusy && (
-                  <span
-                    title="Processando (upload / transcrição)…"
-                    aria-label="Processando"
-                    className="h-3 w-3 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin"
-                  />
-                )}
-              </span>
-            }
+            title="Memórias de hoje"
             action={
               <button
                 type="button"

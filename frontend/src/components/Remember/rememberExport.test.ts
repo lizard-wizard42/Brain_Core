@@ -22,7 +22,7 @@ describe('sessionToMarkdown', () => {
     });
     expect(md).toContain('# Memória —');
     expect(md).toContain('**Você:** oi tudo bem');
-    expect(md).toContain('**Outra pessoa:** então');
+    expect(md).toContain('**Participante:** então');
     expect(md).toContain('## Texto corrido');
     expect(md).toContain('oi tudo bem então');
   });
@@ -37,5 +37,12 @@ describe('sessionToMarkdown', () => {
   it('usa session.text quando não há turnos', () => {
     const md = sessionToMarkdown(base);
     expect(md).toContain('oi tudo bem então');
+  });
+
+  it('usa o nome escolhido na exportação da sessão', () => {
+    localStorage.setItem('brain-core:speaker-aliases:s1', JSON.stringify({ other: 'Professor' }));
+    const md = sessionToMarkdown({ ...base, turns: [{ speaker: 'other', text: 'vamos começar' }] });
+    expect(md).toContain('**Professor:** vamos começar');
+    localStorage.removeItem('brain-core:speaker-aliases:s1');
   });
 });

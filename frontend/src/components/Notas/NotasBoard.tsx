@@ -4,7 +4,7 @@ import { NotasComposer } from './NotasComposer';
 import { NotasCard } from './NotasCard';
 import { buildQuickDraft, emptyDraft, type NoteDraft } from './notasModel';
 
-const GRID = 'grid grid-cols-[repeat(auto-fill,minmax(min(100%,220px),1fr))] items-start gap-4 sm:grid-cols-[repeat(auto-fill,minmax(240px,1fr))] lg:grid-cols-[repeat(auto-fill,minmax(260px,1fr))]';
+const COLUMNS = 'columns-1 gap-4 sm:columns-2 lg:columns-3 xl:columns-4';
 
 export function NotasBoard({
   notes,
@@ -62,9 +62,11 @@ export function NotasBoard({
             {search.trim() ? `Nenhuma nota encontrada para "${search.trim()}".` : 'Ainda não há notas. Crie a primeira no composer acima.'}
           </div>
         ) : (
-          <div className={GRID}>
+          <div className={COLUMNS}>
             {filtered.map((note) => (
-              <NotasCard key={note.id} note={note} onSave={onSave} onDelete={onDelete} />
+              <div key={note.id} className="mb-4 break-inside-avoid">
+                <NotasCard note={note} onSave={onSave} onDelete={onDelete} />
+              </div>
             ))}
           </div>
         )}

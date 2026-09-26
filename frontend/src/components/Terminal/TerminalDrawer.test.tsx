@@ -2,9 +2,14 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TerminalDrawer } from './TerminalDrawer';
 
-const socketHandlers = new Map<string, Function>();
+type TestWindow = {
+  brainCoreNativeBridge?: { _listener?: (event: unknown) => void; [key: string]: unknown };
+  ResizeObserver?: unknown;
+};
+
+const socketHandlers = new Map<string, (...args: unknown[]) => unknown>();
 const emitSpy = vi.fn();
-const onSpy = vi.fn((event: string, handler: Function) => {
+const onSpy = vi.fn((event: string, handler: (...args: unknown[]) => unknown) => {
   socketHandlers.set(event, handler);
 });
 const offSpy = vi.fn((event: string) => {
@@ -68,7 +73,7 @@ describe('TerminalDrawer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     socketHandlers.clear();
-    (globalThis as any).ResizeObserver = class {
+    (globalThis as unknown as TestWindow).ResizeObserver = class {
       observe() {}
       disconnect() {}
     };
@@ -101,22 +106,22 @@ describe('TerminalDrawer', () => {
     render(
       <TerminalDrawer
         open
-        request={{ key: 'k2', title: 'Terminal Ready', cwd: '/workspace' }}
+        request={{ key: 'k2', title: 'Terminal Ready', cwd: '/home/example' }}
         onClose={vi.fn()}
       />,
     );
 
     await waitFor(() => expect(socketHandlers.has('terminal:ready')).toBe(true));
 
-    const ready = socketHandlers.get('terminal:ready') as Function;
+    const ready = socketHandlers.get('terminal:ready') as (...args: unknown[]) => unknown;
     ready({
       sessionId: 'sess-1',
-      cwd: '/workspace/brain-core',
+      cwd: '/home/example/apps/brain-core',
       workspaceKey: 'k2',
     });
 
     await waitFor(() => expect(screen.getByText('ready')).toBeInTheDocument());
-    expect(screen.getByText('/workspace/brain-core')).toBeInTheDocument();
+    expect(screen.getByText('/home/example/apps/brain-core')).toBeInTheDocument();
   });
 
   it('fecha sessão ativa quando drawer é fechado', async () => {
@@ -129,7 +134,7 @@ describe('TerminalDrawer', () => {
     );
 
     await waitFor(() => expect(socketHandlers.has('terminal:ready')).toBe(true));
-    const ready = socketHandlers.get('terminal:ready') as Function;
+    const ready = socketHandlers.get('terminal:ready') as (...args: unknown[]) => unknown;
     ready({ sessionId: 'sess-close', cwd: '/tmp', workspaceKey: 'k3' });
 
     rerender(

@@ -1,19 +1,23 @@
-import { lazy, Suspense, useState, useEffect, useRef, useCallback } from 'react';
+import { createContext, lazy, Suspense, useState, useEffect, useRef, useCallback, useContext } from 'react';
 import { BrowserRouter, Routes, Route, useParams, Navigate, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar/Sidebar';
 import { Editor } from './components/Editor/Editor';
 import { useTree } from './hooks/useTree';
-import { normalizeTerminalTabTitle, useTabs } from './hooks/useTabs';
+import { useTabs } from './hooks/useTabs';
 import type { Tab } from './hooks/useTabs';
-import { api } from './api/client';
+import { api, invalidateLocalSession } from './api/client';
+import { prepareBrowserSession } from './api/browserSession';
 import { LoginPage } from './pages/LoginPage';
 import { SetupPage } from './pages/SetupPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { RememberErrorBoundary } from './components/Remember/RememberErrorBoundary';
 import { DashboardHome } from './components/Dashboard/DashboardHome';
+import { NotesPage } from './pages/NotesPage';
+import { KnowledgePage } from './pages/KnowledgePage';
+import { SharedPagesProvider } from './components/Shared/SharedPagesProvider';
 import { Tabs } from './components/Tabs/Tabs';
 import { InfiniteRenderer } from './components/Infinite/InfiniteRenderer';
-import type { TerminalRequest } from './components/Terminal/TerminalDrawer';
+import { TerminalDrawer, type TerminalRequest } from './components/Terminal/TerminalDrawer';
 import type { Page } from './types';
 import terminalIconUrl from './assets/icons/terminal.svg';
 import notesIconUrl from './assets/icons/notes.svg';
@@ -28,7 +32,7 @@ function buildRememberPath(): string {
 
 function buildTerminalPath(request: TerminalRequest): string {
   const params = new URLSearchParams();
-  params.set('title', normalizeTerminalTabTitle(request.title));
+  params.set('title', request.title);
   if (request.cwd) params.set('cwd', request.cwd);
   return `/terminal/${encodeURIComponent(request.key)}?${params.toString()}`;
 }
@@ -46,7 +50,7 @@ function createPageTab(page: { id: string; title: string; icon?: string | null }
 function createTerminalTab(request: TerminalRequest): Tab {
   return {
     id: request.key,
-    title: normalizeTerminalTabTitle(request.title),
+    title: request.title,
     icon: TERMINAL_ICON_URL,
     path: buildTerminalPath(request),
   };
@@ -61,19 +65,46 @@ function createRememberTab(): Tab {
   };
 }
 
+function createNotesTab(): Tab {
+  return { id: 'notes', title: 'Notas', icon: '📝', path: '/notes' };
+}
+
 const TERMINAL_ICON_URL = terminalIconUrl;
 const REMEMBER_ICON_URL = notesIconUrl;
-const TERMINAL_ENABLED = import.meta.env.VITE_TERMINAL_ENABLED === 'true';
+const isTerminalEnabled = () => import.meta.env.VITE_TERMINAL_ENABLED === 'true';
 const RememberPage = lazy(() => import('./pages/RememberPage').then((module) => ({ default: module.RememberPage })));
-const TerminalDrawer = lazy(() => import('./components/Terminal/TerminalDrawer').then((module) => ({ default: module.TerminalDrawer })));
 
 // ── Private Route ──────────────────────────────────────────────────────────
 
+const AccountRoleContext = createContext<'owner' | 'member'>('member');
+
 function PrivateRoute({ children }: { children: React.ReactNode }) {
-  if (!api.isAuthenticated()) {
-    return <Navigate to="/login" replace />;
-  }
-  return <>{children}</>;
+  const location = useLocation();
+  const [verified, setVerified] = useState<'loading' | 'yes' | 'no' | 'unavailable'>('loading');
+  const [attempt, setAttempt] = useState(0);
+  const [role, setRole] = useState<'owner' | 'member'>('member');
+  useEffect(() => {
+    let active = true;
+    api.getMe().then(user => {
+      if (!active) return;
+      prepareBrowserSession(user.id);
+      setRole(user.role ?? 'owner');
+      setVerified('yes');
+    }).catch(error => {
+      if (!active) return;
+      if (/API 401|API 403/.test(String(error))) {
+        invalidateLocalSession();
+        setVerified('no');
+      } else {
+        setVerified('unavailable');
+      }
+    });
+    return () => { active = false; };
+  }, [attempt]);
+  if (verified === 'loading') return <div role="status" aria-live="polite">Verificando sessão…</div>;
+  if (verified === 'unavailable') return <div role="alert">Não foi possível verificar a sessão. <button type="button" onClick={() => { setVerified('loading'); setAttempt(value => value + 1); }}>Tentar novamente</button></div>;
+  if (verified === 'no') return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
+  return <AccountRoleContext.Provider value={role}>{children}</AccountRoleContext.Provider>;
 }
 
 // ── Page view ─────────────────────────────────────────────────────────────
@@ -175,6 +206,7 @@ function PageView({ onRefresh, onPageOpen, tabs, onOpenTab, onPageNavigate }: Pa
 }
 
 function TerminalPage({ tabs, onOpenTab }: { tabs: Tab[]; onOpenTab: (tab: Tab) => void }) {
+  const role = useContext(AccountRoleContext);
   const { terminalKey } = useParams<{ terminalKey: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -182,30 +214,32 @@ function TerminalPage({ tabs, onOpenTab }: { tabs: Tab[]; onOpenTab: (tab: Tab) 
   const request = terminalKey
     ? {
         key: decodeURIComponent(terminalKey),
-        title: normalizeTerminalTabTitle(searchParams.get('title')),
+        title: searchParams.get('title') || 'Terminal',
         cwd: searchParams.get('cwd'),
       }
     : null;
 
   useEffect(() => {
-    if (!request) return;
+    if (!request || role !== 'owner') return;
     const exists = tabs.find((tab) => tab.id === request.key);
     if (!exists) onOpenTab(createTerminalTab(request));
-  }, [onOpenTab, request?.key]);
+  }, [onOpenTab, request?.key, role]);
+
+  if (role !== 'owner') {
+    return <div className="flex-1 flex items-center justify-center text-sm text-gray-400">Terminal disponível apenas na conta do proprietário do PC.</div>;
+  }
 
   if (!request) {
     return <div className="flex-1 flex items-center justify-center text-red-400 text-sm">Terminal inválido</div>;
   }
 
   return (
-    <Suspense fallback={<div className="flex-1 flex items-center justify-center text-sm text-gray-500">Carregando terminal…</div>}>
-      <TerminalDrawer
-        open
-        request={request}
-        onClose={() => navigate('/')}
-        variant="page"
-      />
-    </Suspense>
+    <TerminalDrawer
+      open
+      request={request}
+      onClose={() => navigate('/')}
+      variant="page"
+    />
   );
 }
 
@@ -219,6 +253,13 @@ function RememberRoute({ tabs, onOpenTab }: { tabs: Tab[]; onOpenTab: (tab: Tab)
   return <RememberErrorBoundary><Suspense fallback={<div className="flex-1 flex items-center justify-center text-sm text-gray-500">Carregando Memória…</div>}><RememberPage /></Suspense></RememberErrorBoundary>;
 }
 
+function NotesRoute({ tabs, onOpenTab }: { tabs: Tab[]; onOpenTab: (tab: Tab) => void }) {
+  useEffect(() => {
+    if (!tabs.some((tab) => tab.id === 'notes')) onOpenTab(createNotesTab());
+  }, [onOpenTab]);
+  return <NotesPage />;
+}
+
 
 // ── Layout ────────────────────────────────────────────────────────────────
 
@@ -228,7 +269,7 @@ function Layout() {
   const activePage = location.pathname.startsWith('/page/') ? decodeURIComponent(location.pathname.slice('/page/'.length)) : null;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
-  const { tabs, activeTabId, openTab, closeTab, setActiveTab, replaceActiveTab, newTab, goBack } = useTabs();
+  const { tabs, activeTabId, openTab, closeTab, closeAllTabs, setActiveTab, replaceActiveTab, newTab, goBack } = useTabs();
 
   // No desktop a sidebar fica sempre visível; no mobile inicia fechada
   const isMobile = useCallback(() => window.innerWidth < 768, []);
@@ -253,13 +294,12 @@ function Layout() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [isMobile, sidebarOpen]);
 
-  const handleOpenRememberDate = useCallback((date?: string, openInNewTab = false) => {
+  const handleOpenRememberDate = useCallback((date?: string) => {
     const tab = createRememberTab();
     if (date) tab.path = `${buildRememberPath()}?date=${encodeURIComponent(date)}`;
-    if (openInNewTab) openTab(tab);
-    else replaceActiveTab(tab);
+    replaceActiveTab(tab);
     handlePageOpen();
-  }, [handlePageOpen, openTab, replaceActiveTab]);
+  }, [handlePageOpen, replaceActiveTab]);
 
   const handleSidebarClose = useCallback(() => {
     setSidebarOpen(false);
@@ -273,7 +313,7 @@ function Layout() {
   }, [handlePageOpen, openTab, replaceActiveTab]);
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-full overflow-hidden" style={{ height: 'var(--app-viewport-height, 100%)' }}>
       {/* Overlay escuro no mobile quando sidebar aberta */}
       {sidebarOpen && (
         <div
@@ -285,6 +325,7 @@ function Layout() {
       {/* Sidebar — mobile: drawer, desktop: sempre visível */}
       <div
         id="app-sidebar"
+        style={{ height: 'var(--app-viewport-height, 100%)' }}
         className={`
           fixed md:relative z-30 md:z-auto
           h-full
@@ -304,18 +345,25 @@ function Layout() {
             onClose={handleSidebarClose}
             onPageClick={handleSidebarPageClick}
             onRememberOpen={handleOpenRememberDate}
+            tabs={tabs}
+            activeTabId={activeTabId}
+            onTabClick={setActiveTab}
+            onTabClose={closeTab}
+            onCloseAllTabs={closeAllTabs}
+            onNewTab={newTab}
+            onGoBack={goBack}
           />
         )}
       </div>
 
       <main className="flex-1 h-full overflow-hidden flex flex-col bg-[#191919] min-w-0">
         {/* Topbar mobile com botão de menu */}
-        <div className="flex md:hidden items-center gap-2 px-3 py-2 border-b border-[#1f1f1f] bg-[#111111] shrink-0">
+        <div className="flex md:hidden items-center gap-3 px-3 py-3 border-b border-[#2a2a2a] bg-[#111111] shrink-0">
           <button
             id="sidebar-toggle"
             onClick={() => setSidebarOpen(v => !v)}
-            className="text-gray-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/5"
-            aria-label="Abrir menu"
+            className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#303030] bg-[#1b1b1b] text-gray-300 hover:text-white"
+            aria-label="Abrir árvore de navegação"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
               <line x1="3" y1="5" x2="17" y2="5" />
@@ -323,21 +371,26 @@ function Layout() {
               <line x1="3" y1="15" x2="17" y2="15" />
             </svg>
           </button>
-          <span className="text-[12px] text-gray-500 font-medium leading-none">Brain Core</span>
+          <button type="button" className="min-w-0 flex-1 text-left" aria-label="Brain Core: abrir Dashboard" onClick={() => { navigate('/'); setSidebarOpen(false); }}>
+            <span className="block truncate text-sm font-semibold text-white">Brain Core</span>
+          </button>
         </div>
 
-        <Tabs
+        <div className="hidden md:block"><Tabs
           tabs={tabs}
           activeTabId={activeTabId}
           onTabClick={setActiveTab}
           onTabClose={closeTab}
+          onCloseAllTabs={closeAllTabs}
           onNewTab={newTab}
           onGoBack={goBack}
           onGoHome={() => navigate('/')}
-        />
+        /></div>
 
         <Routes>
           <Route path="/" element={<DashboardHome onOpenPage={handleSidebarPageClick} />} />
+          <Route path="/knowledge" element={<KnowledgePage tree={tree} onOpenPage={handleSidebarPageClick} onOpenTree={() => setSidebarOpen(true)} />} />
+          <Route path="/notes" element={<NotesRoute tabs={tabs} onOpenTab={openTab} />} />
           <Route path="/remember" element={<RememberRoute tabs={tabs} onOpenTab={openTab} />} />
           <Route
             path="/page/:id"
@@ -353,7 +406,7 @@ function Layout() {
           />
           <Route
             path="/terminal/:terminalKey"
-            element={TERMINAL_ENABLED ? <TerminalPage tabs={tabs} onOpenTab={openTab} /> : <Navigate to="/" replace />}
+            element={isTerminalEnabled() ? <TerminalPage tabs={tabs} onOpenTab={openTab} /> : <Navigate to="/" replace />}
           />
         </Routes>
       </main>
@@ -381,7 +434,9 @@ export default function App() {
           path="/*"
           element={
             <PrivateRoute>
-              <Layout />
+              <SharedPagesProvider>
+                <Layout />
+              </SharedPagesProvider>
             </PrivateRoute>
           }
         />

@@ -1,26 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
 import { rememberService } from '../../services/rememberService';
-import type { RememberStatus } from '../../types';
+import { browserRecording } from '../../services/browserRecording';
 import { onRememberStatus } from './rememberEvents';
-import { spTodayIso } from './rememberTime';
 
 const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
-export function RememberSidebarTree({ onOpen }: { onOpen: (date?: string, newTab?: boolean) => void }) {
+export function RememberSidebarTree({ onOpen }: { onOpen: (date?: string) => void }) {
   const [expanded, setExpanded] = useState(false);
   const [years, setYears] = useState<number[] | null>(null);
   const [months, setMonths] = useState<Record<number, number[]>>({});
   const [days, setDays] = useState<Record<string, string[]>>({});
-  const [status, setStatus] = useState<RememberStatus | null>(null);
+  const [recording, setRecording] = useState(browserRecording.getState().phase === 'recording');
   const [error, setError] = useState<string | null>(null);
   const [loadingKey, setLoadingKey] = useState<string | null>(null);
 
-  useEffect(() => {
-    const refresh = () => rememberService.getStatus().then(setStatus).catch(() => setStatus({ state: 'offline', started_at: null, last_communication_at: null, device_id: null }));
-    void refresh();
-    const timer = window.setInterval(refresh, 20000);
-    return () => window.clearInterval(timer);
-  }, []);
+  useEffect(() => browserRecording.subscribe((next) => setRecording(next.phase === 'recording')), []);
 
   // Gap 2: re-fetch whatever the user has expanded so newly recorded days appear without a reload.
   const revalidate = useCallback(async () => {
@@ -43,8 +37,7 @@ export function RememberSidebarTree({ onOpen }: { onOpen: (date?: string, newTab
     }
   }, [expanded, years, months, days]);
 
-  useEffect(() => onRememberStatus((next) => {
-    setStatus(next);
+  useEffect(() => onRememberStatus(() => {
     void revalidate();
   }), [revalidate]);
 
@@ -72,24 +65,10 @@ export function RememberSidebarTree({ onOpen }: { onOpen: (date?: string, newTab
     finally { setLoadingKey(null); }
   };
 
-  const today = spTodayIso();
+  const today = new Date().toISOString().slice(0, 10);
   return <div className="mb-2">
-    <button
-      type="button"
-      aria-expanded={expanded}
-      onClick={() => void toggleRoot()}
-      onMouseDown={(e) => {
-        // Botão do meio do mouse: abre a Linha do tempo numa aba separada,
-        // igual às páginas na barra lateral.
-        if (e.button !== 1) return;
-        e.preventDefault();
-        e.stopPropagation();
-        onOpen(undefined, true);
-      }}
-      onAuxClick={(e) => e.preventDefault()}
-      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-gray-200 hover:bg-white/[0.04]"
-    >
-      <span aria-hidden="true" className="w-3 text-gray-500">{expanded ? '▾' : '▸'}</span><span>🧠</span><span className="flex-1 font-medium">Linha do tempo</span><span className={status?.state === 'recording' ? 'text-red-400' : 'text-gray-600'} aria-label={status?.state === 'recording' ? 'Memória gravando' : 'Memória parada'}>●</span>
+    <button type="button" aria-expanded={expanded} onClick={() => void toggleRoot()} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-gray-200 hover:bg-white/[0.04]">
+      <span aria-hidden="true" className="w-3 text-gray-500">{expanded ? '▾' : '▸'}</span><span>🧠</span><span className="flex-1 font-medium">Linha do tempo</span><span className={recording ? 'text-red-400' : 'text-gray-600'} aria-label={recording ? 'PC gravando' : 'PC sem gravação'}>●</span>
     </button>
     {expanded && <div className="ml-5 border-l border-white/5 pl-1">
       {years === null && !error && <p className="px-2 py-1 text-[11px] text-gray-600">Carregando…</p>}

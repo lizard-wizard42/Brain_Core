@@ -1,6 +1,7 @@
-// BASE_URL é o base path do Vite (/ por padrão, ou subpasta como /brain)
+// BASE_URL é o base path do Vite (/ em LAN e Tailnet)
 // Garante prefixo correto tanto para API quanto para redirects
 import type { InfiniteDoc, TiptapDoc } from '../types';
+import { clearBrowserSession, prepareBrowserSession } from './browserSession';
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, ''); // ex: "" ou "/brain"
 // Host absoluto do backend — necessário porque front (8001) e backend (3001)
@@ -27,6 +28,11 @@ function clearSessionHint(): void {
   storage?.removeItem(AUTH_HINT_KEY);
 }
 
+export function invalidateLocalSession(): void {
+  clearSessionHint();
+  clearBrowserSession();
+}
+
 export function hasSessionHint(): boolean {
   const storage = getSessionStorage();
   return storage?.getItem(AUTH_HINT_KEY) === '1';
@@ -43,7 +49,7 @@ export async function apiRequest<T>(path: string, options?: RequestInit): Promis
   });
   if (!res.ok) {
     if (res.status === 401) {
-      clearSessionHint();
+      invalidateLocalSession();
       window.location.href = `${BASE_URL}/login`;
     }
     const text = await res.text();
@@ -54,11 +60,37 @@ export async function apiRequest<T>(path: string, options?: RequestInit): Promis
 }
 
 const request = apiRequest;
+// Revisions are scoped to the current browser session. A stale save receives 409.
+const pageRevisions = new Map<string, number>();
+async function readPageRevision(id: string): Promise<number> {
+  const cached = pageRevisions.get(id);
+  if (cached !== undefined) return cached;
+  const page = await request<import('../types').Page>(`/api/pages/${id}`);
+  pageRevisions.set(id, page.revision);
+  return page.revision;
+}
+async function writePageRevision(id: string, method: 'PUT' | 'PATCH', body: object, keepalive?: boolean) {
+  const revision = await readPageRevision(id);
+  const page = await request<import('../types').Page>(`/api/pages/${id}`, {
+    method, body: JSON.stringify({ ...body, revision }), keepalive,
+  });
+  pageRevisions.set(id, page.revision);
+  return page;
+}
+
+
+/** True when a page save was rejected because someone else saved a newer revision (HTTP 409). */
+export function isRevisionConflict(error: unknown): boolean {
+  return /API 409\b/.test(String(error));
+}
+
+export function isNotFoundError(error: unknown): boolean {
+  return /API 404\b/.test(String(error));
+}
 
 const BASE_UPLOAD = API_HOST ? `${API_HOST}${BASE_URL}` : (ORIGIN ? `${ORIGIN}${BASE_URL}` : BASE_URL);
 
-/** URL absoluta de um endpoint do backend, com o mesmo prefixo do apiRequest.
- *  Para <audio src>, <img src> etc. que não passam pelo fetch wrapper. */
+/** Absolute backend URL for media elements that cannot use the fetch wrapper. */
 export function apiUrl(path: string): string {
   return `${BASE_UPLOAD}${path}`;
 }
@@ -81,10 +113,18 @@ export interface CurrentUser {
   id: string;
   email: string;
   name: string | null;
+  role: 'owner' | 'member';
   telegram_chat_id: string | null;
   telegram_notifications_enabled: boolean;
   two_factor_enabled: boolean;
   two_factor_setup_pending: boolean;
+}
+
+export interface MobileDevice {
+  id: string;
+  name: string;
+  created_at: string;
+  last_used_at: string | null;
 }
 
 export interface LoginSuccessResponse {
@@ -118,6 +158,7 @@ export const api = {
     }
     const data = await res.json() as LoginSuccessResponse | LoginTwoFactorPendingResponse;
     if (!data.requiresTwoFactor) {
+      prepareBrowserSession(data.user.id);
       setSessionHint();
     }
     return data;
@@ -127,8 +168,7 @@ export const api = {
 
   completeInitialSetup: async (name: string, email: string, password: string): Promise<{ user: AuthenticatedUser; expiresIn: string }> => {
     const res = await fetch(`${API_HOST}${BASE_URL}/api/auth/setup`, {
-      method: 'POST',
-      credentials: 'include',
+      method: 'POST', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, email, password }),
     });
@@ -137,6 +177,7 @@ export const api = {
       throw new Error((data as { error?: string }).error || 'Não foi possível concluir a configuração inicial');
     }
     const data = await res.json() as { user: AuthenticatedUser; expiresIn: string };
+    prepareBrowserSession(data.user.id);
     setSessionHint();
     return data;
   },
@@ -153,23 +194,28 @@ export const api = {
       throw new Error((data as { error?: string }).error || 'Código 2FA inválido');
     }
     const data = await res.json() as LoginSuccessResponse;
+    prepareBrowserSession(data.user.id);
     setSessionHint();
     return data;
   },
 
   logout: async () => {
-    try {
-      await fetch(`${API_HOST}${BASE_URL}/api/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-    } finally {
-      clearSessionHint();
-    }
+    const res = await fetch(`${API_HOST}${BASE_URL}/api/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    if (!res.ok && res.status !== 401) throw new Error(`Não foi possível sair (HTTP ${res.status}).`);
+    invalidateLocalSession();
   },
 
   getMe: () =>
     request<CurrentUser>('/api/auth/me'),
+
+  listMobileDevices: () =>
+    request<{ devices: MobileDevice[] }>('/api/mobile/devices'),
+
+  revokeMobileDevice: (deviceId: string) =>
+    request<{ revoked: boolean }>(`/api/mobile/devices/${encodeURIComponent(deviceId)}`, { method: 'DELETE' }),
 
   changePassword: async (currentPassword: string, newPassword: string) => {
     const data = await request<{ ok: boolean }>('/api/auth/change-password', {
@@ -209,8 +255,40 @@ export const api = {
   getTree: () =>
     request<{ pages: import('../types').PageSummary[] }>('/api/folders'),
 
-  getPage: (id: string) =>
-    request<import('../types').Page>(`/api/pages/${id}`),
+  getPage: async (id: string) => {
+    const page = await request<import('../types').Page>(`/api/pages/${id}`);
+    pageRevisions.set(id, page.revision);
+    return page;
+  },
+
+  getSharedPages: (direction: 'received' | 'sent') =>
+    request<import('../types').SharedPageSummary[]>(`/api/pages/shared?direction=${direction}`),
+
+  getPageGrants: (id: string) =>
+    request<import('../types').PageGrant[]>(`/api/pages/${id}/grants`),
+
+  setPageGrant: (id: string, userId: string, role: 'editor' | 'viewer') =>
+    request<import('../types').PageGrant>(`/api/pages/${id}/grants/${userId}`, {
+      method: 'PUT', body: JSON.stringify({ role }),
+    }),
+
+  removePageGrant: (id: string, userId: string) =>
+    request<{ revoked: boolean }>(`/api/pages/${id}/grants/${userId}`, { method: 'DELETE' }),
+
+  // ── Contacts (pedidos de amizade entre usuários Brain Core) ─────────────
+  listContacts: () =>
+    request<import('../types').ContactLists>('/api/contacts'),
+
+  requestContact: (email: string) =>
+    request<import('../types').ContactSummary>('/api/contacts', {
+      method: 'POST', body: JSON.stringify({ email }),
+    }),
+
+  acceptContact: (id: string) =>
+    request<{ accepted: boolean }>(`/api/contacts/${id}/accept`, { method: 'POST' }),
+
+  removeContact: (id: string) =>
+    request<{ removed: boolean }>(`/api/contacts/${id}`, { method: 'DELETE' }),
 
   getSubPages: (id: string) =>
     request<import('../types').PageSummary[]>(`/api/pages/${id}/subpages`),
@@ -234,46 +312,19 @@ export const api = {
   restorePageVersion: (id: string, versionId: string) =>
     request<import('../types').Page>(`/api/pages/${id}/versions/${versionId}/restore`, { method: 'POST' }),
 
-  snapshotPageVersion: (id: string, reason: 'ia' | 'manual') =>
-    request<void>(`/api/pages/${id}/versions`, {
-      method: 'POST',
-      body: JSON.stringify({ reason }),
-    }),
-
-  // ── IA ──────────────────────────────────────────────────────────────────
-  aiStatus: () =>
-    request<{ enabled: boolean }>('/api/ai/status'),
-
-  aiOrganizePage: (id: string, markdown: string) =>
-    request<{ markdown: string }>(`/api/ai/pages/${id}/organize`, {
-      method: 'POST',
-      body: JSON.stringify({ markdown }),
-    }),
-
   createPage: (body: { parent_page_id?: string | null; title: string; slug: string; is_section?: boolean; type?: 'note' | 'infinite' }) =>
     request<import('../types').Page>('/api/pages', { method: 'POST', body: JSON.stringify(body) }),
 
   savePage: (id: string, body: { content: TiptapDoc | InfiniteDoc; title?: string }, options?: { keepalive?: boolean }) =>
-    request<import('../types').Page>(`/api/pages/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(body),
-      keepalive: options?.keepalive,
-    }),
+    writePageRevision(id, 'PUT', body, options?.keepalive),
 
   deletePage: (id: string) =>
     request<{ deleted: boolean }>(`/api/pages/${id}`, { method: 'DELETE' }),
 
-  renamePage: (id: string, title: string) =>
-    request<import('../types').Page>(`/api/pages/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ title }),
-    }),
+  renamePage: (id: string, title: string) => writePageRevision(id, 'PATCH', { title }),
 
   patchPage: (id: string, data: { icon?: string; cover_url?: string | null; cover_position_y?: number; title?: string; sort_order?: number; parent_page_id?: string | null; status?: string | null; due_date?: string | null; tags?: string[]; working_directory?: string | null; content?: TiptapDoc | InfiniteDoc }) =>
-    request<import('../types').Page>(`/api/pages/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    }),
+    writePageRevision(id, 'PATCH', data),
 
   uploadCover: async (id: string, file: File): Promise<import('../types').Page> => {
     const formData = new FormData();
@@ -385,6 +436,29 @@ export const api = {
 
   listRememberNotes: () =>
     request<{ notes: import('../types').RememberNote[] }>('/api/remember'),
+
+  getPcAudioRetention: () =>
+    request<{ automatic: boolean; days: number }>('/api/remember/audio-retention'),
+  setPcAudioRetention: (automatic: boolean, days: number) =>
+    request<{ automatic: boolean; days: number }>('/api/remember/audio-retention', {
+      method: 'PUT', body: JSON.stringify({ automatic, days }),
+    }),
+  previewPcAudioCleanup: (days: number) =>
+    request<{ files: number; bytes: number }>(`/api/remember/audio-retention/preview?days=${days}`),
+  cleanPcAudio: (days: number) =>
+    request<{ files: number; bytes: number }>('/api/remember/audio-retention/cleanup', {
+      method: 'POST', body: JSON.stringify({ days }),
+    }),
+  getTranscriptionPolicy: () =>
+    request<{ mode: 'automatic' | 'scheduled' | 'manual'; start_time: string; window_hours: number; timezone: string; manual_active: number; paused: number }>('/api/remember/transcription-policy'),
+  setTranscriptionPolicy: (body: { mode: 'automatic' | 'scheduled' | 'manual'; start_time: string; window_hours: number; timezone: string }) =>
+    request<{ mode: 'automatic' | 'scheduled' | 'manual'; start_time: string; window_hours: number; timezone: string; manual_active: number; paused: number }>('/api/remember/transcription-policy', {
+      method: 'PUT', body: JSON.stringify(body),
+    }),
+  runTranscriptionNow: () =>
+    request<{ manual_active: number; paused: number }>('/api/remember/transcription-policy/run', { method: 'POST' }),
+  pauseTranscription: () =>
+    request<{ manual_active: number; paused: number }>('/api/remember/transcription-policy/pause', { method: 'POST' }),
 
   createRememberNote: (body: {
     title: string;

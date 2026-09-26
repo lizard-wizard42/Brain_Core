@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Sidebar } from './Sidebar';
 import { api } from '../../api/client';
+import type { Page, TreePage } from '../../types';
 
 const navigateSpy = vi.fn();
 
@@ -34,7 +35,7 @@ describe('Sidebar', () => {
       updated_at: '2026-05-01T00:00:00.000Z',
       children: [],
     },
-  ] as any;
+  ] satisfies TreePage[];
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -44,8 +45,57 @@ describe('Sidebar', () => {
     cleanup();
   });
 
+  it('ordena Notas, Conhecimento, árvore e Compartilhados após Linha do tempo', () => {
+    render(<Sidebar tree={baseTree} activePage={null} onRefresh={onRefresh} />);
+    const labels = ['Linha do tempo', '📝 Notas', 'Conhecimento', 'Página Original', 'Compartilhados'];
+    const nodes = labels.map((label) => screen.getByText(label));
+    for (let index = 1; index < nodes.length; index++) {
+      expect(nodes[index - 1].compareDocumentPosition(nodes[index]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+  });
+
+  it('abre o Dashboard pelo cabeçalho e fecha a árvore', () => {
+    const onClose = vi.fn();
+    render(<Sidebar tree={[]} activePage={null} onRefresh={onRefresh} onClose={onClose} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Brain Core: abrir Dashboard' }));
+
+    expect(navigateSpy).toHaveBeenCalledWith('/');
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('mostra um único acesso a configurações na árvore do Android', () => {
+    const original = navigator.userAgent;
+    Object.defineProperty(navigator, 'userAgent', { configurable: true, value: `${original} BrainCoreAndroid/1` });
+    try {
+      render(<Sidebar tree={[]} activePage={null} onRefresh={onRefresh} />);
+      expect(screen.getByRole('button', { name: 'Abrir configurações' })).toBeInTheDocument();
+      expect(screen.queryByText('Ajustes do aparelho')).not.toBeInTheDocument();
+    } finally {
+      Object.defineProperty(navigator, 'userAgent', { configurable: true, value: original });
+    }
+  });
+
+  it('abre e fecha abas do desktop pela árvore móvel', () => {
+    const onTabClick = vi.fn();
+    const onTabClose = vi.fn();
+    const onCloseAllTabs = vi.fn();
+    const onClose = vi.fn();
+    render(<Sidebar tree={[]} activePage={null} onRefresh={onRefresh} onClose={onClose}
+      tabs={[{ id: 'tab-1', title: 'Minha página', path: '/page/1' }]}
+      activeTabId="tab-1" onTabClick={onTabClick} onTabClose={onTabClose} onCloseAllTabs={onCloseAllTabs} />);
+    fireEvent.click(screen.getByText('Abas abertas (1)'));
+    fireEvent.click(screen.getByRole('button', { name: 'Minha página' }));
+    expect(onTabClick).toHaveBeenCalledWith('tab-1');
+    expect(onClose).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar Minha página' }));
+    expect(onTabClose).toHaveBeenCalledWith('tab-1');
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar todas' }));
+    expect(onCloseAllTabs).toHaveBeenCalledOnce();
+  });
+
   it('cria página tipo nota a partir do rodapé', async () => {
-    vi.mocked(api.createPage).mockResolvedValueOnce({ id: 'p-note', title: 'Minha Nota', icon: null } as any);
+    vi.mocked(api.createPage).mockResolvedValueOnce({ id: 'p-note', title: 'Minha Nota', icon: null } as Page);
     const onPageClick = vi.fn();
 
     render(
@@ -69,7 +119,7 @@ describe('Sidebar', () => {
   });
 
   it('cria página tipo infinite', async () => {
-    vi.mocked(api.createPage).mockResolvedValueOnce({ id: 'p-inf', title: 'Tela Infinita', icon: null } as any);
+    vi.mocked(api.createPage).mockResolvedValueOnce({ id: 'p-inf', title: 'Tela Infinita', icon: null } as Page);
     const onPageClick = vi.fn();
 
     render(
@@ -92,7 +142,7 @@ describe('Sidebar', () => {
   });
 
   it('renomeia página existente', async () => {
-    vi.mocked(api.renamePage).mockResolvedValueOnce({} as any);
+    vi.mocked(api.renamePage).mockResolvedValueOnce({} as Page);
 
     render(
       <Sidebar
@@ -111,7 +161,7 @@ describe('Sidebar', () => {
   });
 
   it('apaga página com confirmação', async () => {
-    vi.mocked(api.deletePage).mockResolvedValueOnce({ deleted: true } as any);
+    vi.mocked(api.deletePage).mockResolvedValueOnce({ deleted: true });
 
     render(
       <Sidebar

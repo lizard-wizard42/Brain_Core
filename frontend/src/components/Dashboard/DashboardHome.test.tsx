@@ -6,51 +6,52 @@ import { rememberService } from '../../services/rememberService';
 
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
 vi.mock('../../api/client', () => ({ api: { getMe: vi.fn(), getTree: vi.fn() } }));
-vi.mock('../../services/rememberService', () => ({
-  rememberService: { getDay: vi.fn(), getSessions: vi.fn(), getStatus: vi.fn() },
-}));
+vi.mock('../../services/rememberService', () => ({ rememberService: { getDay: vi.fn() } }));
 vi.mock('../Notas/NotasBoard', () => ({ NotasBoard: () => null }));
 vi.mock('../Notas/useNotas', () => ({
-  useNotas: () => ({
-    notes: [], loading: false, error: null,
-    createNote: vi.fn(), saveNote: vi.fn(), deleteNote: vi.fn(),
-  }),
+  useNotas: () => ({ notes: [], loading: false, error: null, createNote: vi.fn(), saveNote: vi.fn(), deleteNote: vi.fn() }),
 }));
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(api.getMe).mockResolvedValue({ name: 'Ana' } as never);
+  vi.mocked(api.getMe).mockResolvedValue({ name: 'Teste' } as never);
   vi.mocked(api.getTree).mockResolvedValue({ pages: [] } as never);
-  vi.mocked(rememberService.getStatus).mockResolvedValue({ state: 'stopped' } as never);
 });
 afterEach(() => cleanup());
 
-describe('DashboardHome — "Memórias de hoje"', () => {
-  it('dia sem gravações mostra vazio, não o último dia gravado', async () => {
-    vi.mocked(rememberService.getDay).mockResolvedValue({
-      date: '2026-09-07', total_seconds: 0, session_count: 0, sessions: [],
-    } as never);
-    // Ainda que o back devolva sessões antigas, elas NÃO devem aparecer no painel "de hoje".
-    vi.mocked(rememberService.getSessions).mockResolvedValue([
-      { id: 's-old', started_at: '2026-09-05T14:00:00.000Z', status: 'ready', text: 'gravação de dois dias atrás', duration_seconds: 60 },
-    ] as never);
+describe('DashboardHome', () => {
+  it('não mostra gravações de ontem no painel de hoje', async () => {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+    const yesterday = new Date(Date.parse(`${today}T12:00:00Z`) - 86400000).toISOString().slice(0, 10);
+    const old = new Date(`${yesterday}T23:30:00-03:00`).toISOString();
+    vi.mocked(rememberService.getDay).mockImplementation(async (date) => ({
+      date, total_seconds: 0, session_count: 0,
+      sessions: date === old.slice(0, 10)
+        ? [{ id: 'old', started_at: old, ended_at: old, device_id: null, status: 'ready', text: 'Gravação de ontem' }]
+        : [],
+    }));
 
     render(<DashboardHome onOpenPage={vi.fn()} />);
 
-    await waitFor(() => expect(screen.getByText('Nenhuma gravação ainda.')).toBeInTheDocument());
-    expect(screen.queryByText(/dois dias atrás/)).not.toBeInTheDocument();
+    await waitFor(() => expect(rememberService.getDay).toHaveBeenCalledTimes(2));
+    expect(screen.getByText('Nenhuma gravação ainda.')).toBeInTheDocument();
+    expect(screen.queryByText('Gravação de ontem')).not.toBeInTheDocument();
   });
 
-  it('dia com gravações lista as sessões de hoje', async () => {
-    vi.mocked(rememberService.getDay).mockResolvedValue({
-      date: '2026-09-07', total_seconds: 120, session_count: 1,
-      sessions: [
-        { id: 's-today', started_at: '2026-09-07T13:00:00.000Z', status: 'ready', text: 'gravação de hoje', duration_seconds: 120 },
-      ],
-    } as never);
+  it('inclui uma gravação no fim do dia de São Paulo, mesmo quando já é o dia seguinte em UTC', async () => {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+    const late = new Date(`${today}T23:00:00-03:00`).toISOString();
+    const lateUtcDay = late.slice(0, 10);
+    vi.mocked(rememberService.getDay).mockImplementation(async (date) => ({
+      date, total_seconds: 0, session_count: 0,
+      sessions: date === lateUtcDay
+        ? [{ id: 'late', started_at: late, ended_at: new Date(Date.parse(late) + 120000).toISOString(), device_id: null, status: 'ready', text: 'Gravação desta noite' }]
+        : [],
+    }));
 
     render(<DashboardHome onOpenPage={vi.fn()} />);
 
-    await waitFor(() => expect(screen.getByText('gravação de hoje')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Gravação desta noite')).toBeInTheDocument());
+    expect(screen.getByText('1', { selector: 'p' })).toBeInTheDocument();
   });
 });

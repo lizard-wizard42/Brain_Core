@@ -2,8 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { closeTerminalSessionForRequestKey } from '../components/Terminal/terminalSessionRegistry';
 import { api, type PersistedTerminalTab } from '../api/client';
-import terminalIconUrl from '../assets/icons/terminal.svg';
-import notesIconUrl from '../assets/icons/notes.svg';
 
 export interface Tab {
   id: string;
@@ -15,33 +13,9 @@ export interface Tab {
 }
 
 const STORAGE_KEY = 'brain-core-tabs';
+import terminalIconUrl from '../assets/icons/terminal.svg';
+
 const TERMINAL_ICON_URL = terminalIconUrl;
-const LEGACY_ICON_REPLACEMENTS: Record<string, string> = {
-  'https://img.icons8.com/?size=100&id=19292&format=png&color=000000': terminalIconUrl,
-  'https://img.icons8.com/?size=100&id=55fqUsmHwQDN&format=png&color=000000': notesIconUrl,
-};
-
-function normalizePersistedIcon(icon: string | null | undefined): string | null {
-  if (!icon) return null;
-  return LEGACY_ICON_REPLACEMENTS[icon] ?? icon;
-}
-const TERMINAL_ENABLED = import.meta.env.VITE_TERMINAL_ENABLED === 'true';
-const FALLBACK_TERMINAL_TITLE = 'Terminal';
-
-/**
- * Terminal titles are persisted so a live workspace can be restored after a
- * refresh. Older builds could save fragments of encoded markup as the title;
- * never let that leak back into the tab strip.
- */
-export function normalizeTerminalTabTitle(value: unknown): string {
-  if (typeof value !== 'string') return FALLBACK_TERMINAL_TITLE;
-
-  const title = value.replace(/\s+/g, ' ').trim();
-  const looksLikeEncodedMarkup = /(?:%[0-9a-f]{2}|<\/?svg\b|\b(?:viewbox|width|height|fill|stroke|rx)\s*=)/i.test(title);
-  if (!title || title.length > 80 || looksLikeEncodedMarkup) return FALLBACK_TERMINAL_TITLE;
-
-  return title;
-}
 
 function shouldRestoreTerminalRoute(): boolean {
   if (typeof window === 'undefined') return true;
@@ -59,7 +33,7 @@ function stripSearch(path: string): string {
 
 function buildTerminalPath(tab: PersistedTerminalTab): string {
   const params = new URLSearchParams();
-  params.set('title', normalizeTerminalTabTitle(tab.title));
+  params.set('title', tab.title);
   if (tab.cwd) params.set('cwd', tab.cwd);
   return `/terminal/${encodeURIComponent(tab.request_key)}?${params.toString()}`;
 }
@@ -75,35 +49,25 @@ export function useTabs() {
     if (!saved) return [];
     try {
       const parsed = JSON.parse(saved) as Array<Partial<Tab>>;
-      return parsed
+      const restored = parsed
         .filter((tab): tab is Partial<Tab> & { id: string; title: string } => typeof tab?.id === 'string' && typeof tab?.title === 'string')
         .map((tab) => ({
           id: tab.id,
-          title: isTerminalPath(typeof tab.path === 'string' ? tab.path : '')
-            ? normalizeTerminalTabTitle(tab.title)
-            : tab.title.trim(),
-          icon: normalizePersistedIcon(tab.icon),
+          title: tab.title,
+          icon: tab.icon ?? null,
           path: typeof tab.path === 'string' ? tab.path : `/page/${tab.id}`,
           history: Array.isArray(tab.history) ? tab.history.filter((path): path is string => typeof path === 'string') : undefined,
           historyIndex: typeof tab.historyIndex === 'number' ? tab.historyIndex : undefined,
         }))
         .filter((tab) => !isTerminalPath(tab.path));
+      return restored.filter((tab, index) => restored.findIndex((entry) => entry.id === tab.id) === index);
     } catch {
       return [];
     }
   });
 
   const currentRoute = location.pathname + location.search;
-  // Exact match first; fall back to pathname-only match for routes that carry
-  // extra query params (e.g. /page/x?ref=y). The fallback is skipped at the root
-  // path, where several tabs share pathname "/" and are told apart only by their
-  // ?tab= query — otherwise every home tab would resolve to the first one.
-  const exactTabIndex = tabs.findIndex((tab) => tab.path === currentRoute);
-  const activeTabIndex = exactTabIndex >= 0
-    ? exactTabIndex
-    : location.pathname === '/'
-      ? -1
-      : tabs.findIndex((tab) => stripSearch(tab.path) === location.pathname);
+  const activeTabIndex = tabs.findIndex((tab) => tab.path === currentRoute || stripSearch(tab.path) === location.pathname);
   const activeTabId = activeTabIndex >= 0 ? tabs[activeTabIndex].id : null;
   const lastActiveTabId = useRef<string | null>(null);
 
@@ -117,11 +81,6 @@ export function useTabs() {
   }, [tabs]);
 
   useEffect(() => {
-    if (!TERMINAL_ENABLED) {
-      setTerminalTabsLoaded(true);
-      return;
-    }
-
     let cancelled = false;
 
     api
@@ -131,7 +90,7 @@ export function useTabs() {
 
         const mappedTabs: Tab[] = persistedTabs.map((tab) => ({
           id: tab.request_key,
-          title: normalizeTerminalTabTitle(tab.title),
+          title: tab.title,
           icon: TERMINAL_ICON_URL,
           path: buildTerminalPath(tab),
         }));
@@ -181,6 +140,8 @@ export function useTabs() {
         ? currentIndex
         : prev.findIndex((entry) => entry.id === lastActiveTabId.current);
       if (previousIndex < 0) return [...prev, tab];
+      const alreadyOpenIndex = prev.findIndex((entry, index) => index !== previousIndex && entry.id === tab.id);
+      if (alreadyOpenIndex >= 0) return prev.map((entry, index) => index === alreadyOpenIndex ? { ...entry, path: tab.path, title: tab.title, icon: tab.icon } : entry);
       const next = [...prev];
       const active = next[previousIndex];
       const history = active.history ?? [active.path];
@@ -200,14 +161,10 @@ export function useTabs() {
     const closingTab = closingIndex >= 0 ? tabs[closingIndex] : null;
     if (!closingTab) return;
 
-    const isClosingCurrentRoute =
-      closingIndex === activeTabIndex ||
-      id === activeTabId ||
-      closingTab.path === currentRoute ||
-      (location.pathname !== '/' && stripSearch(closingTab.path) === location.pathname);
+    const isClosingCurrentRoute = closingIndex === activeTabIndex || id === activeTabId;
     if (isClosingCurrentRoute) {
-      const leftTab = closingIndex > 0 ? tabs[closingIndex - 1] : null;
-      const fallbackRightTab = closingIndex < tabs.length - 1 ? tabs[closingIndex + 1] : null;
+      const leftTab = tabs.slice(0, closingIndex).reverse().find((tab) => tab.id !== id);
+      const fallbackRightTab = tabs.slice(closingIndex + 1).find((tab) => tab.id !== id);
       navigate(leftTab?.path ?? fallbackRightTab?.path ?? '/');
     }
 
@@ -216,9 +173,10 @@ export function useTabs() {
     if (closingTab.path.startsWith('/terminal/')) {
       closeTerminalSessionForRequestKey(closingTab.id);
     }
-  }, [activeTabId, activeTabIndex, currentRoute, location.pathname, navigate, tabs]);
+  }, [activeTabId, activeTabIndex, navigate, tabs]);
 
   const closeAllTabs = useCallback(() => {
+    setRestoredTerminalPath(null);
     setTabs((prev) => {
       prev
         .filter((tab) => tab.path.startsWith('/terminal/'))
@@ -247,9 +205,7 @@ export function useTabs() {
       if (historyIndex <= 0) return;
       const previousIndex = historyIndex - 1;
       const previousPath = history[previousIndex];
-      // Keep `path` pointing at where the tab actually is now, so route-based
-      // active-tab resolution (and closeTab) still recognise this tab.
-      setTabs((prev) => prev.map((entry) => entry.id === tab.id ? { ...entry, historyIndex: previousIndex, path: previousPath } : entry));
+      setTabs((prev) => prev.map((entry) => entry.id === tab.id ? { ...entry, historyIndex: previousIndex } : entry));
       navigate(previousPath);
     },
     newTab: () => {

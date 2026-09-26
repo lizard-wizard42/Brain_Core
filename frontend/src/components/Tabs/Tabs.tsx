@@ -6,6 +6,7 @@ interface TabsProps {
   activeTabId: string | null;
   onTabClick: (id: string) => void;
   onTabClose: (id: string, e: React.MouseEvent) => void;
+  onCloseAllTabs: () => void;
   onNewTab: () => void;
   onGoBack: () => void;
   onGoHome: () => void;
@@ -28,7 +29,7 @@ function renderPageIcon(icon: string | null | undefined, fallback = '📄') {
   return icon || fallback;
 }
 
-export function Tabs({ tabs, activeTabId, onTabClick, onTabClose, onNewTab, onGoBack, onGoHome }: TabsProps) {
+export function Tabs({ tabs, activeTabId, onTabClick, onTabClose, onCloseAllTabs, onNewTab, onGoBack, onGoHome }: TabsProps) {
   return (
     <div className="flex items-start bg-[#111111] border-b border-[#1f1f1f] min-h-10 px-1.5 py-1 shrink-0">
       <div className="flex items-center gap-0.5 pr-2 mr-1 border-r border-white/10 shrink-0">
@@ -54,7 +55,7 @@ export function Tabs({ tabs, activeTabId, onTabClick, onTabClose, onNewTab, onGo
             <span className="shrink-0 flex items-center justify-center w-4 h-4 mt-0.5">
               {renderPageIcon(tab.icon)}
             </span>
-            <span className="min-w-0 max-w-[116px] md:max-w-[156px] truncate leading-5" title={tab.title}>
+            <span className="max-w-[116px] md:max-w-[156px] whitespace-normal break-words leading-[1.15]">
               {tab.title}
             </span>
             <button
@@ -73,6 +74,7 @@ export function Tabs({ tabs, activeTabId, onTabClick, onTabClose, onNewTab, onGo
         ))}
         <button type="button" onClick={onNewTab} className="flex h-8 w-8 items-center justify-center rounded-md text-lg leading-none text-gray-500 transition-colors hover:bg-white/5 hover:text-gray-200" aria-label="Abrir nova guia" title="Nova guia">+</button>
       </div>
+      <button type="button" onClick={onCloseAllTabs} disabled={tabs.length === 0} className="ml-auto h-8 shrink-0 rounded-md px-2 text-[11px] text-gray-400 hover:bg-white/10 hover:text-white disabled:opacity-40" aria-label="Fechar todas as abas" title="Fechar todas as abas">Fechar todas</button>
     </div>
   );
 }

@@ -9,6 +9,13 @@ export interface TerminalSessionSnapshot {
 const sessionsByRequestKey = new Map<string, TerminalSessionSnapshot>();
 const requestKeyBySessionId = new Map<string, string>();
 
+if (typeof window !== 'undefined') {
+  window.addEventListener('brain-core:session-ended', () => {
+    sessionsByRequestKey.clear();
+    requestKeyBySessionId.clear();
+  });
+}
+
 export function getTerminalSessionSnapshot(requestKey: string): TerminalSessionSnapshot | null {
   return sessionsByRequestKey.get(requestKey) ?? null;
 }

@@ -17,10 +17,6 @@ vi.mock('../../services/rememberService', () => ({
     getVoiceprint: vi.fn().mockResolvedValue({ enrolled: false, updated_at: null, sample_seconds: null, model: null }),
     enrollVoiceprint: vi.fn(),
     deleteVoiceprint: vi.fn(),
-    enrollVoiceprintFromSession: vi.fn(),
-    getPeople: vi.fn().mockResolvedValue([]),
-    setCluster: vi.fn().mockResolvedValue({ status: 'confirmed' }),
-    segmentAudioUrl: vi.fn((id: number) => `/api/remember/memory/segments/${id}/audio`),
   },
 }));
 
@@ -95,122 +91,21 @@ describe('RememberMemoryPanel', () => {
       sessions: [{
         id: 's9', started_at: '2026-08-20T09:00:00Z', ended_at: '2026-08-20T09:02:00Z',
         device_id: 'd', status: 'ready', text: 'oi tudo bem',
-        speakers: [
-          { cluster: 0, status: 'confirmed', person_id: null, name: null, is_me: true, suggested: null, sample_segment_id: null, total_ms: 1000, turn_count: 1 },
-          { cluster: 1, status: 'confirmed', person_id: 2, name: 'Ana', is_me: false, suggested: null, sample_segment_id: 5, total_ms: 2000, turn_count: 1 },
-        ],
+        progress: { total: 1, done: 1, processing: 0, pending: 0, failed: 0, percent: 100, models: ['large-v3-turbo'] },
         turns: [
-          { speaker: 'me', text: 'oi', cluster: 0, start_ms: 1000, end_ms: 2500 },
-          { speaker: 'other', text: 'tudo bem', cluster: 1, start_ms: 3000, end_ms: 5000 },
+          { speaker: 'me', text: 'oi' },
+          { speaker: 'other', text: 'tudo bem' },
         ],
       }],
     });
     renderPanel('/remember?date=2026-08-20');
     await waitFor(() => expect(screen.getByText('oi')).toBeInTheDocument());
     expect(screen.getByText('Você')).toBeInTheDocument();
-    expect(screen.getByText('Ana')).toBeInTheDocument();
-    expect(screen.getByText('06:00:01')).toBeInTheDocument();
-    expect(screen.getByText('06:00:03')).toBeInTheDocument();
-    expect(screen.getByLabelText('Ordem da linha do tempo')).toHaveTextContent('mais recentes primeiro');
-    expect(screen.getByText(/Início da sessão/)).toBeInTheDocument();
-    expect(screen.getByText(/Fim da sessão/)).toBeInTheDocument();
+    expect(screen.getByText('Participante')).toBeInTheDocument();
+    expect(screen.getByText('Transcrito no PC com large-v3-turbo')).toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText('Só minhas falas'));
     expect(screen.getByText('oi')).toBeInTheDocument();
     expect(screen.queryByText('tudo bem')).not.toBeInTheDocument();
-  });
-
-  it('abre o modal pelo nome do falante e cadastra uma nova pessoa', async () => {
-    vi.mocked(rememberService.getDay).mockResolvedValue({
-      date: '2026-08-20', total_seconds: 60, session_count: 1,
-      sessions: [{
-        id: 's1', started_at: '2026-08-20T09:00:00Z', ended_at: '2026-08-20T09:01:00Z',
-        device_id: 'd', status: 'ready', text: 'olá',
-        speakers: [{ cluster: 1, status: 'pending', person_id: null, name: null, is_me: false, suggested: null, sample_segment_id: 7, sample_segment_ids: [7, 8, 9], total_ms: 1000, turn_count: 1 }],
-        turns: [{ speaker: 'other', text: 'olá', cluster: 1 }],
-      }],
-    });
-    renderPanel('/remember?date=2026-08-20');
-    fireEvent.click(await screen.findByRole('button', { name: 'Falante A' }));
-    expect(screen.getByRole('dialog', { name: /quem é falante a/i })).toBeInTheDocument();
-    expect(screen.getByLabelText('Exemplo de voz 1')).toHaveAttribute('src', '/api/remember/memory/segments/7/audio');
-    expect(screen.getByLabelText('Exemplo de voz 3')).toHaveAttribute('src', '/api/remember/memory/segments/9/audio');
-    fireEvent.change(screen.getByLabelText(/novo nome/i), { target: { value: 'Sandra' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
-    await waitFor(() => expect(rememberService.setCluster).toHaveBeenCalledWith('s1', 1, 'confirm_new', { name: 'Sandra' }));
-  });
-
-  it('pré-nomeia sugestão de 95% ou mais sem confirmar automaticamente', async () => {
-    vi.mocked(rememberService.getDay).mockResolvedValue({
-      date: '2026-08-20', total_seconds: 30, session_count: 1,
-      sessions: [{
-        id: 's2', started_at: '2026-08-20T09:00:00Z', ended_at: '2026-08-20T09:00:30Z',
-        device_id: 'd', status: 'ready', text: 'oi',
-        speakers: [{ cluster: 1, status: 'pending', person_id: null, name: null, is_me: false, suggested: { person_id: 8, name: 'Sandra', score: 0.96 }, sample_segment_id: 7, total_ms: 1000, turn_count: 1 }],
-        turns: [{ speaker: 'other', text: 'oi', cluster: 1 }],
-      }],
-    });
-    renderPanel('/remember?date=2026-08-20');
-    const suggestedName = await screen.findByRole('button', { name: /Sandra.*provável.*96.*%/i });
-    expect(suggestedName).toBeInTheDocument();
-    expect(rememberService.setCluster).not.toHaveBeenCalled();
-  });
-
-  it('dados pré-Fase-8 (sem speakers, cluster nulo) ainda rotulam Você / Outra pessoa', async () => {
-    vi.mocked(rememberService.getDay).mockResolvedValue({
-      date: '2026-08-20', total_seconds: 60, session_count: 1,
-      sessions: [{
-        id: 's9', started_at: '2026-08-20T09:00:00Z', ended_at: '2026-08-20T09:01:00Z',
-        device_id: 'd', status: 'ready', text: 'oi tudo bem',
-        speakers: undefined,
-        turns: [
-          { speaker: 'other', text: 'tudo bem', cluster: null },
-          { speaker: 'me', text: 'oi', cluster: null },
-        ],
-      }],
-    });
-    renderPanel('/remember?date=2026-08-20');
-    await waitFor(() => expect(screen.getByText('oi')).toBeInTheDocument());
-    expect(screen.getByText('Você')).toBeInTheDocument();
-    expect(screen.getByText('Outra pessoa')).toBeInTheDocument();
-  });
-
-  it('rotula o turno pelo nome quando o cluster está confirmado, e "Falante A" quando pendente', async () => {
-    vi.mocked(rememberService.getDay).mockResolvedValue({
-      date: '2026-08-20', total_seconds: 120, session_count: 1,
-      sessions: [{
-        id: 's9', started_at: '2026-08-20T09:00:00Z', ended_at: '2026-08-20T09:02:00Z',
-        device_id: 'd', status: 'ready', text: 'oi tudo bem',
-        speakers: [
-          { cluster: 1, status: 'confirmed', person_id: 3, name: 'Cláudio', is_me: false, suggested: null, sample_segment_id: 11, total_ms: 3000, turn_count: 1 },
-          { cluster: 2, status: 'pending', person_id: null, name: null, is_me: false, suggested: null, sample_segment_id: 12, total_ms: 2000, turn_count: 1 },
-        ],
-        turns: [
-          { speaker: 'other', text: 'oi', segment_ids: [11], cluster: 1 },
-          { speaker: 'other', text: 'tudo bem', segment_ids: [12], cluster: 2 },
-        ],
-      }],
-    });
-    renderPanel('/remember?date=2026-08-20');
-    expect(await screen.findByText('Cláudio')).toBeInTheDocument();
-    expect(screen.getByText('Falante B')).toBeInTheDocument();
-    expect(screen.queryByTitle('Corrigir quem falou')).not.toBeInTheDocument();
-  });
-
-  it('mostra o botão de Falantes com badge da contagem de pendentes do dia', async () => {
-    vi.mocked(rememberService.getDay).mockResolvedValue({
-      date: '2026-08-20', total_seconds: 0, session_count: 1,
-      sessions: [{
-        id: 's9', started_at: '2026-08-20T09:00:00Z', ended_at: null, device_id: 'd', status: 'ready', text: null,
-        speakers: [
-          { cluster: 1, status: 'pending', person_id: null, name: null, is_me: false, suggested: null, sample_segment_id: 11, total_ms: 0, turn_count: 0 },
-          { cluster: 2, status: 'pending', person_id: null, name: null, is_me: false, suggested: null, sample_segment_id: 12, total_ms: 0, turn_count: 0 },
-        ],
-        turns: [],
-      }],
-    });
-    renderPanel('/remember?date=2026-08-20');
-    expect(await screen.findByRole('button', { name: /falantes/i })).toBeInTheDocument();
-    expect(screen.getByText('2')).toBeInTheDocument();
   });
 });

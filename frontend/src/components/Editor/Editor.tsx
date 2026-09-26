@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useReducer, useCallback, useMemo, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useEditor, EditorContent, NodeViewWrapper, ReactNodeViewRenderer, type Editor as TiptapEditor, type NodeViewProps } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -16,20 +16,22 @@ import { TextStyle } from '@tiptap/extension-text-style';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
-import { Plugin, PluginKey } from '@tiptap/pm/state';
-import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { createLowlight, common } from 'lowlight';
 import { useSocket } from '../../hooks/useSocket';
-import { api } from '../../api/client';
+import { api, isRevisionConflict } from '../../api/client';
 import { resolveAssetUrl } from '../../api/assetUrl';
 import { EmojiPicker } from '../shared/EmojiPicker';
+import { ShareBadge } from '../Shared/ShareBadge';
+import { ShareManagerModal } from '../Shared/ShareManagerModal';
+import { PageHistoryPanel } from '../Shared/PageHistoryPanel';
+import { useSharedPages } from '../Shared/sharedPagesContext';
+import { describeLastEdit, grantsToNameMap } from '../Shared/sharedModel';
+import type { PageGrant } from '../../types';
 import { SubPageBlock } from './SubPageBlock';
 import { SubPageBlockView } from './SubPageBlockView';
 import { AttachmentBlock } from './AttachmentBlock';
 import { AttachmentBlockView } from './AttachmentBlockView';
 import { SlashMenu, type SlashCommand } from './SlashMenu';
-import { AiMenu } from './AiMenu';
-import { NewTableModal } from './NewTableModal';
 import { findTrailingEditorTriggerQuery } from './triggers';
 import type { InfiniteDoc, Page, PageSummary, PageVersion, TiptapDoc, TiptapNode } from '../../types';
 
@@ -63,17 +65,27 @@ const IMAGE_MIN_WIDTH_PERCENT = 20;
 const IMAGE_MAX_WIDTH_PERCENT = 100;
 let cachedAllPages: PageSummary[] | null = null;
 let cachedAllPagesPromise: Promise<PageSummary[]> | null = null;
+let cachedAllPagesGeneration = 0;
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('brain-core:session-ended', () => {
+    cachedAllPagesGeneration += 1;
+    cachedAllPages = null;
+    cachedAllPagesPromise = null;
+  });
+}
 
 async function loadAllPagesCached(): Promise<PageSummary[]> {
   if (cachedAllPages) return cachedAllPages;
   if (!cachedAllPagesPromise) {
+    const generation = cachedAllPagesGeneration;
     cachedAllPagesPromise = api.getTree()
       .then(({ pages }) => {
-        cachedAllPages = pages;
+        if (generation === cachedAllPagesGeneration) cachedAllPages = pages;
         return pages;
       })
       .catch((err) => {
-        cachedAllPagesPromise = null;
+        if (generation === cachedAllPagesGeneration) cachedAllPagesPromise = null;
         throw err;
       });
   }
@@ -193,6 +205,95 @@ const ResizableImage = Image.extend({
     return ReactNodeViewRenderer(ResizableImageView);
   },
 });
+
+// ── New Table Modal ────────────────────────────────────────────────────────
+
+function NewTableModal({
+  onConfirm,
+  onClose,
+}: {
+  onConfirm: (rows: number, cols: number) => void;
+  onClose: () => void;
+}) {
+  const [rows, setRows] = useState('3');
+  const [cols, setCols] = useState('3');
+  const rowsRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { rowsRef.current?.focus(); }, []);
+
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [onClose]);
+
+  const handleConfirm = () => {
+    const r = Math.max(1, Math.min(20, parseInt(rows) || 3));
+    const c = Math.max(1, Math.min(20, parseInt(cols) || 3));
+    onConfirm(r, c);
+  };
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center"
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl shadow-2xl p-6 w-80 flex flex-col gap-4">
+        <div>
+          <h2 className="text-[15px] font-semibold text-white mb-0.5">Inserir tabela</h2>
+          <p className="text-[12px] text-gray-600">Defina o tamanho inicial</p>
+        </div>
+
+        <div className="flex gap-3">
+          <div className="flex-1 flex flex-col gap-1.5">
+            <label className="text-[11px] text-gray-600 uppercase tracking-wider">Linhas</label>
+            <input
+              ref={rowsRef}
+              type="number"
+              min={1}
+              max={20}
+              value={rows}
+              onChange={e => setRows(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleConfirm(); }}
+              className="w-full bg-[#111] border border-[#2a2a2a] focus:border-[#444] rounded-lg px-3 py-2 text-[14px] text-white outline-none transition-colors text-center"
+            />
+          </div>
+          <div className="flex items-end pb-2 text-gray-600 text-lg">×</div>
+          <div className="flex-1 flex flex-col gap-1.5">
+            <label className="text-[11px] text-gray-600 uppercase tracking-wider">Colunas</label>
+            <input
+              type="number"
+              min={1}
+              max={20}
+              value={cols}
+              onChange={e => setCols(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleConfirm(); }}
+              className="w-full bg-[#111] border border-[#2a2a2a] focus:border-[#444] rounded-lg px-3 py-2 text-[14px] text-white outline-none transition-colors text-center"
+            />
+          </div>
+        </div>
+
+        <div className="flex gap-2 justify-end">
+          <button
+            className="px-4 py-2 text-[13px] text-gray-500 hover:text-gray-300 rounded-lg hover:bg-white/5 transition-colors"
+            onClick={onClose}
+          >
+            Cancelar
+          </button>
+          <button
+            className="px-4 py-2 text-[13px] bg-white text-black font-medium rounded-lg hover:bg-gray-100 transition-colors"
+            onClick={handleConfirm}
+          >
+            Inserir
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
 
 // ── New Sub-Page Modal ─────────────────────────────────────────────────────
 
@@ -334,7 +435,7 @@ function TypeSelectorModal({
 
 const lowlight = createLowlight(common);
 
-type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+type SaveStatus = 'idle' | 'saving' | 'saved' | 'error' | 'conflict';
 
 const HIGHLIGHT_COLORS = [
   { label: 'Amarelo', color: 'rgba(250, 204, 21, 0.25)' },
@@ -449,7 +550,7 @@ function CoverImage({ pageId, coverUrl, coverPositionY, onUpdate }: CoverProps) 
     return (
       <div className="group relative h-8 flex items-center">
         <button
-          className="hidden group-hover:flex items-center gap-1 text-xs text-gray-600 hover:text-gray-400 transition-colors ml-2"
+          className="flex md:hidden md:group-hover:flex items-center gap-1 text-xs text-gray-600 hover:text-gray-400 transition-colors ml-2"
           onClick={() => setShowPanel(true)}
         >
           <span>🖼️</span> Adicionar capa
@@ -491,7 +592,7 @@ function CoverImage({ pageId, coverUrl, coverPositionY, onUpdate }: CoverProps) 
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#191919] pointer-events-none" />
 
       {/* Controls */}
-      <div className="absolute top-3 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="absolute top-3 right-4 flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
         {repositioning ? (
           <>
             <span className="px-3 py-1 text-xs bg-black/60 text-gray-300 rounded-md backdrop-blur-sm">
@@ -662,7 +763,8 @@ function AtPicker({ pages, query, position, onSelect, onClose }: AtPickerProps) 
             i === selected ? 'bg-white/[0.07]' : 'hover:bg-white/[0.04]'
           }`}
           onMouseEnter={() => updateSelected(i)}
-          onMouseDown={e => { e.preventDefault(); onSelect(p); }}
+          onMouseDown={e => e.preventDefault()}
+          onClick={() => onSelect(p)}
         >
           <span className="text-base shrink-0 w-5 h-5 flex items-center justify-center">
             {renderPageIcon(p.icon)}
@@ -746,7 +848,7 @@ function PageHeader({ pageId, icon, title, onIconChange, onTitleChange, onRefres
           ref={titleRef}
           rows={1}
           className="flex-1 resize-none overflow-hidden text-[2.5rem] font-bold text-white bg-transparent outline-none placeholder-[#333] leading-tight whitespace-pre-wrap break-words"
-          style={{ fontFamily: 'system-ui, sans-serif', letterSpacing: '-0.02em' }}
+          style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '-0.02em' }}
           placeholder="Sem título"
           value={title}
           onChange={e => onTitleChange(e.target.value)}
@@ -796,8 +898,7 @@ function FontColorDropdown({ editor, savedSel }: { editor: TiptapEditor | null; 
     else editor.chain().focus().setColor(color).run();
   };
 
-  const handleToggle = (e: React.PointerEvent<HTMLButtonElement>) => {
-    e.preventDefault();
+  const handleToggle = () => {
     const btn = btnRef.current;
     if (!btn) return;
     if (open) { setOpen(false); return; }
@@ -807,8 +908,7 @@ function FontColorDropdown({ editor, savedSel }: { editor: TiptapEditor | null; 
     setOpen(true);
   };
 
-  const handleColor = (e: React.PointerEvent<HTMLButtonElement>, color: string) => {
-    e.preventDefault();
+  const handleColor = (color: string) => {
     applyColor(color);
     setOpen(false);
   };
@@ -838,9 +938,12 @@ function FontColorDropdown({ editor, savedSel }: { editor: TiptapEditor | null; 
     <>
       <button
         ref={btnRef}
+        type="button"
+        aria-label="Cor do texto"
         title="Cor do texto"
-        onPointerDown={handleToggle}
-        className="px-2 py-1 text-xs rounded transition-colors flex items-center gap-1 text-gray-400 hover:text-gray-200 hover:bg-white/5"
+        onPointerDown={e => e.preventDefault()}
+        onClick={handleToggle}
+        className="min-h-10 min-w-10 px-2 py-1 text-xs rounded transition-colors flex items-center justify-center gap-1 text-gray-400 hover:text-gray-200 hover:bg-white/5"
       >
         <span style={{ color: currentColor || '#d4d4d4', fontWeight: 700 }}>A</span>
         <span className="text-[8px] opacity-60">▾</span>
@@ -856,8 +959,10 @@ function FontColorDropdown({ editor, savedSel }: { editor: TiptapEditor | null; 
             {FONT_COLORS.map(({ label, color }) => (
               <button
                 key={label}
+                type="button"
                 title={label}
-                onPointerDown={e => handleColor(e, color)}
+                onPointerDown={e => e.preventDefault()}
+                onClick={() => handleColor(color)}
                 className="w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 flex items-center justify-center"
                 style={{
                   backgroundColor: color || '#2a2a2a',
@@ -892,10 +997,9 @@ function FontColorDropdown({ editor, savedSel }: { editor: TiptapEditor | null; 
                 className="flex-1 h-9 rounded border border-[#2a2a2a] bg-[#111] px-2 text-xs text-gray-200 outline-none focus:border-accent"
               />
               <button
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  handleHexApply();
-                }}
+                type="button"
+                onPointerDown={e => e.preventDefault()}
+                onClick={handleHexApply}
                 className="h-9 px-2 rounded border border-[#2a2a2a] text-xs text-gray-300 hover:bg-white/5"
                 title="Aplicar cor"
               >
@@ -904,10 +1008,9 @@ function FontColorDropdown({ editor, savedSel }: { editor: TiptapEditor | null; 
             </div>
 
             <button
-              onPointerDown={(e) => {
-                e.preventDefault();
-                void handlePickFromScreen();
-              }}
+              type="button"
+              onPointerDown={e => e.preventDefault()}
+              onClick={() => { void handlePickFromScreen(); }}
               disabled={!eyedropperSupported}
               className="w-full h-9 px-2 rounded border border-[#2a2a2a] text-xs text-gray-300 hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed"
               title={eyedropperSupported ? 'Eyedropper Tool' : 'Eyedropper não suportado neste navegador'}
@@ -969,8 +1072,7 @@ function HighlightDropdown({ editor, savedSel }: { editor: TiptapEditor | null; 
     else editor.chain().focus().setHighlight({ color }).run();
   };
 
-  const handleToggle = (e: React.PointerEvent<HTMLButtonElement>) => {
-    e.preventDefault();
+  const handleToggle = () => {
     const btn = btnRef.current;
     if (!btn) return;
     if (open) { setOpen(false); return; }
@@ -980,8 +1082,7 @@ function HighlightDropdown({ editor, savedSel }: { editor: TiptapEditor | null; 
     setOpen(true);
   };
 
-  const handleHighlight = (e: React.PointerEvent<HTMLButtonElement>, color: string) => {
-    e.preventDefault();
+  const handleHighlight = (color: string) => {
     if (editor.isActive('highlight', { color })) applyHighlight('');
     else applyHighlight(color);
     setOpen(false);
@@ -1011,9 +1112,12 @@ function HighlightDropdown({ editor, savedSel }: { editor: TiptapEditor | null; 
     <>
       <button
         ref={btnRef}
+        type="button"
+        aria-label="Destacar texto"
         title="Destacar texto"
-        onPointerDown={handleToggle}
-        className={`px-2 py-1 text-xs rounded transition-colors flex items-center gap-1 ${
+        onPointerDown={e => e.preventDefault()}
+        onClick={handleToggle}
+        className={`min-h-10 min-w-10 px-2 py-1 text-xs rounded transition-colors flex items-center justify-center gap-1 ${
           isHighlighted
             ? 'bg-yellow-300/20 text-yellow-300'
             : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
@@ -1033,8 +1137,11 @@ function HighlightDropdown({ editor, savedSel }: { editor: TiptapEditor | null; 
             {HIGHLIGHT_COLORS.map(({ label, color }) => (
               <button
                 key={color}
+                type="button"
                 title={label}
-                onPointerDown={e => handleHighlight(e, color)}
+                aria-label={label}
+                onPointerDown={e => e.preventDefault()}
+                onClick={() => handleHighlight(color)}
                 className="w-6 h-6 rounded-full border-2 transition-transform hover:scale-110"
                 style={{
                   backgroundColor: color,
@@ -1043,9 +1150,11 @@ function HighlightDropdown({ editor, savedSel }: { editor: TiptapEditor | null; 
               />
             ))}
             <button
+              type="button"
+              aria-label="Remover destaque"
               title="Remover destaque"
-              onPointerDown={e => {
-                e.preventDefault();
+              onPointerDown={e => e.preventDefault()}
+              onClick={() => {
                 applyHighlight('');
                 setOpen(false);
               }}
@@ -1078,10 +1187,9 @@ function HighlightDropdown({ editor, savedSel }: { editor: TiptapEditor | null; 
                 className="flex-1 h-9 rounded border border-[#2a2a2a] bg-[#111] px-2 text-xs text-gray-200 outline-none focus:border-accent"
               />
               <button
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  handleHexApply();
-                }}
+                type="button"
+                onPointerDown={e => e.preventDefault()}
+                onClick={handleHexApply}
                 className="h-9 px-2 rounded border border-[#2a2a2a] text-xs text-gray-300 hover:bg-white/5"
                 title="Aplicar cor"
               >
@@ -1090,10 +1198,9 @@ function HighlightDropdown({ editor, savedSel }: { editor: TiptapEditor | null; 
             </div>
 
             <button
-              onPointerDown={(e) => {
-                e.preventDefault();
-                void handlePickFromScreen();
-              }}
+              type="button"
+              onPointerDown={e => e.preventDefault()}
+              onClick={() => { void handlePickFromScreen(); }}
               disabled={!eyedropperSupported}
               className="w-full h-9 px-2 rounded border border-[#2a2a2a] text-xs text-gray-300 hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed"
               title={eyedropperSupported ? 'Eyedropper Tool' : 'Eyedropper não suportado neste navegador'}
@@ -1184,7 +1291,7 @@ function LinkButton({ editor, savedSel }: { editor: TiptapEditor | null; savedSe
         title="Link"
         onMouseDown={e => { e.preventDefault(); }}
         onClick={openPopover}
-        className={`px-2 py-1 text-xs rounded transition-colors font-medium ${
+        className={`min-h-10 min-w-10 px-2 py-1 text-xs rounded transition-colors font-medium ${
           isActive
             ? 'bg-white/10 text-white'
             : 'text-gray-500 hover:text-gray-200 hover:bg-white/5'
@@ -1256,13 +1363,15 @@ function EmojiToolbarButton({ editor }: { editor: TiptapEditor | null }) {
   return (
     <>
       <button
+        type="button"
+        aria-label="Inserir emoji"
         title="Inserir emoji"
-        onMouseDown={e => {
-          e.preventDefault();
+        onMouseDown={e => e.preventDefault()}
+        onClick={e => {
           const rect = e.currentTarget.getBoundingClientRect();
           setAnchorRect(r => (r ? null : rect));
         }}
-        className="px-2 py-1 text-xs rounded transition-colors text-gray-500 hover:text-gray-200 hover:bg-white/5"
+        className="min-h-10 min-w-10 px-2 py-1 text-xs rounded transition-colors text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-hover)]"
       >
         😊
       </button>
@@ -1379,7 +1488,8 @@ function TableControls({ editor }: { editor: TiptapEditor | null }) {
             className="fixed z-50 flex items-center justify-center w-5 rounded-md bg-[#2a2a2a] hover:bg-[#3a3a3a] text-gray-500 hover:text-gray-200 transition-colors border border-[#333] hover:border-[#555] text-xs"
             style={{ top: colBtn.top, left: colBtn.left, height: colBtn.height }}
             title="Adicionar coluna"
-            onMouseDown={e => { e.preventDefault(); editor.chain().focus().addColumnAfter().run(); }}
+            onMouseDown={e => e.preventDefault()}
+            onClick={() => editor.chain().focus().addColumnAfter().run()}
           >
             +
           </button>
@@ -1387,7 +1497,8 @@ function TableControls({ editor }: { editor: TiptapEditor | null }) {
             className="fixed z-50 flex items-center justify-center w-5 h-5 rounded-md bg-[#2a1a1a] hover:bg-[#3a2222] text-red-400 hover:text-red-300 transition-colors border border-[#4a2a2a] hover:border-[#6a3a3a] text-[10px]"
             style={{ top: colBtn.top + colBtn.height + 4, left: colBtn.left }}
             title="Excluir coluna atual"
-            onMouseDown={e => { e.preventDefault(); setConfirmDelete('column'); }}
+            onMouseDown={e => e.preventDefault()}
+            onClick={() => setConfirmDelete('column')}
           >
             🗑
           </button>
@@ -1400,7 +1511,8 @@ function TableControls({ editor }: { editor: TiptapEditor | null }) {
             className="fixed z-50 flex items-center justify-center h-5 rounded-md bg-[#2a2a2a] hover:bg-[#3a3a3a] text-gray-500 hover:text-gray-200 transition-colors border border-[#333] hover:border-[#555] text-xs"
             style={{ top: rowBtn.top, left: rowBtn.left, width: rowBtn.width }}
             title="Adicionar linha"
-            onMouseDown={e => { e.preventDefault(); editor.chain().focus().addRowAfter().run(); }}
+            onMouseDown={e => e.preventDefault()}
+            onClick={() => editor.chain().focus().addRowAfter().run()}
           >
             +
           </button>
@@ -1408,7 +1520,8 @@ function TableControls({ editor }: { editor: TiptapEditor | null }) {
             className="fixed z-50 flex items-center justify-center w-5 h-5 rounded-md bg-[#2a1a1a] hover:bg-[#3a2222] text-red-400 hover:text-red-300 transition-colors border border-[#4a2a2a] hover:border-[#6a3a3a] text-[10px]"
             style={{ top: rowBtn.top, left: rowBtn.left + Math.max(0, rowBtn.width - 20) }}
             title="Excluir linha atual"
-            onMouseDown={e => { e.preventDefault(); setConfirmDelete('row'); }}
+            onMouseDown={e => e.preventDefault()}
+            onClick={() => setConfirmDelete('row')}
           >
             🗑
           </button>
@@ -1430,13 +1543,15 @@ function TableControls({ editor }: { editor: TiptapEditor | null }) {
             <div className="mt-4 flex justify-end gap-2">
               <button
                 className="px-3 py-1.5 text-xs rounded-lg text-gray-400 hover:text-gray-200 hover:bg-white/5 transition-colors"
-                onMouseDown={e => { e.preventDefault(); setConfirmDelete(null); }}
+                onMouseDown={e => e.preventDefault()}
+                onClick={() => setConfirmDelete(null)}
               >
                 Cancelar
               </button>
               <button
                 className="px-3 py-1.5 text-xs rounded-lg bg-red-500/15 border border-red-500/30 text-red-300 hover:bg-red-500/25 transition-colors"
-                onMouseDown={e => { e.preventDefault(); runDelete(confirmDelete); }}
+                onMouseDown={e => e.preventDefault()}
+                onClick={() => runDelete(confirmDelete)}
               >
                 Excluir
               </button>
@@ -1453,22 +1568,28 @@ function TableControls({ editor }: { editor: TiptapEditor | null }) {
 function ToolbarButton({
   onClick,
   active,
+  disabled,
   title,
   children,
 }: {
   onClick: () => void;
   active?: boolean;
+  disabled?: boolean;
   title: string;
   children: React.ReactNode;
 }) {
   return (
     <button
+      type="button"
+      aria-label={title}
       title={title}
-      onMouseDown={e => { e.preventDefault(); onClick(); }}
-      className={`px-2 py-1 text-xs rounded transition-colors font-medium ${
+      onMouseDown={e => e.preventDefault()}
+      onClick={onClick}
+      disabled={disabled}
+      className={`min-h-10 min-w-10 px-2 py-1 text-xs rounded transition-colors font-medium disabled:opacity-30 ${
         active
-          ? 'bg-white/10 text-white'
-          : 'text-gray-500 hover:text-gray-200 hover:bg-white/5'
+          ? 'bg-[var(--theme-hover)] text-[var(--theme-text)]'
+          : 'text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-hover)]'
       }`}
     >
       {children}
@@ -1494,34 +1615,12 @@ function findTextMatches(editor: TiptapEditor, query: string): Array<{ from: num
   return matches;
 }
 
-const findHighlightKey = new PluginKey('brainFindHighlight');
-
-function findHighlightPlugin(getState: () => { matches: Array<{ from: number; to: number }>; activeIndex: number }) {
-  return new Plugin({
-    key: findHighlightKey,
-    props: {
-      decorations(state) {
-        const { matches, activeIndex } = getState();
-        if (!matches.length) return DecorationSet.empty;
-        const decos = matches.map((m, i) =>
-          Decoration.inline(m.from, m.to, {
-            class: i === activeIndex ? 'brain-find-active' : 'brain-find-match',
-          }),
-        );
-        return DecorationSet.create(state.doc, decos);
-      },
-    },
-  });
-}
-
-export function FindReplacePopover({
+function FindReplacePopover({
   editor,
   onClose,
-  toggleSelector = '[data-find-toggle]',
 }: {
   editor: TiptapEditor;
   onClose: () => void;
-  toggleSelector?: string;
 }) {
   const [findValue, setFindValue] = useState('');
   const [replaceValue, setReplaceValue] = useState('');
@@ -1534,9 +1633,7 @@ export function FindReplacePopover({
       if (e.key === 'Escape') onClose();
     }
     function handleOutside(e: MouseEvent) {
-      const target = e.target as HTMLElement | null;
-      if (target && target.closest(toggleSelector)) return;
-      if (panelRef.current && !panelRef.current.contains(target)) onClose();
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) onClose();
     }
     document.addEventListener('keydown', handleKey);
     document.addEventListener('mousedown', handleOutside);
@@ -1544,41 +1641,13 @@ export function FindReplacePopover({
       document.removeEventListener('keydown', handleKey);
       document.removeEventListener('mousedown', handleOutside);
     };
-  }, [onClose, toggleSelector]);
-
-  // `useEditor` (TipTap v3) não re-renderiza por transação; sem isto a navegação
-  // ↓/↑ e o realce da ocorrência ativa ficam presos na primeira match no browser.
-  const [, bumpTick] = useReducer((x: number) => x + 1, 0);
-  useEffect(() => {
-    if (typeof editor.on !== 'function' || typeof editor.off !== 'function') return;
-    editor.on('transaction', bumpTick);
-    return () => { editor.off('transaction', bumpTick); };
-  }, [editor]);
+  }, [onClose]);
 
   const matches = findTextMatches(editor, findValue);
   const currentSelection = editor.state.selection;
   const activeIndex = matches.findIndex(
     (match) => match.from === currentSelection.from && match.to === currentSelection.to
   );
-
-  const stateRef = useRef({ matches: [] as Array<{ from: number; to: number }>, activeIndex: -1 });
-  stateRef.current = { matches, activeIndex };
-
-  useEffect(() => {
-    if (typeof editor.registerPlugin !== 'function' || typeof editor.unregisterPlugin !== 'function') return;
-    const plugin = findHighlightPlugin(() => stateRef.current);
-    editor.registerPlugin(plugin);
-    return () => { editor.unregisterPlugin(findHighlightKey); };
-  }, [editor]);
-
-  // Mudança no termo não gera transação PM sozinha (só um re-render React), então
-  // as decorações `brain-find-match` não apareceriam até a 1ª transação. Este
-  // meta no-op força o recomputo das decorações ao digitar. Mudança de seleção
-  // já é coberta pela assinatura de `transaction` acima.
-  useEffect(() => {
-    if (typeof editor.state?.tr?.setMeta !== 'function' || typeof editor.view?.dispatch !== 'function') return;
-    editor.view.dispatch(editor.state.tr.setMeta(findHighlightKey, Date.now()));
-  }, [editor, findValue]);
 
   const jumpToMatch = (direction: 'next' | 'prev') => {
     if (!matches.length) return;
@@ -1588,8 +1657,6 @@ export function FindReplacePopover({
       : (currentIndex - 1 + matches.length) % matches.length;
     const target = matches[nextIndex];
     editor.chain().focus().setTextSelection({ from: target.from, to: target.to }).run();
-    const dom = editor.view.domAtPos(target.from)?.node as HTMLElement | undefined;
-    (dom?.parentElement ?? dom)?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
   };
 
   const replaceCurrent = () => {
@@ -1690,63 +1757,6 @@ export function FindReplacePopover({
   );
 }
 
-function VersionHistoryPopover({
-  versions,
-  onRestoreVersion,
-  onClose,
-}: {
-  versions: PageVersion[];
-  onRestoreVersion: (versionId: string) => void;
-  onClose: () => void;
-}) {
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [onClose]);
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[220]"
-      onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div className="absolute bottom-14 right-2 sm:right-6 w-[min(92vw,360px)] rounded-xl border border-[#2a2a2a] bg-[#171717] shadow-2xl">
-        <div className="flex items-center justify-between px-3 py-2 border-b border-[#242424]">
-          <p className="text-[11px] uppercase tracking-wider text-gray-500">Histórico ({versions.length})</p>
-          <button
-            className="text-[11px] text-gray-500 hover:text-gray-300"
-            onClick={onClose}
-          >
-            Fechar
-          </button>
-        </div>
-        <div className="max-h-72 overflow-y-auto p-2 space-y-1.5">
-          {versions.map(v => (
-            <div key={v.id} className="flex items-center gap-2 rounded px-2 py-1 border border-[#262626] bg-[#141414]">
-              <span className="text-[11px] text-gray-500 min-w-[72px] uppercase">{v.reason}</span>
-              <span className="text-[11px] text-gray-400 flex-1">{new Date(v.created_at).toLocaleString('pt-BR')}</span>
-              <button
-                onClick={() => { onRestoreVersion(v.id); onClose(); }}
-                className="px-2 py-1 text-[11px] rounded text-gray-300 hover:bg-white/[0.05]"
-              >
-                Restaurar
-              </button>
-            </div>
-          ))}
-          {versions.length === 0 && (
-            <div className="rounded px-2 py-3 border border-dashed border-[#262626] bg-[#141414]">
-              <p className="text-xs text-gray-500">Sem versões ainda para esta página.</p>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-}
-
 function BottomToolbar({
   editor,
   saveStatus,
@@ -1756,60 +1766,56 @@ function BottomToolbar({
   onOpenAttachmentPicker,
   savedSel,
   versions,
-  onRestoreVersion,
+  nameById,
+  versionsLoading,
+  versionsError,
   spellcheckEnabled,
   onToggleSpellcheck,
-  pageId,
+  onRetrySave,
 }: {
   editor: TiptapEditor | null;
   saveStatus: SaveStatus;
-  pageId: string;
   onCreateSubPage: () => void;
   creatingSubPage: boolean;
   onOpenImagePicker: () => void;
   onOpenAttachmentPicker: () => void;
   savedSel: React.RefObject<SavedSel>;
   versions: PageVersion[];
-  onRestoreVersion: (versionId: string) => void;
+  nameById: Map<string, string>;
+  versionsLoading: boolean;
+  versionsError: string | null;
   spellcheckEnabled: boolean;
   onToggleSpellcheck: () => void;
+  onRetrySave: () => void;
 }) {
   const [showTableModal, setShowTableModal] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showFindReplace, setShowFindReplace] = useState(false);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'f' || e.key === 'F')) {
-        e.preventDefault();
-        setShowFindReplace(true);
-      }
-    }
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, []);
-
   const statusText: Record<SaveStatus, string> = {
     idle: '',
     saving: 'Salvando…',
     saved: '✓ Salvo',
     error: '⚠ Erro',
+    conflict: '⚠ Conflito',
   };
   const statusColor: Record<SaveStatus, string> = {
     idle: 'text-transparent',
     saving: 'text-gray-600',
     saved: 'text-green-600',
     error: 'text-red-500',
+    conflict: 'text-amber-500',
   };
 
   if (!editor) return null;
 
   return (
-    <div className="sticky bottom-0 z-10 flex items-center gap-1 px-2 sm:px-6 pt-2 bg-[#191919]/90 backdrop-blur-sm border-t border-[#1f1f1f] overflow-x-auto safe-area-bottom" style={{ scrollbarWidth: 'none' }}>
+    <div role="toolbar" aria-label="Ferramentas da página" className="sticky bottom-0 z-10 flex items-center gap-1 px-2 sm:px-6 pt-2 bg-[var(--theme-background)] border-t border-[var(--theme-border)] overflow-x-auto safe-area-bottom" style={{ scrollbarWidth: 'none' }}>
       {showHistory && (
-        <VersionHistoryPopover
+        <PageHistoryPanel
           versions={versions}
-          onRestoreVersion={onRestoreVersion}
+          nameById={nameById}
+          loading={versionsLoading}
+          error={versionsError}
           onClose={() => setShowHistory(false)}
         />
       )}
@@ -1819,7 +1825,10 @@ function BottomToolbar({
           onClose={() => setShowFindReplace(false)}
         />
       )}
-      <AiMenu editor={editor} pageId={pageId} />
+      <ToolbarButton title="Desfazer" disabled={!editor.can().undo()}
+        onClick={() => editor.chain().focus().undo().run()}>↶</ToolbarButton>
+      <ToolbarButton title="Refazer" disabled={!editor.can().redo()}
+        onClick={() => editor.chain().focus().redo().run()}>↷</ToolbarButton>
       <span className="text-[#2a2a2a] mx-1">|</span>
       {/* Text format */}
       <ToolbarButton title="Negrito (Ctrl+B)" active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}>
@@ -1857,9 +1866,9 @@ function BottomToolbar({
       <ToolbarButton title="Bloco de código" active={editor.isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()}>{'</>'}</ToolbarButton>
       {showTableModal && (
         <NewTableModal
-          onConfirm={(rows, cols, withHeaderRow) => {
+          onConfirm={(rows, cols) => {
             setShowTableModal(false);
-            editor.chain().focus().insertTable({ rows, cols, withHeaderRow }).run();
+            editor.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run();
           }}
           onClose={() => setShowTableModal(false)}
         />
@@ -1883,18 +1892,24 @@ function BottomToolbar({
 
       {/* Imagem */}
       <button
+        type="button"
+        aria-label="Inserir imagem"
         title="Inserir imagem"
-        onMouseDown={e => { e.preventDefault(); onOpenImagePicker(); }}
-        className="px-2 py-1 text-xs rounded transition-colors text-gray-500 hover:text-gray-200 hover:bg-white/5"
+        onMouseDown={e => e.preventDefault()}
+        onClick={onOpenImagePicker}
+        className="min-h-10 min-w-10 px-2 py-1 text-xs rounded transition-colors text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-hover)]"
       >
         🖼️
       </button>
 
       {/* Anexo */}
       <button
+        type="button"
+        aria-label="Anexar arquivo"
         title="Anexar arquivo"
-        onMouseDown={e => { e.preventDefault(); onOpenAttachmentPicker(); }}
-        className="px-2 py-1 text-xs rounded transition-colors text-gray-500 hover:text-gray-200 hover:bg-white/5"
+        onMouseDown={e => e.preventDefault()}
+        onClick={onOpenAttachmentPicker}
+        className="min-h-10 min-w-10 px-2 py-1 text-xs rounded transition-colors text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-hover)]"
       >
         📎
       </button>
@@ -1903,25 +1918,28 @@ function BottomToolbar({
 
       {/* Sub-page */}
       <button
+        type="button"
         title="Criar sub-página"
-        onMouseDown={e => { e.preventDefault(); onCreateSubPage(); }}
+        onMouseDown={e => e.preventDefault()}
+        onClick={onCreateSubPage}
         disabled={creatingSubPage}
         aria-label="Criar sub-página"
-        className="px-2 py-1 text-xs rounded text-gray-500 hover:text-gray-200 hover:bg-white/5 transition-colors disabled:opacity-40"
+        className="min-h-10 min-w-10 px-2 py-1 text-xs rounded text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-hover)] transition-colors disabled:opacity-40"
       >
         +
       </button>
       <button
-        title="Buscar e substituir (Ctrl+F)"
-        data-find-toggle
-        onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setShowFindReplace(v => !v); }}
+        type="button"
+        title="Buscar e substituir"
+        onMouseDown={e => e.preventDefault()}
+        onClick={() => setShowFindReplace(v => !v)}
         aria-label="Buscar e substituir"
-        className="px-2 py-1 text-xs rounded text-gray-500 hover:text-gray-200 hover:bg-white/5 transition-colors"
+        className="min-h-10 min-w-10 px-2 py-1 text-xs rounded text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-hover)] transition-colors"
       >
         ⌕
       </button>
 
-      <div className="ml-auto flex items-center gap-2">
+      <div className="sticky right-0 ml-auto shrink-0 flex items-center gap-2 bg-[var(--theme-background)] pl-2">
         <button
           type="button"
           aria-pressed={spellcheckEnabled}
@@ -1933,15 +1951,21 @@ function BottomToolbar({
           {spellcheckEnabled ? '✓' : '✕'}
         </button>
         <button
+          type="button"
+          aria-label="Histórico de versões"
           title="Histórico de versões"
           onClick={() => setShowHistory(v => !v)}
-          className="px-2 py-1 text-xs rounded transition-colors text-gray-500 hover:text-gray-200 hover:bg-white/5"
+          className="px-2 py-1 text-xs rounded transition-colors text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-hover)]"
         >
           ↺ {versions.length}
         </button>
-        <span className={`text-xs transition-colors ${statusColor[saveStatus]}`}>
+        <span role="status" aria-live="polite" className={`text-xs transition-colors ${statusColor[saveStatus]}`}>
           {statusText[saveStatus]}
         </span>
+        {saveStatus === 'error' && (
+          <button type="button" onClick={onRetrySave}
+            className="min-h-10 whitespace-nowrap text-xs text-red-300 underline">Tentar salvar</button>
+        )}
       </div>
     </div>
   );
@@ -1968,8 +1992,12 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
   const latestContentRef = useRef<unknown>(page.content);
   const lastQueuedSaveHashRef = useRef<string>('');
   const lastSentSaveHashRef = useRef<string>('');
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const subPageOrderKeyRef = useRef<string>('');
   const syncSubPageOrderTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const revisionRef = useRef<number | null>(typeof page.revision === 'number' ? page.revision : null);
+  const conflictRef = useRef(false);
+  const [conflictState, setConflictState] = useState(false);
   // Refs estáveis para não recriar o editor a cada render
   const onRefreshRef = useRef(onRefresh);
   useEffect(() => { onRefreshRef.current = onRefresh; }, [onRefresh]);
@@ -1979,7 +2007,15 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
   // Salva a última seleção conhecida — atualizada tanto em onBlur quanto em selectionUpdate
   const savedSelRef = useRef<SavedSel>(null);
   const [versions, setVersions] = useState<PageVersion[]>([]);
+  const [versionsLoading, setVersionsLoading] = useState(false);
+  const [versionsError, setVersionsError] = useState<string | null>(null);
+  const [nameById, setNameById] = useState<Map<string, string>>(new Map());
+  const [grants, setGrants] = useState<PageGrant[]>([]);
+  const [isShareOwner, setIsShareOwner] = useState(false);
+  const [showShareManager, setShowShareManager] = useState(false);
   const [spellcheckEnabled, setSpellcheckEnabled] = useState(true);
+  const shared = useSharedPages();
+  const sharedEntry = shared.getEntry(page.id);
 
   // All pages (for @ picker)
   const [allPages, setAllPages] = useState<PageSummary[]>(() => cachedAllPages ?? []);
@@ -1996,14 +2032,43 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
   }, []);
 
   const loadVersionHistory = useCallback(() => {
+    setVersionsLoading(true);
     api.getPageVersions(page.id, 30).then((history) => {
       setVersions(history.versions);
-    }).catch(() => {});
+      setVersionsError(null);
+    }).catch((err) => {
+      setVersions([]);
+      setVersionsError(/API 40[34]/.test(String(err))
+        ? 'Histórico disponível apenas para o dono e para quem pode editar.'
+        : 'Não foi possível carregar o histórico.');
+    }).finally(() => setVersionsLoading(false));
   }, [page.id]);
 
   useEffect(() => {
     loadVersionHistory();
   }, [loadVersionHistory]);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const map = new Map<string, string>();
+      setGrants([]);
+      setIsShareOwner(false);
+      try {
+        const me = await api.getMe();
+        if (me.name) map.set(me.id, me.name);
+      } catch { /* nome do usuário atual é opcional */ }
+      try {
+        const grants = await api.getPageGrants(page.id);
+        grantsToNameMap(grants).forEach((value, key) => map.set(key, value));
+        if (active) setGrants(grants);
+        // A rota de grants é restrita ao dono: sucesso aqui significa dono da página.
+        if (active) setIsShareOwner(true);
+      } catch { /* sem permissão para ver acessos */ }
+      if (active) setNameById(map);
+    })();
+    return () => { active = false; };
+  }, [page.id]);
 
   // @ picker state
   const [atPicker, setAtPicker] = useState<{
@@ -2028,18 +2093,12 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
     lastQueuedSaveHashRef.current = '';
     lastSentSaveHashRef.current = '';
     subPageOrderKeyRef.current = '';
+    revisionRef.current = typeof page.revision === 'number' ? page.revision : null;
+    conflictRef.current = false;
+    setConflictState(false);
   }, [page.id]);
 
-  const { joinPage, leavePage, savePage } = useSocket({
-    onSaved: (savedPageId) => {
-      if (savedPageId !== currentPageIdRef.current) return;
-      setSaveStatus(current => (current === 'saving' ? 'saved' : current));
-    },
-    onError: (errorPageId) => {
-      if (errorPageId !== currentPageIdRef.current) return;
-      setSaveStatus('error');
-    },
-  });
+  const { joinPage, leavePage } = useSocket();
 
   const persistContentNow = useCallback(
     async (
@@ -2050,21 +2109,42 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
       clearTimeout(saveTimer.current);
       latestContentRef.current = content;
       const payloadHash = computeSavePayloadHash(content, currentTitle);
-      if (payloadHash === lastSentSaveHashRef.current) {
-        setSaveStatus('saved');
-        return;
-      }
-      setSaveStatus('saving');
-      try {
-        await api.savePage(page.id, { content, title: currentTitle }, { keepalive: options?.keepalive });
-        lastSentSaveHashRef.current = payloadHash;
-        lastQueuedSaveHashRef.current = payloadHash;
-        setSaveStatus('saved');
-        if (options?.reloadVersions) loadVersionHistory();
-      } catch (err) {
-        setSaveStatus('error');
-        throw err;
-      }
+      const operation = saveQueueRef.current.catch(() => {}).then(async () => {
+        if (conflictRef.current) {
+          setSaveStatus('conflict');
+          return;
+        }
+        if (payloadHash === lastSentSaveHashRef.current) {
+          setSaveStatus('saved');
+          return;
+        }
+        setSaveStatus('saving');
+        const revision = revisionRef.current;
+        const payload = revision === null
+          ? { content, title: currentTitle }
+          : { content, title: currentTitle, revision };
+        try {
+          const updated = await api.savePage(page.id, payload, { keepalive: options?.keepalive });
+          if (typeof updated.revision === 'number') revisionRef.current = updated.revision;
+          lastSentSaveHashRef.current = payloadHash;
+          if (payloadHash === computeSavePayloadHash(latestContentRef.current, titleRef.current)) {
+            setSaveStatus('saved');
+          }
+          if (options?.reloadVersions) loadVersionHistory();
+        } catch (err) {
+          lastQueuedSaveHashRef.current = '';
+          if (isRevisionConflict(err)) {
+            conflictRef.current = true;
+            setConflictState(true);
+            setSaveStatus('conflict');
+            return;
+          }
+          setSaveStatus('error');
+          throw err;
+        }
+      });
+      saveQueueRef.current = operation.catch(() => {});
+      await operation;
     },
     [loadVersionHistory, page.id]
   );
@@ -2077,19 +2157,14 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
         const content = ed.getJSON();
         latestContentRef.current = content;
         const payloadHash = computeSavePayloadHash(content, currentTitle);
-        if (payloadHash === lastSentSaveHashRef.current) {
-          setSaveStatus('saved');
-          return;
-        }
         if (payloadHash === lastQueuedSaveHashRef.current) {
           return;
         }
         lastQueuedSaveHashRef.current = payloadHash;
-        savePage(page.id, content, currentTitle);
-        lastSentSaveHashRef.current = payloadHash;
+        void persistContentNow(content, currentTitle, { reloadVersions: true }).catch(() => {});
       }, 1500);
     },
-    [page.id, savePage]
+    [persistContentNow]
   );
 
   const syncSubPageOrder = useCallback(async (ed: TiptapEditor) => {
@@ -2432,19 +2507,24 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
     if (editor) triggerSave(editor, newTitle);
   };
 
-  const handleRestoreVersion = async (versionId: string) => {
-    const ok = window.confirm('Restaurar esta versão da página?');
-    if (!ok) return;
+  const reloadFromServer = useCallback(async () => {
     try {
-      const restored = await api.restorePageVersion(page.id, versionId);
-      setTitle(restored.title);
-      if (restored.icon !== undefined) setIcon(restored.icon ?? '');
-      editor?.chain().setContent(restored.content).run();
+      const fresh = await api.getPage(page.id);
+      setTitle(fresh.title);
+      if (fresh.icon !== undefined) setIcon(fresh.icon ?? '');
+      if (fresh.content) editor?.chain().setContent(fresh.content).run();
+      revisionRef.current = typeof fresh.revision === 'number' ? fresh.revision : revisionRef.current;
+      conflictRef.current = false;
+      setConflictState(false);
+      setSaveStatus('idle');
+      lastQueuedSaveHashRef.current = '';
+      lastSentSaveHashRef.current = '';
       loadVersionHistory();
+      onRefresh?.();
     } catch {
-      alert('Erro ao restaurar versão');
+      setSaveStatus('error');
     }
-  };
+  }, [editor, loadVersionHistory, onRefresh, page.id]);
 
   // @ picker: insert link to selected page
   const handleAtSelect = useCallback((p: PageSummary) => {
@@ -2544,8 +2624,38 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
     }
   };
 
+  const lastEditLabel = describeLastEdit(versions[0], page.updated_at, nameById);
+  const shareRole = sharedEntry?.role ?? (grants.length > 0 ? 'owner' : null);
+  const shareCount = grants.length || sharedEntry?.grantees?.length || 0;
+  const showShareButton = isShareOwner;
+  const showShareBadge = !showShareButton && Boolean(shareRole);
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
+      {showShareManager && (
+        <ShareManagerModal
+          pageId={page.id}
+          pageTitle={title}
+          onClose={() => setShowShareManager(false)}
+          onChanged={() => {
+            shared.refresh();
+            api.getPageGrants(page.id).then(setGrants).catch(() => {});
+          }}
+        />
+      )}
+      {conflictState && (
+        <div role="alert" className="flex flex-wrap items-center gap-2 border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-[12px] text-amber-200">
+          <span className="font-medium">Conflito de edição:</span>
+          <span className="min-w-0 flex-1">Esta página foi alterada por outra pessoa enquanto você editava. Suas mudanças locais não foram salvas.</span>
+          <button
+            type="button"
+            onClick={() => { void reloadFromServer(); }}
+            className="min-h-9 rounded-md border border-amber-500/50 px-2.5 text-amber-100 hover:bg-amber-500/20"
+          >
+            Recarregar do servidor
+          </button>
+        </div>
+      )}
       {/* @ page picker */}
       {atPicker && (
         <AtPicker
@@ -2615,6 +2725,30 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
             onTitleChange={handleTitleChange}
             onRefresh={onRefresh}
           />
+          {(lastEditLabel || showShareButton || showShareBadge) && (
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-[var(--theme-muted)]">
+              {lastEditLabel && <span>{lastEditLabel}</span>}
+              {showShareButton && (
+                <button
+                  type="button"
+                  onClick={() => setShowShareManager(true)}
+                  title="Compartilhar com seus contatos"
+                  aria-label="Compartilhar esta página"
+                  className="inline-flex items-center gap-1 rounded-full border border-[var(--theme-border)] bg-[var(--theme-card)] px-2 py-0.5 text-[10px] leading-none text-[var(--theme-text)] hover:border-[var(--theme-accent)]"
+                >
+                  <span aria-hidden="true">👥</span>
+                  <span>{shareCount > 0 ? `Compartilhar · ${shareCount}` : 'Compartilhar'}</span>
+                </button>
+              )}
+              {showShareBadge && (
+                <ShareBadge
+                  role={shareRole!}
+                  count={shareCount}
+                  title={`Compartilhada com você: ${shareRole === 'viewer' ? 'pode ler' : 'pode editar'}`}
+                />
+              )}
+            </div>
+          )}
           <EditorContent editor={editor} className="mt-2 min-h-[50vh]" />
         </div>
       </div>
@@ -2660,10 +2794,16 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
         onOpenAttachmentPicker={() => attachmentInputRef.current?.click()}
         savedSel={savedSelRef}
         versions={versions}
-        onRestoreVersion={(versionId) => { void handleRestoreVersion(versionId); }}
+        nameById={nameById}
+        versionsLoading={versionsLoading}
+        versionsError={versionsError}
         spellcheckEnabled={spellcheckEnabled}
         onToggleSpellcheck={toggleSpellcheck}
-        pageId={page.id}
+        onRetrySave={() => {
+          if (!editor) return;
+          void persistContentNow(editor.getJSON() as TiptapDoc, titleRef.current,
+            { reloadVersions: true }).catch(() => {});
+        }}
       />
     </div>
   );

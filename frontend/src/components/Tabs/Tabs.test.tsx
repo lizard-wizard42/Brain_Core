@@ -8,6 +8,7 @@ describe('Tabs', () => {
     const onTabClose = vi.fn();
     const onGoBack = vi.fn();
     const onGoHome = vi.fn();
+    const onCloseAllTabs = vi.fn();
 
     const { container } = render(
       <Tabs
@@ -18,6 +19,7 @@ describe('Tabs', () => {
         activeTabId="1"
         onTabClick={onTabClick}
         onTabClose={onTabClose}
+        onCloseAllTabs={onCloseAllTabs}
         onNewTab={vi.fn()}
         onGoBack={onGoBack}
         onGoHome={onGoHome}
@@ -34,6 +36,8 @@ describe('Tabs', () => {
     fireEvent.click(screen.getByLabelText('Ir para o dashboard'));
     expect(onGoBack).toHaveBeenCalledOnce();
     expect(onGoHome).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar todas as abas' }));
+    expect(onCloseAllTabs).toHaveBeenCalledOnce();
 
     expect(container.querySelector('img')).toBeInTheDocument();
   });

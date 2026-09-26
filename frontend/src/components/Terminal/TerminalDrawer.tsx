@@ -100,6 +100,7 @@ export function TerminalDrawer({ open, request, onClose, variant = 'drawer' }: T
   const isPage = variant === 'page';
   const repaintScheduledRef = useRef(false);
   const activationNudgeRef = useRef<number[]>([]);
+  const mountedRef = useRef(false);
 
   const repaintTerminal = useCallback(() => {
     const terminal = terminalRef.current;
@@ -122,6 +123,7 @@ export function TerminalDrawer({ open, request, onClose, variant = 'drawer' }: T
   }, []);
 
   const replayTerminalViewport = useCallback(() => {
+    if (!mountedRef.current) return;
     const sessionId = sessionIdRef.current;
     if (!sessionId) return;
 
@@ -142,6 +144,7 @@ export function TerminalDrawer({ open, request, onClose, variant = 'drawer' }: T
   }, []);
 
   const runActivationNudges = useCallback(() => {
+    if (!mountedRef.current) return;
     clearActivationNudges();
     [0, 40, 120, 240].forEach((delay) => {
       const id = window.setTimeout(() => {
@@ -150,6 +153,14 @@ export function TerminalDrawer({ open, request, onClose, variant = 'drawer' }: T
       activationNudgeRef.current.push(id);
     });
   }, [clearActivationNudges, nudgeTerminalViewport]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      clearActivationNudges();
+    };
+  }, [clearActivationNudges]);
 
   const scheduleRepaint = useCallback((delay = 0) => {
     if (repaintScheduledRef.current) return;
@@ -502,9 +513,12 @@ export function TerminalDrawer({ open, request, onClose, variant = 'drawer' }: T
       if (!terminal) return;
       terminal.reset();
       const finalizeReady = () => {
+        if (!mountedRef.current) return;
         window.requestAnimationFrame(() => {
+          if (!mountedRef.current) return;
           repaintTerminal();
           window.setTimeout(() => {
+            if (!mountedRef.current) return;
             repaintTerminal();
             runActivationNudges();
             replayTerminalViewport();

@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { Editor } from '@tiptap/core';
 import { SlashMenu, type SlashCommand } from './SlashMenu';
 
 function makeEditor() {
@@ -11,7 +12,7 @@ function makeEditor() {
     state: { selection: { from: 10 } },
     chain,
     _spies: { chain, deleteRange, run },
-  } as any;
+  } as unknown as Editor & { _spies: { chain: typeof chain; deleteRange: typeof deleteRange; run: typeof run } };
 }
 
 describe('SlashMenu', () => {
@@ -79,7 +80,7 @@ describe('SlashMenu', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
 
-    fireEvent.mouseDown(screen.getByRole('button', { name: /Checklist/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Checklist/i }));
     expect(action).toHaveBeenCalledTimes(1);
   });
 

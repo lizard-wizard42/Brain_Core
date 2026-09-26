@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RememberSearchResult } from '../../types';
 import { rememberService } from '../../services/rememberService';
-import { spIsoDateLong, spTime } from './rememberTime';
 
 const STATUS_LABELS: Record<string, string> = {
   recording: 'Gravando', syncing: 'Sincronizando…', processing: 'Processando…',
   transcribing: 'Transcrição sendo processada…', ready: 'Pronta', error: 'Erro no processamento',
 };
 
-const formatTime = spTime;
-const formatDate = spIsoDateLong;
+function formatTime(value: string): string {
+  return new Date(value).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatDate(value: string): string {
+  return new Date(`${value}T12:00:00`).toLocaleDateString('pt-BR', { dateStyle: 'long' });
+}
 
 function renderSnippet(snippet: string) {
   //  (STX) and  (ETX) are the Celtwo snippet delimiters around each match.

@@ -13,12 +13,17 @@ export function TrashPanel({ onClose, onRefresh }: TrashPanelProps) {
   const [loading, setLoading] = useState(true);
   const [confirmEmpty, setConfirmEmpty] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
       const data = await api.getTrash();
       setItems(data);
+      setError('');
+    } catch {
+      setError('Não foi possível carregar a lixeira. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -40,21 +45,42 @@ export function TrashPanel({ onClose, onRefresh }: TrashPanelProps) {
   }, [onClose]);
 
   const handleRestore = async (id: string) => {
-    await api.restorePage(id);
-    await onRefresh();
-    await load();
+    setBusy(true);
+    try {
+      await api.restorePage(id);
+      await onRefresh();
+      await load();
+    } catch {
+      setError('Não foi possível restaurar a página.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handlePermanentDelete = async (id: string) => {
-    await api.permanentDeletePage(id);
-    await load();
+    setBusy(true);
+    try {
+      await api.permanentDeletePage(id);
+      await load();
+    } catch {
+      setError('Não foi possível apagar a página.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleEmptyTrash = async () => {
-    await api.emptyTrash();
-    setConfirmEmpty(false);
-    await onRefresh();
-    await load();
+    setBusy(true);
+    try {
+      await api.emptyTrash();
+      setConfirmEmpty(false);
+      await onRefresh();
+      await load();
+    } catch {
+      setError('Não foi possível esvaziar a lixeira.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   if (!mounted) return null;
@@ -72,6 +98,7 @@ export function TrashPanel({ onClose, onRefresh }: TrashPanelProps) {
             <h2 className="text-[14px] font-semibold text-white">Lixeira</h2>
           </div>
           <button
+            aria-label="Fechar lixeira"
             className="text-gray-600 hover:text-gray-300 text-[18px] leading-none transition-colors"
             onClick={onClose}
           >
@@ -81,6 +108,7 @@ export function TrashPanel({ onClose, onRefresh }: TrashPanelProps) {
 
         {/* List */}
         <div className="flex-1 overflow-y-auto px-2 py-2">
+          {error && <p role="alert" className="px-3 py-2 text-[12px] text-red-400">{error}</p>}
           <div className="px-3 pb-2">
             <p className="rounded-lg border border-amber-500/15 bg-amber-500/6 px-3 py-2 text-[12px] leading-5 text-amber-200/85">
               Itens na lixeira sao apagados automaticamente apos 30 dias.
@@ -103,15 +131,17 @@ export function TrashPanel({ onClose, onRefresh }: TrashPanelProps) {
                 >
                   {item.title || 'Sem título'}
                 </span>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 pl-2">
-                  <button
+                <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity shrink-0 pl-2">
+                <button
+                    disabled={busy}
                     className="text-[11px] text-gray-500 hover:text-green-400 px-2 py-1 rounded hover:bg-white/5 transition-colors"
                     onClick={() => handleRestore(item.id)}
                     title="Restaurar"
                   >
                     Restaurar
                   </button>
-                  <button
+                <button
+                    disabled={busy}
                     className="text-[11px] text-gray-500 hover:text-red-400 px-2 py-1 rounded hover:bg-white/5 transition-colors"
                     onClick={() => handlePermanentDelete(item.id)}
                     title="Apagar definitivamente"
@@ -130,13 +160,15 @@ export function TrashPanel({ onClose, onRefresh }: TrashPanelProps) {
             {confirmEmpty ? (
               <div className="flex items-center gap-2">
                 <span className="text-[12px] text-gray-500">Apagar tudo permanentemente?</span>
-                <button
+                  <button
+                    disabled={busy}
                   className="text-[12px] text-gray-500 hover:text-gray-300 px-2 py-1 rounded hover:bg-white/5 transition-colors"
                   onClick={() => setConfirmEmpty(false)}
                 >
                   Cancelar
                 </button>
-                <button
+                  <button
+                    disabled={busy}
                   className="text-[12px] text-red-500 hover:text-red-400 px-2 py-1 rounded hover:bg-red-500/10 transition-colors"
                   onClick={handleEmptyTrash}
                 >

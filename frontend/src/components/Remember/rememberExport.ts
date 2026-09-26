@@ -1,16 +1,13 @@
 import type { RememberSession } from '../../types';
-import { spDateLong, spTime } from './rememberTime';
+import { speakerLabel } from './speakerAliases';
 
-const SPEAKER_MD: Record<string, string> = {
-  me: 'Você',
-  other: 'Outra pessoa',
-  unknown: 'Não identificado',
-};
 
 function fmtRange(session: RememberSession): string {
-  const day = spDateLong(session.started_at);
-  const from = spTime(session.started_at);
-  const to = session.ended_at ? spTime(session.ended_at) : '—';
+  const start = new Date(session.started_at);
+  const opts: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' };
+  const day = start.toLocaleDateString('pt-BR', { dateStyle: 'long' });
+  const from = start.toLocaleTimeString('pt-BR', opts);
+  const to = session.ended_at ? new Date(session.ended_at).toLocaleTimeString('pt-BR', opts) : '—';
   return `${day}, ${from}–${to}`;
 }
 
@@ -19,7 +16,7 @@ export function sessionToMarkdown(session: RememberSession): string {
   const lines: string[] = [
     `# Memória — ${fmtRange(session)}`,
     '',
-    '> Transcrição automática (Whisper) de um áudio de celular — pode conter erros.',
+    '> Transcrição automática de áudio — pode conter erros.',
     '> Os falantes são inferidos por comparação de voz e podem estar trocados.',
     '',
   ];
@@ -29,7 +26,8 @@ export function sessionToMarkdown(session: RememberSession): string {
 
   if (hasSpeakers) {
     for (const turn of turns) {
-      lines.push(`**${turn.speaker ? SPEAKER_MD[turn.speaker] ?? turn.speaker : '—'}:** ${turn.text.trim()}`);
+      const speaker = turn.speaker === 'me' || turn.speaker === 'other' ? turn.speaker : 'unknown';
+      lines.push(`**${speakerLabel(session.id, speaker)}:** ${turn.text.trim()}`);
     }
   } else if (turns.length) {
     for (const turn of turns) lines.push(turn.text.trim());

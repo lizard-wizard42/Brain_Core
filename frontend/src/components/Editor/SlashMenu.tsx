@@ -94,7 +94,8 @@ export function SlashMenu({ editor, commands, query, position, onClose }: SlashM
             i === selected ? 'bg-white/[0.07]' : 'hover:bg-white/[0.04]'
           }`}
           onMouseEnter={() => updateSelected(i)}
-          onMouseDown={e => { e.preventDefault(); execute(cmd); }}
+          onMouseDown={e => e.preventDefault()}
+          onClick={() => execute(cmd)}
         >
           <span className="text-xl w-7 text-center shrink-0">{cmd.icon}</span>
           <div>

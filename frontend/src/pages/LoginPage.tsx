@@ -1,9 +1,14 @@
 import { useEffect, useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const requestedRoute = (location.state as { from?: unknown } | null)?.from;
+  const afterLogin = typeof requestedRoute === 'string' && /^\/(?!\/)/.test(requestedRoute)
+    ? requestedRoute
+    : '/';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [twoFactorCode, setTwoFactorCode] = useState('');
@@ -59,7 +64,7 @@ export function LoginPage() {
           return;
         }
       }
-      navigate('/', { replace: true });
+      navigate(afterLogin, { replace: true });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao fazer login';
       const mapped = mapAuthMessage(message);
@@ -95,7 +100,6 @@ export function LoginPage() {
               ref={emailRef}
               type="email"
               autoComplete="email"
-              autoFocus
               value={email}
               onChange={e => setEmail(e.target.value)}
               disabled={inTwoFactorStep}
@@ -140,7 +144,7 @@ export function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="mt-1 w-full bg-white text-black font-semibold text-[14px] py-3 rounded-xl hover:bg-gray-100 active:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="login-submit mt-1 w-full bg-white text-black font-semibold text-[14px] py-3 rounded-xl hover:bg-gray-100 active:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Autenticando Core…' : inTwoFactorStep ? 'Validar Core' : 'Acessar Core'}
           </button>

@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 
-// BASE_URL é o base path do Vite (/ padrão ou subpasta como /brain) — usamos para prefixar o path do socket
-const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, ''); // "" ou "/brain"
+// BASE_URL é o base path do Vite (/ em LAN e Tailnet) — usamos para prefixar o path do socket
+const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, '');
 const SOCKET_PATH = `${BASE_URL}/socket.io`;
 // Host absoluto do backend — mesma razão do client.ts: front e backend são
 // portas/serviços separados sem nginx unificando os dois num só origin.
 const API_HOST = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '');
 
 let socket: Socket | null = null;
+
+export function disconnectAppSocket(): void {
+  socket?.disconnect();
+  socket = null;
+}
 
 export function getAppSocket(): Socket {
   if (!socket) {

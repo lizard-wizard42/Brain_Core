@@ -21,7 +21,7 @@ describe('useTree', () => {
         { id: '1', parent_page_id: null, title: 'Root', slug: 'root', type: 'note', sort_order: 1, icon: null, created_at: '', updated_at: '' },
         { id: '3', parent_page_id: '1', title: 'Child A', slug: 'a', type: 'note', sort_order: 1, icon: null, created_at: '', updated_at: '' },
       ],
-    } as any);
+    } as never);
 
     const { result } = renderHook(() => useTree());
 
@@ -34,7 +34,7 @@ describe('useTree', () => {
   it('sets error when loading fails and can refresh', async () => {
     vi.mocked(api.getTree)
       .mockRejectedValueOnce(new Error('boom'))
-      .mockResolvedValueOnce({ pages: [] } as any);
+      .mockResolvedValueOnce({ pages: [] } as never);
 
     const { result } = renderHook(() => useTree());
 

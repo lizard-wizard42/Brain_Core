@@ -1,17 +1,20 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const authState = { isAuthenticated: true };
+const authState: { isAuthenticated: boolean; role: 'owner' | 'member' } = { isAuthenticated: true, role: 'owner' };
 const openTabSpy = vi.fn();
 const closeTabSpy = vi.fn();
 const setActiveTabSpy = vi.fn();
 const refreshSpy = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('./api/client', () => ({
+  invalidateLocalSession: vi.fn(),
   api: {
     isAuthenticated: () => authState.isAuthenticated,
     getPage: vi.fn().mockResolvedValue({ id: 'p1', title: 'Page 1', type: 'note' }),
-    getMe: vi.fn().mockResolvedValue({ id: 'u1', email: 'user@example.test', name: 'Ana' }),
+    getMe: vi.fn(() => authState.isAuthenticated
+      ? Promise.resolve({ id: 'u1', email: 'alex@example.test', name: 'Alex', role: authState.role })
+      : Promise.reject(new Error('API 401'))),
     getTree: vi.fn().mockResolvedValue({ pages: [] }),
     listRememberNotes: vi.fn().mockResolvedValue({ notes: [] }),
   },
@@ -21,7 +24,6 @@ vi.mock('./services/rememberService', () => ({
   rememberService: {
     getDay: vi.fn().mockResolvedValue({ date: '2026-08-27', total_seconds: 0, session_count: 0, sessions: [] }),
     getSessions: vi.fn().mockResolvedValue([]),
-    getStatus: vi.fn().mockResolvedValue({ state: 'stopped', started_at: null, last_communication_at: null, device_id: null }),
   },
 }));
 
@@ -77,16 +79,17 @@ vi.mock('./components/Terminal/TerminalDrawer', () => ({
 
 import App from './App';
 
-const TERMINAL_ENABLED = import.meta.env.VITE_TERMINAL_ENABLED === 'true';
-
 describe('App routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv('VITE_TERMINAL_ENABLED', 'true');
     authState.isAuthenticated = true;
+    authState.role = 'owner';
     window.history.pushState({}, '', '/');
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     document.body.innerHTML = '';
   });
 
@@ -108,8 +111,8 @@ describe('App routes', () => {
 
   it('mostra o dashboard na home', async () => {
     render(<App />);
-    expect(await screen.findByText(/, Ana/)).toBeInTheDocument();
-    expect(screen.getByText('Total de Notas')).toBeInTheDocument();
+    expect(await screen.findByText(/, Alex/)).toBeInTheDocument();
+    expect(screen.getByText('Total de memórias')).toBeInTheDocument();
   });
 
   it('registra a aba Memória ao entrar em /remember', async () => {
@@ -121,7 +124,15 @@ describe('App routes', () => {
     expect(openTabSpy.mock.calls[0][0]).toMatchObject({ id: 'remember', title: 'Memória', path: '/remember' });
   });
 
-  it.runIf(TERMINAL_ENABLED)('abre rota de terminal e registra aba correspondente', async () => {
+  it('abre Conhecimento diretamente com a árvore móvel disponível', async () => {
+    window.history.pushState({}, '', '/knowledge');
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Conhecimento' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Abrir árvore de navegação' })).toBeInTheDocument();
+  });
+
+  it('abre rota de terminal e registra aba correspondente', async () => {
     window.history.pushState({}, '', '/terminal/abc?title=Meu%20Terminal&cwd=%2Ftmp');
     render(<App />);
 
@@ -133,12 +144,22 @@ describe('App routes', () => {
     });
   });
 
-  it.runIf(!TERMINAL_ENABLED)('redireciona a rota de terminal quando o recurso esta desligado', async () => {
-    window.history.pushState({}, '', '/terminal/abc?title=Meu%20Terminal&cwd=%2Ftmp');
+  it('bloqueia a tela de terminal para uma conta membro', async () => {
+    authState.role = 'member';
+    window.history.pushState({}, '', '/terminal/abc?title=Privado');
     render(<App />);
 
-    expect(await screen.findByText(/, Ana/)).toBeInTheDocument();
-    expect(screen.queryByText(/Terminal Mock/)).not.toBeInTheDocument();
+    expect(await screen.findByText('Terminal disponível apenas na conta do proprietário do PC.')).toBeInTheDocument();
+    expect(screen.queryByText('Terminal Mock Privado')).not.toBeInTheDocument();
     expect(openTabSpy).not.toHaveBeenCalled();
+  });
+
+  it('mantém o terminal desativado na instalação pública por padrão', async () => {
+    vi.stubEnv('VITE_TERMINAL_ENABLED', 'false');
+    window.history.pushState({}, '', '/terminal/abc?title=Privado');
+    render(<App />);
+
+    expect(await screen.findByText(/Total de memórias/)).toBeInTheDocument();
+    expect(screen.queryByText('Terminal Mock Privado')).not.toBeInTheDocument();
   });
 });

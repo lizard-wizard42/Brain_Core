@@ -1,7 +1,12 @@
-import { apiRequest, apiUrl } from '../api/client';
-import type { RememberDay, RememberPerson, RememberSearchResponse, RememberSession, RememberSpeaker, RememberStatus, RememberTranscript, RememberVoiceprint } from '../types';
+import { apiRequest } from '../api/client';
+import type { RememberDay, RememberSearchResponse, RememberSession, RememberSpeaker, RememberStatus, RememberTranscript, RememberVoiceprint } from '../types';
 
 const ROOT = '/api/remember/memory';
+export interface ParticipantIdentity { id: string; display_name: string }
+export interface ParticipantDecision { identity_id: string | null; display_name?: string | null; action: 'confirm' | 'correct' | 'ignore' | 'undo'; created_at: string }
+export interface ParticipantSuggestion { identity_id: string; display_name: string; similarity: number }
+export interface SegmentParticipants { decision: ParticipantDecision | null; suggestions: ParticipantSuggestion[] }
+const participantRoot = (sessionId: string) => `${ROOT}/sessions/${encodeURIComponent(sessionId)}/participants`;
 
 export const rememberService = {
   getStatus: async () => apiRequest<RememberStatus>(`${ROOT}/status`),
@@ -13,6 +18,11 @@ export const rememberService = {
   getDay: async (date: string) => apiRequest<RememberDay>(`${ROOT}/days/${encodeURIComponent(date)}`),
   getSessions: async (date?: string) => (await apiRequest<{ sessions: RememberSession[] }>(`${ROOT}/sessions${date ? `?date=${encodeURIComponent(date)}` : ''}`)).sessions,
   getTranscript: async (sessionId: string) => apiRequest<RememberTranscript>(`${ROOT}/sessions/${encodeURIComponent(sessionId)}/transcript`),
+  getParticipantIdentities: async (sessionId: string) => apiRequest<ParticipantIdentity[]>(`${participantRoot(sessionId)}/identities`),
+  createParticipantIdentity: async (sessionId: string, displayName: string) => apiRequest<ParticipantIdentity>(`${participantRoot(sessionId)}/identities`, { method: 'POST', body: JSON.stringify({ display_name: displayName }) }),
+  getSegmentParticipants: async (sessionId: string, segmentId: number) => apiRequest<SegmentParticipants>(`${participantRoot(sessionId)}/segments/${segmentId}`),
+  decideSegment: async (sessionId: string, segmentId: number, action: ParticipantDecision['action'], identityId: string | null = null) => apiRequest<ParticipantDecision>(`${participantRoot(sessionId)}/segments/${segmentId}/decision`, { method: 'POST', body: JSON.stringify({ action, identity_id: identityId }) }),
+  createParticipantTemplate: async (sessionId: string, segmentId: number) => apiRequest<unknown>(`${participantRoot(sessionId)}/segments/${segmentId}/template`, { method: 'POST' }),
   search: async (q: string, limit?: number, speaker?: RememberSpeaker) => {
     const query = `q=${encodeURIComponent(q)}${limit ? `&limit=${limit}` : ''}${speaker ? `&speaker=${speaker}` : ''}`;
     return apiRequest<RememberSearchResponse>(`${ROOT}/search?${query}`);
@@ -30,34 +40,4 @@ export const rememberService = {
       `${ROOT}/voiceprint/from-session/${encodeURIComponent(sessionId)}`,
       { method: 'POST' },
     ),
-  setCluster: async (
-    sessionId: string, cluster: number,
-    action: 'confirm_new' | 'confirm_person' | 'reject' | 'set_me',
-    opts?: { name?: string; personId?: number },
-  ) =>
-    apiRequest<{ session_id: string; cluster: number; status: string; person_id: number | null }>(
-      `${ROOT}/clusters`,
-      {
-        method: 'PATCH',
-        body: JSON.stringify({
-          session_id: sessionId, cluster, action,
-          ...(opts?.name != null ? { name: opts.name } : {}),
-          ...(opts?.personId != null ? { person_id: opts.personId } : {}),
-        }),
-      },
-    ),
-  getPeople: async () => apiRequest<RememberPerson[]>(`${ROOT}/people`),
-  renamePerson: async (id: number, name: string) =>
-    apiRequest<{ id: number; name: string }>(`${ROOT}/people/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
-  mergePeople: async (intoId: number, fromId: number) =>
-    apiRequest<{ id: number }>(`${ROOT}/people/merge`, { method: 'POST', body: JSON.stringify({ into_id: intoId, from_id: fromId }) }),
-  deletePerson: async (id: number) =>
-    apiRequest<{ deleted: boolean }>(`${ROOT}/people/${id}`, { method: 'DELETE' }),
-  backfillSpeakers: async (sessionId: string) =>
-    apiRequest<{ embedded: number; missing_chunks: number }>(`${ROOT}/sessions/${encodeURIComponent(sessionId)}/backfill-speakers`, { method: 'POST' }),
-  clusterSampleUrl: (segmentIds: number[]) => {
-    const ids = segmentIds.filter((id) => Number.isInteger(id) && id > 0).join(',');
-    return apiUrl(`${ROOT}/segments/audio?ids=${encodeURIComponent(ids)}`);
-  },
-  segmentAudioUrl: (segmentId: number) => apiUrl(`${ROOT}/segments/${segmentId}/audio`),
 };

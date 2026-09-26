@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TrashPanel } from './TrashPanel';
 import { api } from '../../api/client';
 
@@ -17,11 +17,15 @@ describe('TrashPanel', () => {
     vi.clearAllMocks();
   });
 
+  afterEach(() => {
+    cleanup();
+  });
+
   it('loads items and restores one item', async () => {
     vi.mocked(api.getTrash)
-      .mockResolvedValueOnce([{ id: 'p1', title: 'Page 1', icon: '📄' }] as any)
-      .mockResolvedValueOnce([] as any);
-    vi.mocked(api.restorePage).mockResolvedValueOnce({} as any);
+      .mockResolvedValueOnce([{ id: 'p1', title: 'Page 1', icon: '📄' }] as never)
+      .mockResolvedValueOnce([] as never);
+    vi.mocked(api.restorePage).mockResolvedValueOnce({} as never);
 
     const onRefresh = vi.fn().mockResolvedValue(undefined);
     render(<TrashPanel onClose={vi.fn()} onRefresh={onRefresh} />);
@@ -35,9 +39,9 @@ describe('TrashPanel', () => {
 
   it('confirms and empties trash', async () => {
     vi.mocked(api.getTrash)
-      .mockResolvedValueOnce([{ id: 'p1', title: 'Page 1', icon: '📄' }] as any)
-      .mockResolvedValueOnce([] as any);
-    vi.mocked(api.emptyTrash).mockResolvedValueOnce({ deleted: true } as any);
+      .mockResolvedValueOnce([{ id: 'p1', title: 'Page 1', icon: '📄' }] as never)
+      .mockResolvedValueOnce([] as never);
+    vi.mocked(api.emptyTrash).mockResolvedValueOnce({ deleted: true } as never);
 
     const onRefresh = vi.fn().mockResolvedValue(undefined);
     render(<TrashPanel onClose={vi.fn()} onRefresh={onRefresh} />);
@@ -52,9 +56,9 @@ describe('TrashPanel', () => {
 
   it('deletes one item permanently', async () => {
     vi.mocked(api.getTrash)
-      .mockResolvedValueOnce([{ id: 'p9', title: 'Page 9', icon: '📄' }] as any)
-      .mockResolvedValueOnce([] as any);
-    vi.mocked(api.permanentDeletePage).mockResolvedValueOnce({ deleted: true } as any);
+      .mockResolvedValueOnce([{ id: 'p9', title: 'Page 9', icon: '📄' }] as never)
+      .mockResolvedValueOnce([] as never);
+    vi.mocked(api.permanentDeletePage).mockResolvedValueOnce({ deleted: true } as never);
 
     render(<TrashPanel onClose={vi.fn()} onRefresh={vi.fn().mockResolvedValue(undefined)} />);
 
@@ -64,8 +68,19 @@ describe('TrashPanel', () => {
     await waitFor(() => expect(api.permanentDeletePage).toHaveBeenCalledWith('p9'));
   });
 
+  it('keeps the item and shows an error when restore fails', async () => {
+    vi.mocked(api.getTrash).mockResolvedValueOnce([{ id: 'p1', title: 'Page 1', icon: '📄' }] as never);
+    vi.mocked(api.restorePage).mockRejectedValueOnce(new Error('offline'));
+
+    render(<TrashPanel onClose={vi.fn()} onRefresh={vi.fn()} />);
+    fireEvent.click(await screen.findByTitle('Restaurar'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível restaurar');
+    expect(screen.getByText('Page 1')).toBeInTheDocument();
+  });
+
   it('closes panel on Escape key', async () => {
-    vi.mocked(api.getTrash).mockResolvedValueOnce([] as any);
+    vi.mocked(api.getTrash).mockResolvedValueOnce([] as never);
     const onClose = vi.fn();
 
     render(<TrashPanel onClose={onClose} onRefresh={vi.fn().mockResolvedValue(undefined)} />);
@@ -75,7 +90,7 @@ describe('TrashPanel', () => {
   });
 
   it('opens and cancels empty-trash confirmation', async () => {
-    vi.mocked(api.getTrash).mockResolvedValueOnce([{ id: 'p1', title: 'Page 1', icon: '📄' }] as any);
+    vi.mocked(api.getTrash).mockResolvedValueOnce([{ id: 'p1', title: 'Page 1', icon: '📄' }] as never);
 
     render(<TrashPanel onClose={vi.fn()} onRefresh={vi.fn().mockResolvedValue(undefined)} />);
 

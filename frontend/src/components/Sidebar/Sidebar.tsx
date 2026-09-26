@@ -1,11 +1,13 @@
 import { memo, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { TreePage } from '../../types';
+import type { Tab } from '../../hooks/useTabs';
 import { api } from '../../api/client';
 import { TrashPanel } from '../Trash/TrashPanel';
 import { EmojiPicker } from '../shared/EmojiPicker';
 import { RememberSidebarTree } from '../Remember/RememberSidebarTree';
 import { RememberErrorBoundary } from '../Remember/RememberErrorBoundary';
+import { SharedSection } from '../Shared/SharedSection';
 
 interface SidebarProps {
   tree: TreePage[];
@@ -13,7 +15,14 @@ interface SidebarProps {
   onRefresh: () => Promise<void>;
   onClose?: () => void;
   onPageClick?: (page: TreePage, openInNewTab?: boolean) => void;
-  onRememberOpen?: (date?: string, newTab?: boolean) => void;
+  onRememberOpen?: (date?: string) => void;
+  tabs?: Tab[];
+  activeTabId?: string | null;
+  onTabClick?: (id: string) => void;
+  onTabClose?: (id: string) => void;
+  onCloseAllTabs?: () => void;
+  onNewTab?: () => void;
+  onGoBack?: () => void;
 }
 
 function toSlug(name: string): string {
@@ -341,7 +350,7 @@ function PageNodeComponent({
 
       <div
         ref={rowRef}
-        className={`group flex w-full min-w-0 items-center gap-1.5 py-[3px] rounded-md cursor-pointer transition-colors select-none ${
+        className={`group flex min-h-11 md:min-h-0 w-full min-w-0 items-center gap-1.5 py-[3px] rounded-md cursor-pointer transition-colors select-none ${
           isActive ? 'bg-white/[0.07] text-white' : 'hover:bg-white/[0.03] text-[#c7c7c7]'
         } ${isOver && dropPos === 'inside' ? 'ring-1 ring-blue-500/60 bg-blue-500/5' : ''}`}
         style={{ paddingLeft: `${indent}px`, paddingRight: '8px' }}
@@ -365,7 +374,7 @@ function PageNodeComponent({
       >
         {/* Drag handle */}
         <span
-          className="text-[10px] text-gray-800 w-3 shrink-0 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity hover:text-gray-500 mr-0.5"
+          className="hidden md:block text-[10px] text-gray-800 w-3 shrink-0 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity hover:text-gray-500 mr-0.5"
           draggable
           onDragStart={e => {
             e.stopPropagation();
@@ -387,25 +396,26 @@ function PageNodeComponent({
 
         {/* Seta — abre/fecha filhos */}
         {hasChildren ? (
-          <span
-            className="text-[10px] text-gray-700 w-3 shrink-0 transition-transform hover:text-gray-400"
+          <button
+            type="button"
+            aria-label={open ? `Recolher ${page.title}` : `Expandir ${page.title}`}
+            className="flex h-8 w-8 md:h-auto md:w-3 shrink-0 items-center justify-center text-[10px] text-gray-500 transition-transform hover:text-gray-300"
             style={{ transform: open ? 'none' : 'rotate(-90deg)' }}
             onClick={e => { e.stopPropagation(); onToggle(page.id); }}
           >
             ▾
-          </span>
+          </button>
         ) : (
-          <span className="w-3 shrink-0" />
+          <span className="w-8 md:w-3 shrink-0" />
         )}
 
         {/* Ícone */}
         <button
           type="button"
+          aria-label="Trocar ícone"
           title="Trocar ícone"
-          className="text-sm leading-none w-5 h-5 flex items-center justify-center shrink-0 rounded hover:bg-white/5 transition-colors"
-          onClick={e => e.stopPropagation()}
-          onMouseDown={e => {
-            e.preventDefault();
+          className="text-sm leading-none w-8 h-8 md:w-5 md:h-5 flex items-center justify-center shrink-0 rounded hover:bg-white/5 transition-colors"
+          onClick={e => {
             e.stopPropagation();
             const rect = e.currentTarget.getBoundingClientRect();
             setIconAnchorRect((current) => (current ? null : rect));
@@ -443,10 +453,10 @@ function PageNodeComponent({
         )}
 
         {/* Ações */}
-        <div className="hidden group-hover:flex items-center gap-0.5 shrink-0">
+        <div className="flex md:hidden md:group-hover:flex items-center gap-0.5 shrink-0">
           <button
             title="Nova página aqui"
-            className="text-gray-600 hover:text-gray-300 text-sm w-4 h-4 flex items-center justify-center rounded transition-colors"
+            className="text-gray-500 hover:text-gray-200 text-sm w-7 h-8 md:w-4 md:h-4 flex items-center justify-center rounded transition-colors"
             onClick={e => {
               e.stopPropagation();
               setAdding(true);
@@ -458,7 +468,7 @@ function PageNodeComponent({
           </button>
           <button
             title="Renomear"
-            className="text-gray-600 hover:text-gray-300 text-[10px] w-4 h-4 flex items-center justify-center rounded transition-colors"
+            className="text-gray-500 hover:text-gray-200 text-[12px] w-7 h-8 md:w-4 md:h-4 flex items-center justify-center rounded transition-colors"
             onClick={e => {
               e.stopPropagation();
               setTitle(page.title);
@@ -469,7 +479,7 @@ function PageNodeComponent({
           </button>
           <button
             title="Apagar"
-            className="text-gray-600 hover:text-red-400 text-[10px] w-4 h-4 flex items-center justify-center rounded transition-colors"
+            className="text-gray-500 hover:text-red-400 text-[12px] w-7 h-8 md:w-4 md:h-4 flex items-center justify-center rounded transition-colors"
             onClick={e => { e.stopPropagation(); setShowDeleteConfirm(true); }}
           >
             ✕
@@ -593,6 +603,13 @@ export const Sidebar = memo(function Sidebar({
   onClose,
   onPageClick,
   onRememberOpen,
+  tabs = [],
+  activeTabId,
+  onTabClick,
+  onTabClose,
+  onCloseAllTabs,
+  onNewTab,
+  onGoBack,
 }: SidebarProps) {
   const navigate = useNavigate();
   const appIconUrl = `${import.meta.env.BASE_URL}icons/brain-core-icon.png`;
@@ -744,16 +761,17 @@ export const Sidebar = memo(function Sidebar({
   };
 
   return (
-    <aside className="w-56 h-full max-h-screen flex flex-col bg-[#111111] border-r border-[#1f1f1f] shrink-0" style={{ minWidth: '224px' }}>
+    <aside className="w-[min(86vw,320px)] md:w-56 h-full flex flex-col bg-[#111111] border-r border-[#1f1f1f] shrink-0" style={{ height: 'var(--app-viewport-height, 100%)' }}>
       {/* Header */}
       <div className="px-3 py-3.5 flex items-center gap-2">
-        <div
-          className="flex-1 flex items-center gap-2 cursor-pointer hover:bg-white/[0.03] transition-colors rounded-md px-1 py-0.5"
-          onClick={() => navigate('/')}
+        <button type="button"
+          className="flex-1 flex items-center gap-2 cursor-pointer hover:bg-white/[0.03] transition-colors rounded-md px-1 py-0.5 text-left"
+          onClick={() => { navigate('/'); onClose?.(); }}
+          aria-label="Brain Core: abrir Dashboard"
         >
           <img src={appIconUrl} alt="Brain Core" className="w-[18px] h-[18px] rounded-sm object-cover" />
           <span className="font-semibold text-[13px] text-[#e0e0e0]">Brain Core</span>
-        </div>
+        </button>
         {/* Botão fechar — só aparece no mobile */}
         {onClose && (
           <button
@@ -778,6 +796,25 @@ export const Sidebar = memo(function Sidebar({
           className="w-full rounded-md border border-[#242424] bg-[#161616] px-2.5 py-1.5 text-[12px] text-gray-200 outline-none placeholder:text-gray-600 focus:border-[#333]"
         />
       </div>
+
+      <details className="md:hidden border-b border-[#1f1f1f] px-2 pb-2 text-[12px] text-gray-300">
+        <summary className="cursor-pointer rounded-md px-2 py-2">Abas abertas ({tabs.length})</summary>
+        <div className="flex flex-wrap gap-2 px-2 pb-2">
+          <button type="button" onClick={() => { onNewTab?.(); onClose?.(); }} className="min-h-11 rounded-md border border-[#2a2a2a] px-3 py-1">+ Nova aba</button>
+          <button type="button" onClick={() => { onGoBack?.(); onClose?.(); }} className="min-h-11 rounded-md border border-[#2a2a2a] px-3 py-1">← Voltar</button>
+          <button type="button" onClick={onCloseAllTabs} disabled={tabs.length === 0} className="min-h-11 rounded-md border border-[#2a2a2a] px-3 py-1 disabled:opacity-40">Fechar todas</button>
+        </div>
+        <div className="max-h-44 overflow-y-auto">
+          {tabs.map(tab => (
+            <div key={tab.id} className="flex items-center rounded-md" style={{ backgroundColor: activeTabId === tab.id ? 'var(--theme-card)' : undefined }}>
+              <button type="button" className="min-h-11 min-w-0 flex-1 truncate px-2 text-left" onClick={() => { onTabClick?.(tab.id); onClose?.(); }}>
+                {tab.title}
+              </button>
+              <button type="button" className="min-h-11 min-w-12 rounded-md border border-transparent text-base hover:border-[#444] hover:bg-white/10" aria-label={`Fechar ${tab.title}`} onClick={() => onTabClose?.(tab.id)}>×</button>
+            </div>
+          ))}
+        </div>
+      </details>
 
       {/* Árvore */}
       <nav
@@ -806,12 +843,13 @@ export const Sidebar = memo(function Sidebar({
         ) : (
           <>
         <p className="px-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-600">Memória</p>
-        <RememberErrorBoundary><RememberSidebarTree onOpen={onRememberOpen ?? ((date, newTab) => {
-          const url = date ? `/remember?date=${encodeURIComponent(date)}` : '/remember';
-          if (newTab) window.open(url, '_blank');
-          else navigate(url);
-        })} /></RememberErrorBoundary>
-        <p className="px-2 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-600">Conhecimento</p>
+        <RememberErrorBoundary><RememberSidebarTree onOpen={onRememberOpen ?? ((date) => navigate(date ? `/remember?date=${encodeURIComponent(date)}` : '/remember'))} /></RememberErrorBoundary>
+        {navigator.userAgent.includes('BrainCoreAndroid/1') && (
+          <a href="braincore://capture" onClick={() => onClose?.()} className="flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[13px] text-gray-300 hover:bg-white/[0.04]">🎙 Gravar neste celular</a>
+        )}
+        <button type="button" onClick={() => { navigate('/notes'); onClose?.(); }} className="flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[13px] text-gray-300 hover:bg-white/[0.04]">📝 Notas</button>
+        <button type="button" onClick={() => { navigate('/knowledge'); onClose?.(); }} className="w-full px-2 pt-4 pb-1 text-left text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">Conhecimento</button>
+        <div className="mx-2 my-1 border-t border-[#1f1f1f]" />
         {tree.map(page => (
           <PageNode
             key={page.id}
@@ -885,6 +923,11 @@ export const Sidebar = memo(function Sidebar({
             </div>
           </div>
         )}
+        <div className="mx-2 my-2 border-t border-[#1f1f1f]" />
+        <SharedSection
+          activePage={activePage}
+          onOpenPage={(page) => onPageClick?.({ ...page, sort_order: 0, children: [] })}
+        />
           </>
         )}
       </nav>
@@ -892,21 +935,27 @@ export const Sidebar = memo(function Sidebar({
       {/* Footer */}
       <div className="px-3 py-2.5 border-t border-[#1a1a1a] flex items-center gap-2">
         <button
-          className="flex-1 text-left text-[12px] text-gray-600 hover:text-gray-400 py-0.5 transition-colors"
+          type="button"
+          aria-label="Criar nova página"
+          className="flex-1 min-h-10 text-left text-[12px] text-gray-600 hover:text-gray-400 py-0.5 transition-colors"
           onClick={() => { setSearch(''); setAdding(true); setNewTitle(''); }}
         >
           + Nova página
         </button>
         <button
+          type="button"
+          aria-label="Abrir configurações"
           title="Configurações"
-          className="text-gray-600 hover:text-gray-400 text-[14px] leading-none transition-colors p-0.5"
+          className="min-h-10 min-w-10 text-gray-600 hover:text-gray-400 text-[14px] leading-none transition-colors p-0.5"
           onClick={() => navigate('/settings')}
         >
           ⚙
         </button>
         <button
+          type="button"
+          aria-label="Abrir lixeira"
           title="Lixeira"
-          className="text-gray-600 hover:text-gray-400 text-[14px] leading-none transition-colors p-0.5"
+          className="min-h-10 min-w-10 text-gray-600 hover:text-gray-400 text-[14px] leading-none transition-colors p-0.5"
           onClick={() => setShowTrash(true)}
         >
           🗑

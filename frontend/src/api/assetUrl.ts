@@ -4,8 +4,9 @@ export function resolveAssetUrl(rawUrl: string): string {
   if (!rawUrl) return rawUrl;
   if (rawUrl.startsWith('http')) return rawUrl;
 
+  const apiHost = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '');
   const base = import.meta.env.BASE_URL.replace(/\/$/, '');
-  const origin = window.location.origin;
+  const origin = apiHost || window.location.origin;
 
   // Strip any single leading path segment (legacy base prefix, whatever it was
   // at upload time) before /uploads, then re-prefix with the currently active base.

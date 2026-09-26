@@ -53,13 +53,13 @@ describe('api client auth/session behavior', () => {
     expect(hasSessionHint()).toBe(true);
   });
 
-  it('clears session hint on logout even if request fails', async () => {
+  it('keeps session visible when logout cannot be confirmed by the server', async () => {
     sessionStorage.setItem('brain-core:session-hint', '1');
     vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('network'));
 
     await expect(api.logout()).rejects.toThrow('network');
 
-    expect(hasSessionHint()).toBe(false);
+    expect(hasSessionHint()).toBe(true);
   });
 
   it('redirects to login and clears hint on 401 responses', async () => {

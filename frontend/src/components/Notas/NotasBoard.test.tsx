@@ -52,7 +52,7 @@ describe('NotasBoard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
     await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ id: 'n3' }), expect.objectContaining({ title: 'Titulo novo' })));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Editar nota' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar nota' }));
     fireEvent.click(screen.getByRole('button', { name: 'Apagar' }));
     await waitFor(() => expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'n3' })));
   });

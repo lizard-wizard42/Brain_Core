@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { RememberMemoryPanel } from '../components/Remember/RememberMemoryPanel';
 import { NotasComposer } from '../components/Notas/NotasComposer';
 import { emptyDraft, type NoteDraft } from '../components/Notas/notasModel';
@@ -11,6 +11,9 @@ export function RememberPage() {
   const { createNote } = useNotas({ autoload: false });
   const [composerOpen, setComposerOpen] = useState(false);
   const [seed, setSeed] = useState<NoteDraft>(() => emptyDraft());
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; }, []);
 
   const openFromSession = (draft: NoteDraft) => {
     setSeed(draft);
@@ -27,7 +30,7 @@ export function RememberPage() {
   }, [composerOpen, close]);
 
   return (
-    <div className="flex-1 min-h-0 overflow-auto bg-[radial-gradient(circle_at_top,#1c1a18_0%,#131211_55%,#0f0e0d_100%)]">
+    <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-text)' }}>
       <div className="mx-auto max-w-[1480px] px-3 py-4 sm:px-4 md:px-8 md:py-8">
         <RememberMemoryPanel onCreateNote={openFromSession} />
 

@@ -1,4 +1,5 @@
 import type { RememberChecklistItem, RememberNote } from '../../types';
+
 import notesIconUrl from '../../assets/icons/notes.svg';
 
 export const NOTAS_ICON_URL = notesIconUrl;
