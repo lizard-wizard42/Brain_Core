@@ -6,7 +6,7 @@ Brain Core runs in Docker on a machine you control. It stores pages, attachments
 and database data in volumes attached to that installation. A standard setup
 needs no cloud account or external sync.
 
-![Brain Core logo](docs/images/brain-page.jpeg)
+![Brain Core logo](docs/images/brain-core.png)
 
 ### Screenshots
 
