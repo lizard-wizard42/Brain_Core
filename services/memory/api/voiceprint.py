@@ -11,7 +11,7 @@ import tempfile
 import numpy as np
 from fastapi import APIRouter, Header, HTTPException, Request
 
-from services.memory.api.chunks import require_token
+from services.memory.api.chunks import require_token, valid_owner
 from services.memory.storage import database
 from services.memory.worker.diarizer import decode_pcm_16k_mono
 from services.memory.worker.embedder import get_embedder
@@ -61,7 +61,11 @@ def _status_payload(owner_user_id: str | None = None) -> dict:
 
 
 @router.get("/voiceprint")
-def get_voiceprint(owner_user_id: str | None = None) -> dict:
+def get_voiceprint(owner_user_id: str | None = None,
+                   authorization: str | None = Header(default=None)) -> dict:
+    require_token(authorization)
+    if owner_user_id is not None:
+        owner_user_id = valid_owner(owner_user_id)
     return _status_payload(owner_user_id)
 
 
