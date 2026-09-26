@@ -27,9 +27,22 @@ if git grep -n -I -E '/home/[^/]+/|192\.168\.[0-9]{1,3}\.[0-9]{1,3}' -- ':!scrip
 fi
 
 # Commit metadata is public even when the checked-out files are clean.
-if git log HEAD --format='%an <%ae> %cn <%ce>' | grep -Eiq 'guilherme|@gmail\.com'; then
-  fail 'personal author or committer metadata exists in release ancestry'
-fi
+# Require the GitHub username and its matching noreply address for both roles.
+valid_git_identity() {
+  local name="$1" email="$2" username
+  if [[ ! "$email" =~ ^([0-9]+\+)?([A-Za-z0-9-]+)@users\.noreply\.github\.com$ ]]; then
+    return 1
+  fi
+  username="${BASH_REMATCH[2]}"
+  [[ "$name" == "$username" ]]
+}
+
+while IFS=$'\t' read -r author author_email committer committer_email; do
+  if ! valid_git_identity "$author" "$author_email" || ! valid_git_identity "$committer" "$committer_email"; then
+    fail 'personal author or committer metadata exists in release ancestry'
+    break
+  fi
+done < <(git log HEAD --format='%an%x09%ae%x09%cn%x09%ce')
 
 if (( failures )); then
   exit 1
