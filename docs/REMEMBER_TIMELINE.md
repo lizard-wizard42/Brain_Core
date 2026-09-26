@@ -37,6 +37,11 @@ it needs network access, disk space, and CPU time. The default model is `small`
 with Portuguese as the selected language. Change those settings in
 `.env.memory` if needed. Keep the token and volume out of Git and protect backups.
 
+For an NVIDIA GPU on the Docker host, see the [optional GPU worker setup](../services/gpu-worker/README.md).
+It includes a loopback-only API override, Python/CUDA dependencies, model
+selection and a CPU fallback. The default worker is always CPU; setting a GPU
+environment variable on the default container does not enable GPU processing.
+
 Check the backend health and service logs after enabling it:
 
 ```bash

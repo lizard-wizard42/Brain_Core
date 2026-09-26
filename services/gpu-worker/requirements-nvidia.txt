@@ -1,0 +1,4 @@
+-r requirements.txt
+# NVIDIA CUDA 12 / cuDNN 9 runtime on Linux; no system CUDA toolkit required.
+nvidia-cublas-cu12==12.9.2.10
+nvidia-cudnn-cu12==9.25.1.1

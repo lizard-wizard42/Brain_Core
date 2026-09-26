@@ -1,0 +1,10 @@
+# Optional host GPU worker: combine with compose.yaml and compose.memory.yaml.
+# The API is reachable only on this computer's loopback interface.
+services:
+  memory-api:
+    ports:
+      - "127.0.0.1:${CELTWO_MEMORY_API_HOST_PORT:-8765}:8765"
+
+  memory-worker:
+    profiles:
+      - cpu-worker

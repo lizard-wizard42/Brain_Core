@@ -16,7 +16,7 @@ Thanks for helping improve Brain Core. The project is a self-hosted workspace fo
 | Web interface | `frontend/src/` | `npm run lint`, `npm test`, `npm run build` in `frontend/` |
 | API and database | `backend/src/`, `backend/test/` or `backend/tests/` | `npm run build`, `npm test` in `backend/` |
 | Android companion | `android/app/src/` | `./gradlew :app:testDebugUnitTest :app:assembleDebug` in `android/` |
-| Transcription service | `services/memory/`, `services/gpu-worker/` | Run the relevant unit tests and describe the model/runtime used |
+| Transcription service | `services/memory/`, `services/gpu-worker/` | Run the relevant unit tests and describe the model/runtime used; see the [GPU worker guide](services/gpu-worker/README.md) |
 | Documentation | `README.md`, `docs/` | Check links, commands, and a fresh-install path |
 
 Install JavaScript dependencies with `npm ci` in the affected package. Backend tests may require a local test `JWT_SECRET` of at least 32 characters; never use a production secret. If a check cannot run in your environment, say which one and why in the PR.
