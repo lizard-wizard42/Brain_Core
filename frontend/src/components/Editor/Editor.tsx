@@ -2397,18 +2397,22 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
   useEffect(() => {
     if (!editor) return;
     api.getSubPages(page.id).then(subPages => {
-      if (!subPages.length) return;
       const orderedChildIds = subPages.map(sp => sp.id);
       const childRank = new Map(orderedChildIds.map((id, index) => [id, index]));
       const childById = new Map(subPages.map(sp => [sp.id, sp]));
 
       const docJson = editor.getJSON();
       const currentContent = (Array.isArray(docJson.content) ? docJson.content : []) as TiptapNode[];
-      let nextContent = [...currentContent];
+      // Only managed child cards follow the tree. Explicit @ references stay where placed.
+      let nextContent = currentContent.filter(node =>
+        !(node.type === 'subPageBlock' && node.attrs?.source === 'child' &&
+          !childRank.has(String(node.attrs?.pageId ?? '')))
+      );
 
       const managedEntries: Array<{ index: number; id: string; node: TiptapNode }> = [];
-      currentContent.forEach((node, index) => {
+      nextContent.forEach((node, index) => {
         if (node.type !== 'subPageBlock') return;
+        if (node.attrs?.source === 'reference') return;
         const pageId = typeof node.attrs?.pageId === 'string' ? node.attrs.pageId : null;
         if (!pageId || !childRank.has(pageId)) return;
         managedEntries.push({ index, id: pageId, node });
@@ -2421,7 +2425,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
           const sp = childById.get(id);
           return {
             type: 'subPageBlock',
-            attrs: { pageId: id, title: sp?.title ?? 'Sem título', icon: sp?.icon ?? '' },
+            attrs: { pageId: id, title: sp?.title ?? 'Sem título', icon: sp?.icon ?? '', source: 'child' },
           } as TiptapNode;
         });
 
@@ -2443,6 +2447,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
               pageId: source.id,
               title: sp?.title ?? source.node.attrs?.title ?? 'Sem título',
               icon: sp?.icon ?? source.node.attrs?.icon ?? '',
+              source: 'child',
             },
           };
         });
@@ -2453,7 +2458,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
         }
       } else if (missingNodes.length) {
         // If body is still effectively empty, replace it with the ordered child list.
-        const docIsEffectivelyEmpty = currentContent.every(node => {
+        const docIsEffectivelyEmpty = nextContent.every(node => {
           if (node.type !== 'paragraph') return false;
           const paragraphText = (node.content ?? [])
             .map(child => ('text' in child ? child.text : ''))
@@ -2535,7 +2540,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
       .deleteRange({ from: atFrom, to: curFrom })
       .insertContent({
         type: 'subPageBlock',
-        attrs: { pageId: p.id, title: p.title, icon: p.icon ?? '' },
+        attrs: { pageId: p.id, title: p.title, icon: p.icon ?? '', source: 'reference' },
       })
       .run();
     setAtPicker(null);

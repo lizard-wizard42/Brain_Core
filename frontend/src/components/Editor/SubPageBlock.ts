@@ -7,7 +7,7 @@ export interface SubPageBlockOptions {
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     subPageBlock: {
-      insertSubPageBlock: (attrs: { pageId: string; title: string; icon?: string }) => ReturnType;
+      insertSubPageBlock: (attrs: { pageId: string; title: string; icon?: string; source?: 'child' | 'reference' }) => ReturnType;
     };
   }
 }
@@ -29,6 +29,7 @@ export const SubPageBlock = Node.create<SubPageBlockOptions>({
       pageId: { default: null },
       title: { default: 'Sem título' },
       icon: { default: '' },
+      source: { default: null },
     };
   },
 

@@ -20,6 +20,20 @@ export function canEdit(role: PageRole | null): boolean { return role === 'owner
 export class PageConflict extends Error { constructor() { super('Page revision conflict'); } }
 export class PageMissing extends Error { constructor() { super('Page not found'); } }
 
+// A moved page must disappear from its former parent's body. Keep explicit @ links.
+export function removeMovedChildCard(content: unknown, movedPageId: string): unknown | null {
+  if (!content || typeof content !== 'object') return null;
+  const doc = content as { content?: Array<{ type?: string; attrs?: { pageId?: string; source?: string } }> };
+  if (!Array.isArray(doc.content)) return null;
+  const index = doc.content.findIndex(node => node.type === 'subPageBlock' &&
+    node.attrs?.pageId === movedPageId && node.attrs?.source === 'child');
+  const legacyIndex = index < 0 ? doc.content.findIndex(node => node.type === 'subPageBlock' &&
+    node.attrs?.pageId === movedPageId && !node.attrs?.source) : -1;
+  const removeAt = index >= 0 ? index : legacyIndex;
+  if (removeAt < 0) return null;
+  return { ...doc, content: doc.content.filter((_, i) => i !== removeAt) };
+}
+
 // The row lock serializes saves and revocations. The revision is a monotonic
 // counter, independent of timestamp precision and never exposes internal hashes.
 export async function savePageRevision(pageId: string, userId: string, revision: number,
@@ -66,6 +80,24 @@ export async function savePageRevision(pageId: string, userId: string, revision:
       JSON.stringify(updated.content), reason,
       createHash('sha256').update(JSON.stringify([updated.title, updated.content])).digest('hex'),
       userId, updated.revision]);
+    if (Object.prototype.hasOwnProperty.call(changes, 'parent_page_id') &&
+        current.parent_page_id && current.parent_page_id !== changes.parent_page_id) {
+      const oldParent = (await client.query<Record<string, unknown>>(
+        'SELECT * FROM pages WHERE id = $1 AND owner_user_id = $2 AND deleted_at IS NULL FOR UPDATE',
+        [current.parent_page_id, userId])).rows[0];
+      const cleaned = oldParent && removeMovedChildCard(oldParent.content, pageId);
+      if (cleaned) {
+        const parentUpdated = (await client.query<Record<string, unknown>>(
+          `UPDATE pages SET content = $1::jsonb, revision = revision + 1, updated_at = NOW()
+           WHERE id = $2 RETURNING *`, [JSON.stringify(cleaned), oldParent.id])).rows[0];
+        await client.query(`INSERT INTO page_versions
+          (page_id, title, content, reason, content_hash, author_user_id, page_revision)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)`, [oldParent.id, parentUpdated.title,
+          JSON.stringify(parentUpdated.content), 'child-page-moved',
+          createHash('sha256').update(JSON.stringify([parentUpdated.title, parentUpdated.content])).digest('hex'),
+          userId, parentUpdated.revision]);
+      }
+    }
     await client.query('COMMIT');
     return updated;
   } catch (error) { await client.query('ROLLBACK'); throw error; }
