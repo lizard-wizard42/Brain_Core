@@ -67,7 +67,8 @@ export function reminderBadge(note: RememberNote): string | null {
   if (!note.reminder_date) return null;
   const time = note.reminder_time ? ` ${note.reminder_time}` : '';
   const repeat = note.reminder_repeat_daily ? ' · diario' : '';
-  return `${note.reminder_date}${time}${repeat}`;
+  const [year, month, day] = note.reminder_date.split('-');
+  return `${day}/${month}/${year}${time}${repeat}`;
 }
 
 export function toDraft(note: RememberNote): NoteDraft {
