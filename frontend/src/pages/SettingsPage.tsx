@@ -30,6 +30,48 @@ interface UserInfo {
   two_factor_setup_pending: boolean;
 }
 
+function DataExportSection() {
+  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+
+  const handleExport = async () => {
+    setStatus('loading');
+    try {
+      const blob = await api.exportAccountData();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'brain-core-export.json';
+      link.click();
+      URL.revokeObjectURL(url);
+      setStatus('idle');
+    } catch {
+      setStatus('error');
+    }
+  };
+
+  return (
+    <section className="flex flex-col gap-4">
+      <h2 className="text-[11px] uppercase tracking-widest text-gray-600">Seus dados</h2>
+      <div className="bg-[#1c1c1c] border border-[#252525] rounded-2xl p-5">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-[13px] text-white">Exportar meus dados</p>
+            <p className="text-[12px] text-gray-600 mt-0.5">Páginas, notas rápidas e contatos em JSON. Não inclui senhas, tokens nem áudios.</p>
+            {status === 'error' && <p className="text-[12px] text-red-400 mt-1">Não foi possível exportar. Tente novamente.</p>}
+          </div>
+          <button
+            onClick={handleExport}
+            disabled={status === 'loading'}
+            className="px-4 py-2 text-[13px] text-white border border-[#2a2a2a] rounded-lg hover:bg-white/5 transition-colors disabled:opacity-50 shrink-0"
+          >
+            {status === 'loading' ? 'Exportando…' : 'Exportar'}
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ChangePasswordSection() {
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
@@ -1041,6 +1083,7 @@ export function SettingsPage() {
         <TranscriptionPolicySection />
         <PcAudioRetentionSection />
         <TelegramSection user={user} onUpdate={setUser} />
+        <DataExportSection />
 
         <section className="flex flex-col gap-4">
           <h2 className="text-[11px] uppercase tracking-widest text-gray-600">Sessão</h2>

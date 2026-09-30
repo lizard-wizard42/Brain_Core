@@ -112,7 +112,7 @@ describe('App routes', () => {
   it('mostra o dashboard na home', async () => {
     render(<App />);
     expect(await screen.findByText(/, Alex/)).toBeInTheDocument();
-    expect(screen.getByText('Total de memórias')).toBeInTheDocument();
+    expect(screen.getByText('Gravações hoje')).toBeInTheDocument();
   });
 
   it('registra a aba Memória ao entrar em /remember', async () => {
@@ -159,7 +159,7 @@ describe('App routes', () => {
     window.history.pushState({}, '', '/terminal/abc?title=Privado');
     render(<App />);
 
-    expect(await screen.findByText(/Total de memórias/)).toBeInTheDocument();
+    expect(await screen.findByText('Gravações hoje')).toBeInTheDocument();
     expect(screen.queryByText('Terminal Mock Privado')).not.toBeInTheDocument();
   });
 });

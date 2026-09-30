@@ -1,7 +1,6 @@
 import { createContext, lazy, Suspense, useState, useEffect, useRef, useCallback, useContext } from 'react';
 import { BrowserRouter, Routes, Route, useParams, Navigate, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar/Sidebar';
-import { Editor } from './components/Editor/Editor';
 import { useTree } from './hooks/useTree';
 import { useTabs } from './hooks/useTabs';
 import type { Tab } from './hooks/useTabs';
@@ -9,15 +8,11 @@ import { api, invalidateLocalSession } from './api/client';
 import { prepareBrowserSession } from './api/browserSession';
 import { LoginPage } from './pages/LoginPage';
 import { SetupPage } from './pages/SetupPage';
-import { SettingsPage } from './pages/SettingsPage';
 import { RememberErrorBoundary } from './components/Remember/RememberErrorBoundary';
 import { DashboardHome } from './components/Dashboard/DashboardHome';
-import { NotesPage } from './pages/NotesPage';
-import { KnowledgePage } from './pages/KnowledgePage';
 import { SharedPagesProvider } from './components/Shared/SharedPagesProvider';
 import { Tabs } from './components/Tabs/Tabs';
-import { InfiniteRenderer } from './components/Infinite/InfiniteRenderer';
-import { TerminalDrawer, type TerminalRequest } from './components/Terminal/TerminalDrawer';
+import type { TerminalRequest } from './components/Terminal/TerminalDrawer';
 import type { Page } from './types';
 import terminalIconUrl from './assets/icons/terminal.svg';
 import notesIconUrl from './assets/icons/notes.svg';
@@ -72,7 +67,19 @@ function createNotesTab(): Tab {
 const TERMINAL_ICON_URL = terminalIconUrl;
 const REMEMBER_ICON_URL = notesIconUrl;
 const isTerminalEnabled = () => import.meta.env.VITE_TERMINAL_ENABLED === 'true';
+// Heavy surfaces (rich editor, tldraw canvas, xterm, settings) load on demand so the
+// first paint on mobile/Tailnet does not pay for code the user may never open.
 const RememberPage = lazy(() => import('./pages/RememberPage').then((module) => ({ default: module.RememberPage })));
+const Editor = lazy(() => import('./components/Editor/Editor').then((module) => ({ default: module.Editor })));
+const InfiniteRenderer = lazy(() => import('./components/Infinite/InfiniteRenderer').then((module) => ({ default: module.InfiniteRenderer })));
+const TerminalDrawer = lazy(() => import('./components/Terminal/TerminalDrawer').then((module) => ({ default: module.TerminalDrawer })));
+const SettingsPage = lazy(() => import('./pages/SettingsPage').then((module) => ({ default: module.SettingsPage })));
+const NotesPage = lazy(() => import('./pages/NotesPage').then((module) => ({ default: module.NotesPage })));
+const KnowledgePage = lazy(() => import('./pages/KnowledgePage').then((module) => ({ default: module.KnowledgePage })));
+
+function RouteFallback({ label = 'Carregando…' }: { label?: string }) {
+  return <div className="flex-1 flex items-center justify-center text-sm text-gray-500">{label}</div>;
+}
 
 // ── Private Route ──────────────────────────────────────────────────────────
 
@@ -188,20 +195,24 @@ function PageView({ onRefresh, onPageOpen, tabs, onOpenTab, onPageNavigate }: Pa
 
   if (page.type === 'infinite') {
     return (
-      <InfiniteRenderer
-        key={page.id}
-        page={page}
-      />
+      <Suspense fallback={<RouteFallback />}>
+        <InfiniteRenderer
+          key={page.id}
+          page={page}
+        />
+      </Suspense>
     );
   }
 
   return (
-    <Editor
-      key={page.id}
-      page={page}
-      onRefresh={onRefresh}
-      onNavigatePage={onPageNavigate}
-    />
+    <Suspense fallback={<RouteFallback />}>
+      <Editor
+        key={page.id}
+        page={page}
+        onRefresh={onRefresh}
+        onNavigatePage={onPageNavigate}
+      />
+    </Suspense>
   );
 }
 
@@ -234,12 +245,14 @@ function TerminalPage({ tabs, onOpenTab }: { tabs: Tab[]; onOpenTab: (tab: Tab) 
   }
 
   return (
-    <TerminalDrawer
-      open
-      request={request}
-      onClose={() => navigate('/')}
-      variant="page"
-    />
+    <Suspense fallback={<RouteFallback label="Carregando terminal…" />}>
+      <TerminalDrawer
+        open
+        request={request}
+        onClose={() => navigate('/')}
+        variant="page"
+      />
+    </Suspense>
   );
 }
 
@@ -257,7 +270,7 @@ function NotesRoute({ tabs, onOpenTab }: { tabs: Tab[]; onOpenTab: (tab: Tab) =>
   useEffect(() => {
     if (!tabs.some((tab) => tab.id === 'notes')) onOpenTab(createNotesTab());
   }, [onOpenTab]);
-  return <NotesPage />;
+  return <Suspense fallback={<RouteFallback />}><NotesPage /></Suspense>;
 }
 
 
@@ -389,7 +402,7 @@ function Layout() {
 
         <Routes>
           <Route path="/" element={<DashboardHome onOpenPage={handleSidebarPageClick} />} />
-          <Route path="/knowledge" element={<KnowledgePage tree={tree} onOpenPage={handleSidebarPageClick} onOpenTree={() => setSidebarOpen(true)} />} />
+          <Route path="/knowledge" element={<Suspense fallback={<RouteFallback />}><KnowledgePage tree={tree} onOpenPage={handleSidebarPageClick} onOpenTree={() => setSidebarOpen(true)} /></Suspense>} />
           <Route path="/notes" element={<NotesRoute tabs={tabs} onOpenTab={openTab} />} />
           <Route path="/remember" element={<RememberRoute tabs={tabs} onOpenTab={openTab} />} />
           <Route
@@ -426,7 +439,9 @@ export default function App() {
           path="/settings"
           element={
             <PrivateRoute>
-              <SettingsPage />
+              <Suspense fallback={<RouteFallback />}>
+                <SettingsPage />
+              </Suspense>
             </PrivateRoute>
           }
         />

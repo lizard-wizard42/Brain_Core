@@ -4,6 +4,7 @@ import { AuthRequest } from '../middleware/auth';
 import { CeltwoUnavailableError } from '../remember/celtwoClient';
 import { ownedDates, ownedSessionIds } from '../remember/ownership';
 import { deleteRememberVoiceprint, enrollRememberVoiceprint, enrollRememberVoiceprintFromSession, getRememberDay, getRememberDays, getRememberMonths, getRememberSearch, getRememberSessions, getRememberStatus, getRememberTranscript, getRememberVoiceprint, getRememberYears, setRememberRecording } from '../remember/service';
+import { logInfo } from '../utils/logger';
 
 interface RememberChecklistItem {
   id: string;
@@ -329,6 +330,7 @@ export async function rememberTranscript(req: AuthRequest, res: Response): Promi
     if (!(await ownedSessionIds(req.userId!)).has(String(req.params.sessionId))) {
       res.status(404).json({ error: 'Sessão não encontrada' }); return;
     }
+    logInfo('recording.transcript.read', { userId: req.userId, sessionId: String(req.params.sessionId) });
     res.json(await getRememberTranscript(String(req.params.sessionId), req.userId!));
   }
   catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'Celtwo offline' }); }
