@@ -12,3 +12,13 @@ export function apiSecurityHeaders(_req: Request, res: Response, next: NextFunct
   res.setHeader('Cache-Control', 'no-store');
   next();
 }
+
+/**
+ * HSTS only on requests that really arrived over HTTPS (Express `trust proxy` reads
+ * X-Forwarded-Proto from Tailscale Serve). Sending it on plain-HTTP LAN access would be
+ * ignored by browsers anyway, and never add `preload`/`includeSubDomains` here.
+ */
+export function hstsWhenSecure(req: Request, res: Response, next: NextFunction): void {
+  if (req.secure) res.setHeader('Strict-Transport-Security', 'max-age=15552000');
+  next();
+}
