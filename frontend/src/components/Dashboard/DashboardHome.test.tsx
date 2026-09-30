@@ -54,4 +54,19 @@ describe('DashboardHome', () => {
     await waitFor(() => expect(screen.getByText('Gravação desta noite')).toBeInTheDocument());
     expect(screen.getByText('1', { selector: 'p' })).toBeInTheDocument();
   });
+
+  it('não duplica gravações quando o mesmo id vem nos dois dias UTC e rotula o status para leitores de tela', async () => {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+    const startedAt = new Date(`${today}T12:00:00-03:00`).toISOString();
+    const session = { id: 'same', started_at: startedAt, ended_at: new Date(Date.parse(startedAt) + 60000).toISOString(), device_id: null, status: 'ready' as const, text: 'Gravação única' };
+    vi.mocked(rememberService.getDay).mockImplementation(async (date) => ({ date, total_seconds: 0, session_count: 1, sessions: [session] }));
+
+    render(<DashboardHome onOpenPage={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('Gravação única')).toBeInTheDocument());
+    expect(screen.getAllByText('Gravação única')).toHaveLength(1);
+    expect(screen.getByRole('img', { name: 'Transcrição pronta' })).toBeInTheDocument();
+    expect(screen.getByText('Gravações hoje')).toBeInTheDocument();
+    expect(screen.queryByText(/\.md$/)).not.toBeInTheDocument();
+  });
 });

@@ -33,7 +33,7 @@ describe('notasModel', () => {
   });
 
   it('reminderBadge formata data · hora · diario', () => {
-    expect(reminderBadge(note)).toBe('2026-09-01 08:30 · diario');
+    expect(reminderBadge(note)).toBe('01/09/2026 08:30 · diario');
     expect(reminderBadge({ ...note, reminder_date: null })).toBeNull();
   });
 
