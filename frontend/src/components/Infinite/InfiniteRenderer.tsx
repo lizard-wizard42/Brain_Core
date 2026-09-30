@@ -194,8 +194,18 @@ export function InfiniteRenderer({ page }: InfiniteRendererProps) {
 
   return (
     <div className="flex-1 relative overflow-hidden bg-[#191919] tldraw-container">
-      <div className="pointer-events-none absolute bottom-3 right-3 z-[120]">
-        <div className="rounded-full border border-white/10 bg-[#111111]/80 backdrop-blur px-3 py-1.5 text-[11px] text-gray-400 shadow-lg">
+      {/* tldraw draws its "made with tldraw" watermark in the bottom-right corner, so the
+          status pill stays clear of it: above the toolbar on mobile, left of it on desktop. */}
+      <div
+        data-testid="infinite-save-status"
+        className="pointer-events-none absolute bottom-16 right-3 z-[120] md:bottom-3 md:right-32"
+      >
+        <div
+          role="status"
+          aria-live="polite"
+          style={{ background: 'var(--theme-card)', color: 'var(--theme-text)', borderColor: 'var(--theme-border)' }}
+          className="rounded-full border backdrop-blur px-3 py-1.5 text-[11px] shadow-lg"
+        >
           {saveIndicator === 'saving' && 'Salvando...'}
           {saveIndicator === 'saved' && `Salvo${lastSavedAt ? ` ${lastSavedAt}` : ''}`}
           {saveIndicator === 'error' && 'Erro ao salvar'}
