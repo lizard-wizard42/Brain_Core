@@ -29,7 +29,7 @@ import { AttachmentBlockView } from './AttachmentBlockView';
 import { SlashMenu, type SlashCommand } from './SlashMenu';
 import { findTrailingEditorTriggerQuery } from './triggers';
 import type { InfiniteDoc, Page, PageSummary, PageVersion, TiptapDoc, TiptapNode } from '../../types';
-import { toSlug, computeSavePayloadHash, type SaveStatus } from './editorUtils';
+import { toSlug, computeSavePayloadHash, whenEditorViewReady, type SaveStatus } from './editorUtils';
 import { getCachedAllPages, loadAllPagesCached } from './allPagesCache';
 import { ResizableImage } from './ResizableImage';
 import { NewSubPageModal, TypeSelectorModal } from './EditorModals';
@@ -419,10 +419,12 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
 
   useEffect(() => {
     if (!editor) return;
-    const dom = editor.view.dom as HTMLElement;
-    dom.setAttribute('spellcheck', spellcheckEnabled ? 'true' : 'false');
-    // Keep the boolean property in sync for browsers that prioritize it.
-    dom.spellcheck = spellcheckEnabled;
+    return whenEditorViewReady(editor, () => {
+      const dom = editor.view.dom as HTMLElement;
+      dom.setAttribute('spellcheck', spellcheckEnabled ? 'true' : 'false');
+      // Keep the boolean property in sync for browsers that prioritize it.
+      dom.spellcheck = spellcheckEnabled;
+    });
   }, [editor, spellcheckEnabled]);
 
   useEffect(() => {
