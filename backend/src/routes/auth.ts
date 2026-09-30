@@ -12,6 +12,7 @@ import {
   updateTelegramSettings,
   verifyLoginTwoFactor,
 } from '../controllers/authController';
+import { exportAccountData } from '../controllers/accountExportController';
 import { authMiddleware } from '../middleware/auth';
 import { loginIpRateLimitMiddleware } from '../services/loginProtectionService';
 
@@ -23,6 +24,7 @@ router.post('/setup', loginIpRateLimitMiddleware, completeInitialSetup);
 router.post('/login-2fa', loginIpRateLimitMiddleware, verifyLoginTwoFactor);
 router.post('/logout', authMiddleware, logout);
 router.get('/me', authMiddleware, me);
+router.get('/export', authMiddleware, exportAccountData);
 router.post('/change-password', authMiddleware, changePassword);
 router.post('/telegram', authMiddleware, updateTelegramSettings);
 router.post('/2fa/setup', authMiddleware, beginTwoFactorSetup);
