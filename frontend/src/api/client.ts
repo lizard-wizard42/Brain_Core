@@ -225,6 +225,12 @@ export const api = {
     return data;
   },
 
+  exportAccountData: async (): Promise<Blob> => {
+    const res = await fetch(`${API_HOST}${BASE_URL}/api/auth/export`, { credentials: 'include' });
+    if (!res.ok) throw new Error(`API ${res.status}`);
+    return res.blob();
+  },
+
   updateTelegramSettings: (telegramChatId: string, telegramNotificationsEnabled: boolean) =>
     request<CurrentUser>('/api/auth/telegram', {
       method: 'POST',
