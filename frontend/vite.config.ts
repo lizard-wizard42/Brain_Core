@@ -25,6 +25,19 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       sourcemap: false,
+      rollupOptions: {
+        output: {
+          // Stable vendor chunks keep the browser cache valid across app-only deploys.
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return undefined;
+            if (/[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/.test(id)) return 'vendor-react';
+            if (id.includes('tldraw') || id.includes('@tldraw')) return 'vendor-tldraw';
+            if (id.includes('@tiptap') || id.includes('prosemirror') || id.includes('lowlight') || id.includes('highlight.js')) return 'vendor-editor';
+            if (id.includes('xterm')) return 'vendor-xterm';
+            return undefined;
+          },
+        },
+      },
     },
     test: {
       environment: 'jsdom',
