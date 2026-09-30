@@ -78,3 +78,19 @@ test('slow request logger warns only at or above the threshold', async () => {
   assert.equal(warnings[0].event, 'http.slow_request');
   assert.equal(warnings[0].path, '/slow');
 });
+
+test('HSTS is sent only when the request arrived over HTTPS via the trusted proxy', async () => {
+  const { hstsWhenSecure } = require('../dist/middleware/securityHeaders');
+  const app = express();
+  app.set('trust proxy', 1);
+  app.disable('x-powered-by');
+  app.use(hstsWhenSecure);
+  app.get('/x', (_req, res) => res.json({}));
+  await withServer(app, async base => {
+    const plain = await fetch(`${base}/x`);
+    assert.equal(plain.headers.get('strict-transport-security'), null);
+    assert.equal(plain.headers.get('x-powered-by'), null);
+    const https = await fetch(`${base}/x`, { headers: { 'x-forwarded-proto': 'https' } });
+    assert.equal(https.headers.get('strict-transport-security'), 'max-age=15552000');
+  });
+});

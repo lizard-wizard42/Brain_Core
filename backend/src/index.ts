@@ -24,7 +24,7 @@ import mobileRouter from './routes/mobile';
 import contactsRouter from './routes/contacts';
 import { AuthRequest, authMiddleware } from './middleware/auth';
 import { perUserRateLimit } from './middleware/rateLimit';
-import { apiSecurityHeaders } from './middleware/securityHeaders';
+import { apiSecurityHeaders, hstsWhenSecure } from './middleware/securityHeaders';
 import { createApiRateLimit } from './middleware/apiRateLimit';
 import { slowRequestLogger } from './middleware/slowRequestLogger';
 import { ownerOnly } from './middleware/ownerOnly';
@@ -99,6 +99,8 @@ const allowedOrigins = [
 
 const app = express();
 app.set('trust proxy', config.TRUSTED_PROXIES);
+app.disable('x-powered-by');
+app.use(hstsWhenSecure);
 const httpServer = createServer(app);
 
 const io = new SocketIO(httpServer, {
