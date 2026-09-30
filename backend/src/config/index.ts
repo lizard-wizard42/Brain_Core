@@ -51,6 +51,8 @@ export const config = {
   TRUSTED_DEVICE_MAX_AGE_DAYS: parseInt(process.env.TRUSTED_DEVICE_MAX_AGE_DAYS || '30', 10),
   TOTP_ISSUER: process.env.TOTP_ISSUER || 'Brain Core',
   TWO_FACTOR_PENDING_EXPIRES_IN: process.env.TWO_FACTOR_PENDING_EXPIRES_IN || '5m',
+  SLOW_REQUEST_MS: parseInt(process.env.SLOW_REQUEST_MS || '1000', 10),
+  API_RATE_LIMIT_PER_MINUTE: parseInt(process.env.API_RATE_LIMIT_PER_MINUTE || '1200', 10),
   LOGIN_IP_WINDOW_MS: parseInt(process.env.LOGIN_IP_WINDOW_MS || '900000', 10),
   LOGIN_IP_MAX_ATTEMPTS: parseInt(process.env.LOGIN_IP_MAX_ATTEMPTS || '25', 10),
   LOGIN_ACCOUNT_WINDOW_MS: parseInt(process.env.LOGIN_ACCOUNT_WINDOW_MS || '1800000', 10),

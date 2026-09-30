@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import data from '@emoji-mart/data';
-import { Picker } from 'emoji-mart';
 import { api } from '../../api/client';
 import type { CustomEmoji } from '../../types';
 
@@ -82,34 +80,41 @@ export function EmojiPicker({ onSelect, onClose, anchorRect }: EmojiPickerProps)
   );
 
   useEffect(() => {
-    if (!pickerMountRef.current) return;
+    const mountNode = pickerMountRef.current;
+    if (!mountNode) return;
 
-    pickerMountRef.current.innerHTML = '';
-    const picker = new Picker({
-      data,
-      custom,
-      theme: 'dark',
-      locale: 'pt',
-      set: 'native',
-      perLine: 9,
-      previewPosition: 'none',
-      skinTonePosition: 'search',
-      onEmojiSelect: (emoji: EmojiMartSelect) => {
-        const value =
-          typeof emoji.native === 'string' && emoji.native
-            ? emoji.native
-            : (emoji.skins?.[0]?.src ?? '');
-        if (value) {
-          onSelect(value);
-          onClose();
-        }
-      },
+    let cancelled = false;
+    mountNode.innerHTML = '';
+    // emoji-mart and its dataset are large; load them only when a picker is opened.
+    void Promise.all([import('emoji-mart'), import('@emoji-mart/data')]).then(([{ Picker }, { default: data }]) => {
+      if (cancelled) return;
+      const picker = new Picker({
+        data,
+        custom,
+        theme: 'dark',
+        locale: 'pt',
+        set: 'native',
+        perLine: 9,
+        previewPosition: 'none',
+        skinTonePosition: 'search',
+        onEmojiSelect: (emoji: EmojiMartSelect) => {
+          const value =
+            typeof emoji.native === 'string' && emoji.native
+              ? emoji.native
+              : (emoji.skins?.[0]?.src ?? '');
+          if (value) {
+            onSelect(value);
+            onClose();
+          }
+        },
+      });
+      mountNode.appendChild(picker as unknown as Node);
+    }).catch(() => {
+      if (!cancelled) setError('Falha ao carregar o seletor de emojis');
     });
 
-    const mountNode = pickerMountRef.current;
-    mountNode.appendChild(picker as unknown as Node);
-
     return () => {
+      cancelled = true;
       mountNode.innerHTML = '';
     };
   }, [custom, onClose, onSelect]);

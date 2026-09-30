@@ -24,6 +24,9 @@ import mobileRouter from './routes/mobile';
 import contactsRouter from './routes/contacts';
 import { AuthRequest, authMiddleware } from './middleware/auth';
 import { perUserRateLimit } from './middleware/rateLimit';
+import { apiSecurityHeaders } from './middleware/securityHeaders';
+import { createApiRateLimit } from './middleware/apiRateLimit';
+import { slowRequestLogger } from './middleware/slowRequestLogger';
 import { ownerOnly } from './middleware/ownerOnly';
 import { recordUploadedAsset, requireUploadedAssetOwner } from './services/uploadOwnership';
 import { registerSocketHandlers } from './services/socketService';
@@ -108,8 +111,19 @@ const io = new SocketIO(httpServer, {
 });
 
 app.use(cors({ origin: allowedOrigins, credentials: true }));
-app.use(express.json({ limit: '10mb' }));
+// Content-heavy routes (page documents, canvas snapshots, recordings metadata) need the
+// larger budget; everything else is small JSON and should be rejected early.
+const largeJson = express.json({ limit: '10mb' });
+const smallJson = express.json({ limit: '256kb' });
+const LARGE_BODY_PREFIXES = ['/api/pages', '/api/remember', '/api/mobile'];
+app.use((req, res, next) => (
+  LARGE_BODY_PREFIXES.some(prefix => req.path === prefix || req.path.startsWith(`${prefix}/`))
+    ? largeJson
+    : smallJson
+)(req, res, next));
 app.use(morgan('dev'));
+app.use(slowRequestLogger(config.SLOW_REQUEST_MS));
+app.use('/api', apiSecurityHeaders, createApiRateLimit({ windowMs: 60_000, max: config.API_RATE_LIMIT_PER_MINUTE }));
 
 // Serve uploaded files — path relative to project root, not dist/
 app.use('/uploads', authMiddleware, requireUploadedAssetOwner, (req, res, next) => {
