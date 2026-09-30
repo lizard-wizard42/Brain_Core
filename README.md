@@ -16,8 +16,6 @@ These screenshots use fictional content.
 
 ![Brain Core timeline with fictional recording transcripts](docs/images/timeline-memory-demo.png)
 
-![Brain Core support page with the public donation link](docs/images/support-demo.png)
-
 **Built with:** React 19 · TypeScript · Vite · Tailwind CSS · Tiptap · tldraw ·
 Node.js · Express · Socket.IO · PostgreSQL · Docker
 
