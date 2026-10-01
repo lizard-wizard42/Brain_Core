@@ -24,3 +24,8 @@ This file defines mandatory rules for any coding agent working in this repositor
 
 - Use `./build.sh` for production publish flow.
 - This script is the canonical way to keep backend + frontend bundles aligned.
+
+## Commit Attribution
+
+- Do not add AI tools or models as commit co-authors or add automated AI attribution to pull request descriptions.
+- Preserve attribution for human collaborators.
