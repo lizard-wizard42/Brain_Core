@@ -51,3 +51,7 @@ __pycache__/
 # OS Files
 .DS_Store
 Thumbs.db
+
+# Local personal data directories: never version.
+dados-*/
+private-data/
