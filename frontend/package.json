@@ -9,6 +9,7 @@
     "build:types": "tsc -b",
     "build": "npm run build:types && vite build",
     "build:lan": "npm run build",
+    "build:same-origin": "npm run build:types && VITE_BASE=/ VITE_API_BASE= vite build --outDir dist-same-origin",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",

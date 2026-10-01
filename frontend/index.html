@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
 
+    <script>
+      try {
+        const allowed = ['dark','light','deep-sea','cyber-sunset','minty-fresh','cloud-white','neon-skyline','y2k-arcade'];
+        const requested = new URLSearchParams(location.search).get('theme') || localStorage.getItem('brain-core:appearance');
+        document.documentElement.dataset.theme = allowed.includes(requested) ? requested : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      } catch { document.documentElement.dataset.theme = 'dark'; }
+    </script>
+
     <!-- PWA / Theme -->
     <meta name="theme-color" content="#191919" />
     <meta name="background-color" content="#191919" />
