@@ -21,6 +21,7 @@ node_modules/
 
 # Generated artifacts
 frontend/dist/
+frontend/dist-same-origin/
 frontend/dist-tailnet/
 frontend/coverage/
 frontend/knip-report.txt

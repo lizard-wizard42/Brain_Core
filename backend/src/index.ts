@@ -310,6 +310,24 @@ if (config.TERMINAL_ENABLED) app.delete('/api/terminal/tabs/:requestKey', authMi
 
 app.use('/api', healthRouter);
 
+// Optional same-origin bundle (e.g. behind Tailscale Serve): API, uploads and
+// Socket.IO stay on this backend, so no second port needs to be exposed.
+if (config.FRONTEND_STATIC_DIR) {
+  const staticDir = path.resolve(config.FRONTEND_STATIC_DIR);
+  const indexFile = path.join(staticDir, 'index.html');
+  if (!fs.existsSync(indexFile)) throw new Error(`FRONTEND_STATIC_DIR sem index.html: ${staticDir}`);
+  app.use(express.static(staticDir, { index: false, dotfiles: 'deny' }));
+  app.use((req, res, next) => {
+    if ((req.method === 'GET' || req.method === 'HEAD')
+      && req.headers.accept?.includes('text/html')
+      && !/^\/(api|uploads|socket\.io)(\/|$)/.test(req.path)) {
+      res.sendFile(indexFile);
+      return;
+    }
+    next();
+  });
+}
+
 registerSocketHandlers(io);
 
 async function startServer() {
