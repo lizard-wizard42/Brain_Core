@@ -37,6 +37,9 @@ export const config = {
     .filter(Boolean),
   TRUSTED_PROXIES: parseTrustedProxies(process.env.TRUSTED_PROXIES),
   MD_SOURCE_PATH: process.env.MD_SOURCE_PATH || '../data/markdown',
+  // Optional: serve a prebuilt same-origin frontend (see `npm run build:same-origin`)
+  // from this backend, e.g. behind Tailscale Serve or any single-port reverse proxy.
+  FRONTEND_STATIC_DIR: process.env.FRONTEND_STATIC_DIR || '',
   UPLOADS_DIR: process.env.UPLOADS_DIR || path.resolve(__dirname, '..', '..', 'uploads'),
   UPLOADS_MAX_BYTES: parseInt(process.env.UPLOADS_MAX_BYTES || String(5 * 1024 * 1024 * 1024), 10),
   JWT_SECRET: jwtSecret,
