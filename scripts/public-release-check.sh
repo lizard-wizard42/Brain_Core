@@ -10,7 +10,7 @@ fail() {
 
 # These paths are instance data or machine configuration, never source code for
 # the public repository. Examples remain allowed because they contain no value.
-blocked_paths="$(git ls-files | grep -E '(^|/)(backups/|uploads/|data/memory/|\.env($|\.)|.*\.(pem|key|p12|pfx|db|sqlite|sqlite3|m4a|wav|webm|ogg|opus|apk|aab|jks|keystore)$)' | grep -Ev '(^|/)\.env[^/]*\.example$' || true)"
+blocked_paths="$(git ls-files | grep -E '(^|/)(backups/|uploads/|dados-[^/]*/|private-data/|data/memory/|\.env($|\.)|.*\.(pem|key|p12|pfx|db|sqlite|sqlite3|m4a|wav|webm|ogg|opus|apk|aab|jks|keystore)$)' | grep -Ev '(^|/)\.env[^/]*\.example$' || true)"
 if [[ -n "$blocked_paths" ]]; then
   printf '%s\n' "$blocked_paths" >&2
   fail 'tracked instance data, environment, database, or key file detected'
@@ -27,22 +27,19 @@ if git grep -n -I -E '/home/[^/]+/|192\.168\.[0-9]{1,3}\.[0-9]{1,3}' -- ':!scrip
 fi
 
 # Commit metadata is public even when the checked-out files are clean.
-# Require the GitHub username and its matching noreply address for both roles.
-valid_git_identity() {
-  local name="$1" email="$2" username
-  if [[ ! "$email" =~ ^([0-9]+\+)?([A-Za-z0-9-]+)@users\.noreply\.github\.com$ ]]; then
-    return 1
-  fi
-  username="${BASH_REMATCH[2]}"
-  [[ "$name" == "$username" ]]
+# What must never appear is a personal address: every author and committer
+# email has to be a GitHub noreply address (the account's own noreply address,
+# or GitHub's web-flow address used for merges and edits made in the browser).
+valid_public_email() {
+  [[ "$1" =~ ^([0-9]+\+)?[A-Za-z0-9-]+@users\.noreply\.github\.com$ || "$1" == 'noreply@github.com' ]]
 }
 
-while IFS=$'\t' read -r author author_email committer committer_email; do
-  if ! valid_git_identity "$author" "$author_email" || ! valid_git_identity "$committer" "$committer_email"; then
-    fail 'personal author or committer metadata exists in release ancestry'
+while IFS=$'\t' read -r author_email committer_email; do
+  if ! valid_public_email "$author_email" || ! valid_public_email "$committer_email"; then
+    fail 'personal author or committer email exists in release ancestry'
     break
   fi
-done < <(git log HEAD --format='%an%x09%ae%x09%cn%x09%ce')
+done < <(git log HEAD --format='%ae%x09%ce')
 
 if (( failures )); then
   exit 1
