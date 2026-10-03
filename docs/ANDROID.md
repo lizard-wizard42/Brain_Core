@@ -39,3 +39,7 @@ To record, open **Linha do tempo**, tap **Gravar**, grant microphone and notific
 The standard Docker installation starts with the memory integration **offline**. Phone recording and local playback do not require a transcription server; upload, server-side transcript search, and speaker review require the optional memory service configured with a private token. Keep that service and its storage inaccessible from the public internet, and do not expose its port through Tailscale Serve. Follow [the timeline guide](REMEMBER_TIMELINE.md) before enabling it.
 
 The app records only after a user action. Obtain consent before recording other people and protect local files, server storage, and backups. To remove the HTTPS proxy later, run `tailscale serve --https=443 off` on the computer.
+
+## Participant review in Android 1.1.1
+
+**Corrigir** remains available even when no participant or suggestion exists. Choose **Minha voz** when the account has an enrolled voice, or enter a new participant name and choose **Criar e identificar**. Confirmed/corrected segments attempt to create a reusable reference; short or unsuitable audio keeps the manual decision without a reference. Busy voice comparison is displayed separately from offline state. Install 1.1.1 for these native controls; the backend’s enrolled-voice suggestions also work with 1.1.0.

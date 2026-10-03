@@ -5,7 +5,7 @@ import { AuthRequest } from '../middleware/auth';
 import { ownerOnly } from '../middleware/ownerOnly';
 import { celtwoRequest, CeltwoUnavailableError } from '../remember/celtwoClient';
 import { ownedSessionIds } from '../remember/ownership';
-import { participants } from '../remember/service';
+import { getSegmentParticipants, participants } from '../remember/service';
 import { getAudioRetention, putAudioRetention, previewAudioRetention, cleanAudioRetention } from './audioRetention';
 import { getTranscriptionPolicy, putTranscriptionPolicy, runTranscriptionNow, pauseTranscription } from './transcriptionPolicy';
 import {
@@ -176,7 +176,7 @@ router.post('/memory/sessions/:sessionId/participants/identities', async (req: A
 router.get('/memory/sessions/:sessionId/participants/segments/:segmentId', async (req: AuthRequest, res) => {
   const id = segmentId(String(req.params.segmentId));
   if (!id) { res.status(400).json({ error: 'Segmento inválido' }); return; }
-  try { res.json({ decision: await participants.decision(req.userId!, String(req.params.sessionId), id), suggestions: await participants.suggestions(req.userId!, String(req.params.sessionId), id) }); }
+  try { res.json(await getSegmentParticipants(req.userId!, String(req.params.sessionId), id)); }
   catch (error) { participantError(error, res); }
 });
 router.post('/memory/sessions/:sessionId/participants/segments/:segmentId/decision', async (req: AuthRequest, res) => {

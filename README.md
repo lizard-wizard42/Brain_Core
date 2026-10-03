@@ -51,7 +51,7 @@ remain tied to the linked account.
 The optional Memory service can transcribe recordings locally, group sessions
 by date, search transcripts, show speaker turns, and let you review or correct
 participant suggestions. You can turn transcript content into a Brain Core
-note or reminder. Participant suggestions use manually confirmed segments; they never assign a person automatically. Voice enrollment accepts 8–60 seconds and up to 25 MiB. Each account can choose automatic, scheduled or manual transcription, pause new jobs, and configure audio retention. The standard installation keeps
+note or reminder. Participant suggestions use the current account’s enrolled voice ("Minha voz") and manually confirmed segments; they never assign a person automatically. Voice enrollment accepts 8–60 seconds and up to 25 MiB. Each account can choose automatic, scheduled or manual transcription, pause new jobs, and configure audio retention. The standard installation keeps
 Memory **offline**. Phone recording and local playback work without it, but
 server upload and transcription require the private Memory API and worker.
 

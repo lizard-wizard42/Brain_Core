@@ -164,6 +164,7 @@ def test_participant_resource_limits_reach_api_before_embedding(samples, tmp_pat
     from fastapi import HTTPException
     from services.memory.api.participants import _call
     from services.memory.tests.test_voiceprint_limits import flac
+    database.set_voiceprint(np.ones(3, dtype=np.float32).tobytes(), 3, 30, "synthetic-v1", "a")
     path = tmp_path / "long-synthetic.flac"
     path.write_bytes(flac(301))
     from services.memory.worker.diarizer import decode_pcm_16k_mono
@@ -179,3 +180,79 @@ def test_participant_resource_limits_reach_api_before_embedding(samples, tmp_pat
         assert busy.value.headers["Retry-After"] == "1"
     finally:
         voice_templates._processing.release()
+
+
+def test_enrolled_voice_suggests_only_own_identity_and_requires_confirmation(samples):
+    encoder = SyntheticEmbedder()
+    t = np.arange(64000) / 16000
+    vector = encoder.embed((0.3 * np.sin(2 * np.pi * 180 * t)).astype(np.float32))
+    database.set_voiceprint(vector.tobytes(), vector.size, 30, encoder.name, "a")
+    own = identities.list_identities("a")[0]
+    assert own == {"id": identities.owner_identity_id("a"), "display_name": "Minha voz"}
+    assert identities.list_identities("b") == []
+    suggestion = voice_templates.suggest_segment("a", samples["sa"], encoder)[0]
+    assert suggestion["identity_id"] == own["id"]
+    assert suggestion["similarity"] > 0.99
+    assert suggestion["template_id"] is None
+    assert identities.get_segment_decision("a", samples["sa"]) is None
+    assert voice_templates.suggest_segment("b", samples["sd"], encoder) == []
+    with pytest.raises(ValueError, match="identity not found"):
+        identities.decide_segment("b", samples["sd"], own["id"], "confirm")
+    identities.decide_segment("a", samples["sa"], own["id"], "confirm")
+    assert identities.get_segment_decision("a", samples["sa"])["identity_id"] == own["id"]
+    assert voice_templates.create_template("a", samples["sa"], encoder)["identity_id"] == own["id"]
+
+
+def test_ineligible_and_empty_reference_reads_skip_inference_even_when_busy(samples, monkeypatch):
+    def unexpected(*args, **kwargs):
+        raise AssertionError("read must not load model or decode audio")
+    monkeypatch.setattr(voice_templates, "_local_embedder", unexpected)
+    monkeypatch.setattr(voice_templates, "decode_pcm_16k_mono", unexpected)
+    voice_templates._processing.acquire()
+    try:
+        assert voice_templates.suggest_segment("a", samples["sa"]) == []
+        database.set_voiceprint(np.ones(3, dtype=np.float32).tobytes(), 3, 30, "synthetic-v1", "a")
+        conn = database.get_connection()
+        conn.execute("UPDATE transcript_segments SET end_ms=1880 WHERE id=?", (samples["sa"],))
+        conn.commit(); conn.close()
+        assert voice_templates.suggest_segment("a", samples["sa"], SyntheticEmbedder()) == []
+        with pytest.raises(ValueError, match="unavailable for account"):
+            voice_templates.suggest_segment("b", samples["sa"])
+    finally:
+        voice_templates._processing.release()
+
+
+def test_voice_reference_revoked_or_changed_during_inference_is_not_suggested(samples):
+    encoder = SyntheticEmbedder()
+    for action in ("delete", "replace"):
+        database.set_voiceprint(np.ones(3, dtype=np.float32).tobytes(), 3, 30, encoder.name, "a")
+        class ChangedEncoder(SyntheticEmbedder):
+            def embed(self, pcm):
+                if action == "delete":
+                    database.clear_voiceprint("a")
+                else:
+                    database.set_voiceprint(np.ones(3, dtype=np.float32).tobytes(), 3, 30, encoder.name, "a")
+                return super().embed(pcm)
+        assert voice_templates.suggest_segment("a", samples["sa"], ChangedEncoder()) == []
+    database.clear_voiceprint("a")
+    assert identities.list_identities("a") == []
+
+
+def test_virtual_owner_does_not_collide_with_existing_participant_name(samples):
+    named = identities.create_identity("a", "Minha voz")
+    database.set_voiceprint(np.ones(3, dtype=np.float32).tobytes(), 3, 30, "synthetic-v1", "a")
+    own = identities.owner_identity_id("a")
+    identities.decide_segment("a", samples["sa"], own, "confirm")
+    assert own != named["id"]
+    assert identities.get_segment_decision("a", samples["sa"])["identity_id"] == own
+
+
+def test_manual_reference_undone_during_comparison_is_discarded(samples):
+    ana = identities.create_identity("a", "Synthetic participant")
+    identities.decide_segment("a", samples["sa"], ana["id"], "confirm")
+    voice_templates.create_template("a", samples["sa"], SyntheticEmbedder())
+    class ChangedEncoder(SyntheticEmbedder):
+        def embed(self, pcm):
+            identities.decide_segment("a", samples["sa"], None, "undo")
+            return super().embed(pcm)
+    assert voice_templates.suggest_segment("a", samples["sb"], ChangedEncoder()) == []

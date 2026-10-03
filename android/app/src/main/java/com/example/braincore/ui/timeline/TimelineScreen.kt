@@ -569,6 +569,7 @@ private fun ParticipantControls(sessionId: String, sessionOwnerId: String?, turn
     var currentFromServer by remember(sessionId, segmentId) { mutableStateOf(false) }
     var correcting by remember(sessionId, segmentId) { mutableStateOf(false) }
     var identities by remember(sessionId, segmentId) { mutableStateOf(JSONArray()) }
+    var newName by remember(sessionId, segmentId) { mutableStateOf("") }
     val suggestions = data?.optJSONArray("suggestions")
     val suggestion = suggestions?.optJSONObject(0)
     val decision = data?.optJSONObject("decision")
@@ -600,6 +601,13 @@ private fun ParticipantControls(sessionId: String, sessionOwnerId: String?, turn
                 if (MobileCredentials.userId(context) != owner) return@launch
                 withContext(Dispatchers.IO) { database.saveParticipantData(sessionId, segmentId, owner, confirmed) }
                 data = confirmed
+                if (action in setOf("confirm", "correct")) {
+                    try {
+                        withContext(Dispatchers.IO) { MobileApi(context).createParticipantTemplate(sessionId, segmentId, owner) }
+                    } catch (_: Exception) {
+                        Toast.makeText(context, "Decisão salva. Este trecho não criou uma referência de voz.", Toast.LENGTH_LONG).show()
+                    }
+                }
                 try {
                     val fresh = withContext(Dispatchers.IO) { MobileApi(context).participantData(sessionId, segmentId, owner) }
                     if (MobileCredentials.userId(context) != owner) return@launch
@@ -615,7 +623,7 @@ private fun ParticipantControls(sessionId: String, sessionOwnerId: String?, turn
         }
     }
     LaunchedEffect(sessionId, segmentId, owner) { refresh() }
-    if (suggestion != null || decided || turn.participantCachedAt != null || offline || data == null) {
+    Column {
         Spacer(Modifier.height(6.dp))
         if (decided) Text(
             if (decision?.optString("action") == "ignore") "Sugestão ignorada" else
@@ -626,6 +634,8 @@ private fun ParticipantControls(sessionId: String, sessionOwnerId: String?, turn
         Text(when {
             offline -> "Offline · mostrando cache${turn.participantCachedAt?.let { " de ${SimpleDateFormat("dd/MM HH:mm", Locale.getDefault()).format(Date(it))}" } ?: ""}"
             loading -> "Atualizando participante…"
+            data?.optString("suggestions_status") == "busy" -> "Sugestões ocupadas · identificação manual disponível"
+            data?.optString("suggestions_status") == "unavailable" -> "Sugestões indisponíveis · identificação manual disponível"
             currentFromServer -> "Dados atuais do servidor"
             else -> "Informação em cache · toque em Atualizar"
         }, style = MaterialTheme.typography.labelSmall, color = TextMuted)
@@ -645,7 +655,7 @@ private fun ParticipantControls(sessionId: String, sessionOwnerId: String?, turn
                 }
             }) { Text("Corrigir") }
             if (decided) TextButton(enabled = !loading && !offline, onClick = { decide("undo") }) { Text("Desfazer") }
-            if (offline || data == null) TextButton(enabled = !loading, onClick = { refresh() }) { Text("Atualizar") }
+            if (offline || data == null || data?.optString("suggestions_status") in setOf("busy", "unavailable")) TextButton(enabled = !loading, onClick = { refresh() }) { Text("Atualizar") }
         }
     }
     if (correcting) AlertDialog(
@@ -658,6 +668,24 @@ private fun ParticipantControls(sessionId: String, sessionOwnerId: String?, turn
                 }
             }
             if (identities.length() == 0) Text("Nenhum participante cadastrado.")
+            OutlinedTextField(value = newName, onValueChange = { newName = it.take(40) },
+                label = { Text("Novo participante") }, enabled = !loading, singleLine = true)
+            TextButton(enabled = !loading && newName.isNotBlank(), onClick = {
+                scope.launch {
+                    loading = true
+                    var createdId: String? = null
+                    try {
+                        val created = withContext(Dispatchers.IO) { MobileApi(context).createParticipant(sessionId, owner, newName.trim()) }
+                        if (MobileCredentials.userId(context) != owner) return@launch
+                        newName = ""
+                        correcting = false
+                        createdId = created.getString("id")
+                    } catch (_: Exception) {
+                        Toast.makeText(context, "Não foi possível criar o participante.", Toast.LENGTH_LONG).show()
+                    } finally { loading = false }
+                    createdId?.let { if (MobileCredentials.userId(context) == owner) decide("correct", it) }
+                }
+            }) { Text("Criar e identificar") }
         } }, confirmButton = { TextButton(onClick = { correcting = false }) { Text("Fechar") } }
     )
 }

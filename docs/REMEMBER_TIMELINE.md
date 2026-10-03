@@ -83,3 +83,11 @@ CELTWO_MEMORY_EMBEDDER=stub python -m pytest services/memory/tests -q
 ```
 
 These tests use temporary databases and generated samples, without a microphone, personal recordings or a downloaded voice model.
+
+## Enrolled voice and participant review
+
+The current account’s enrolled sample feeds suggestions for **Minha voz**, alongside references extracted from manually confirmed segments. The virtual owner participant is available in the correction list before any segment has been confirmed; confirming it creates a persistent account-scoped identity. Suggestions use compatible models and dimensions and never write a decision. Replacing or deleting the enrolled sample during inference discards its stale suggestion. A saved manual decision remains explicit user input.
+
+Segments shorter than 3 seconds, longer than 60 seconds, overlapping, purged or unsuitable for voice comparison have no suggestion; manual review remains available. Requests without compatible references skip inference. Web and Android clients serialize segment reads. If inference is busy or the local model is unavailable, the backend returns saved decisions with `suggestions_status` (`busy` or `unavailable`); clients allow manual correction and refreshing suggestions. Authentication and ownership errors still fail the request.
+
+Android 1.1.1 adds creation of a named participant from **Corrigir**, including the first participant, and attempts template extraction after confirmation or correction. A short or unsuitable segment can save the decision without producing a voice reference. Server-side enrolled-voice suggestions are compatible with 1.1.0; install the updated APK for the complete native creation flow and clearer processing status.

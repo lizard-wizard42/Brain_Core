@@ -170,7 +170,19 @@ export async function enrollRememberVoiceprintFromSession(userId: string, sessio
 
 export interface ParticipantIdentity { id: string; display_name: string }
 export interface ParticipantDecision { identity_id: string | null; display_name?: string | null; action: 'confirm' | 'correct' | 'ignore' | 'undo'; created_at: string }
-export interface ParticipantSuggestion { identity_id: string; display_name: string; similarity: number; model: string; template_id: string }
+export interface ParticipantSuggestion { identity_id: string; display_name: string; similarity: number; model: string; template_id: string | null }
+
+export async function getSegmentParticipants(userId: string, sessionId: string, segmentId: number) {
+  // A temporarily unavailable matcher must not hide saved decisions or disable
+  // manual identification. Access failures still propagate to the gateway.
+  const decision = await participants.decision(userId, sessionId, segmentId);
+  try {
+    return { decision, suggestions: await participants.suggestions(userId, sessionId, segmentId), suggestions_status: 'ready' as const };
+  } catch (error) {
+    if (!(error instanceof CeltwoUnavailableError) || ![400, 413, 429].includes(error.statusCode ?? 0)) throw error;
+    return { decision, suggestions: [] as ParticipantSuggestion[], suggestions_status: error.statusCode === 429 ? 'busy' as const : 'unavailable' as const };
+  }
+}
 
 function participantPath(userId: string, suffix: string): string {
   return `/participants/${suffix}?owner_user_id=${encodeURIComponent(userId)}`;

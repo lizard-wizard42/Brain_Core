@@ -18,6 +18,7 @@ import java.util.TimeZone
 class MobileApiException(val statusCode: Int, message: String) : Exception(message)
 
 class MobileApi(private val context: Context) {
+    companion object { private val participantReads = Any() }
     private val origin = ServerSettings.get(context)
     private val deviceToken = MobileCredentials.get(context)
 
@@ -162,7 +163,17 @@ class MobileApi(private val context: Context) {
     }
 
     fun participantData(sessionId: String, segmentId: Long, ownerUserId: String): JSONObject =
-        jsonRequest("/api/mobile/sessions/$sessionId/participants/segments/$segmentId?${ownerQuery(ownerUserId)}", "GET")
+        synchronized(participantReads) {
+            check(MobileCredentials.userId(context) == ownerUserId) { "Conta alterada durante a consulta" }
+            jsonRequest("/api/mobile/sessions/$sessionId/participants/segments/$segmentId?${ownerQuery(ownerUserId)}", "GET")
+        }
+
+    fun createParticipant(sessionId: String, ownerUserId: String, name: String): JSONObject =
+        jsonRequest("/api/mobile/sessions/$sessionId/participants/identities?${ownerQuery(ownerUserId)}", "POST",
+            JSONObject().put("display_name", name))
+
+    fun createParticipantTemplate(sessionId: String, segmentId: Long, ownerUserId: String): JSONObject =
+        jsonRequest("/api/mobile/sessions/$sessionId/participants/segments/$segmentId/template?${ownerQuery(ownerUserId)}", "POST")
 
     fun participantIdentities(sessionId: String, ownerUserId: String): JSONArray =
         jsonRequest("/api/mobile/sessions/$sessionId/participants/identities?${ownerQuery(ownerUserId)}", "GET").getJSONArray("identities")

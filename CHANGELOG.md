@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-03 — Correção da identificação de voz / Android 1.1.1
+
+- A referência de “Minha voz” alimenta sugestões da própria conta, sem atribuição automática. O titular pode ser confirmado antes do primeiro template manual.
+- Trechos curtos, sobrepostos, sem áudio disponível ou sem referências deixam de acionar inferência desnecessária.
+- Clientes serializam consultas; erros temporários das sugestões preservam decisões e correção manual. O usuário pode atualizar as sugestões.
+- Android permite criar o primeiro participante e extrair uma referência após confirmação/correção; a decisão é preservada se o trecho não puder criar referência.
+- Regressões usam apenas áudio sintético, incluindo isolamento entre contas e troca/exclusão da referência durante inferência.
+
 ## 2026-10-03 — MCP local e revisão de manutenção
 
 ### Funcionalidades
