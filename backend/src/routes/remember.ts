@@ -51,6 +51,12 @@ router.post('/memory/browser/chunks', raw({ type: ['audio/webm', 'audio/ogg'], l
     return;
   }
   try {
+    const mobileOwner = await query<{ user_id: string }>(
+      'SELECT user_id FROM mobile_sessions WHERE session_id = $1', [sessionId],
+    );
+    if (mobileOwner.length && mobileOwner[0].user_id !== req.userId) {
+      res.status(409).json({ error: 'Sessão pertence a outra conta' }); return;
+    }
     await query(
       `INSERT INTO browser_recording_sessions (session_id, user_id, started_at)
        VALUES ($1, $2, $3::timestamptz) ON CONFLICT (session_id) DO NOTHING`,
@@ -87,6 +93,12 @@ router.post('/memory/browser/sessions/:sessionId/claim', async (req: AuthRequest
     res.status(400).json({ error: 'Sessão inválida' }); return;
   }
   try {
+    const mobileOwner = await query<{ user_id: string }>(
+      'SELECT user_id FROM mobile_sessions WHERE session_id = $1', [String(req.params.sessionId)],
+    );
+    if (mobileOwner.length && mobileOwner[0].user_id !== req.userId) {
+      res.status(409).json({ error: 'Sessão pertence a outra conta' }); return;
+    }
     await query(
       `INSERT INTO browser_recording_sessions (session_id, user_id, started_at)
        VALUES ($1, $2, $3::timestamptz) ON CONFLICT (session_id) DO NOTHING`,
@@ -115,12 +127,15 @@ router.post('/memory/browser/sessions/:sessionId/complete', async (req: AuthRequ
       'SELECT user_id FROM browser_recording_sessions WHERE session_id = $1', [String(req.params.sessionId)],
     );
     if (owner[0]?.user_id !== req.userId) { res.status(404).json({ error: 'Sessão não encontrada' }); return; }
-    await celtwoRequest(`/api/v1/sessions/${String(req.params.sessionId)}/complete`, {
+    await celtwoRequest(`/api/v1/sessions/${String(req.params.sessionId)}/complete?owner_user_id=${encodeURIComponent(req.userId!)}`, {
       method: 'POST', body: JSON.stringify({ status: 'stopped' }),
     });
-    await query('UPDATE browser_recording_sessions SET completed_at = NOW() WHERE session_id = $1', [String(req.params.sessionId)]);
+    await query('UPDATE browser_recording_sessions SET completed_at = NOW() WHERE session_id = $1 AND user_id = $2', [String(req.params.sessionId), req.userId]);
     res.json({ status: 'processing' });
   } catch (error) {
+    if (error instanceof CeltwoUnavailableError && error.statusCode === 404) {
+      res.status(404).json({ error: 'Sessão não encontrada' }); return;
+    }
     res.status(503).json({ error: error instanceof Error ? error.message : 'Falha ao concluir gravação' });
   }
 });

@@ -28,6 +28,12 @@ Contas novas começam com MCP desligado. A migração mantém habilitadas as con
 
 As configurações pertencem à conta autenticada. Uma credencial MCP não pode administrar credenciais nem ativar a integração. A conexão local não determina onde o cliente de IA processará as notas: confirme o provedor escolhido no cliente.
 
+### Mais de uma conta
+
+Cada conta tem seu próprio botão de ligar/desligar, credenciais, permissões e auditoria. O backend identifica a conta pelo token e filtra suas notas em todas as ferramentas; o token de A não acessa as notas de B, nem páginas de B compartilhadas com A. Desligar o MCP em A não afeta B.
+
+Cada agente deve apontar para o arquivo privado da conta que vai usar. Trocar o login no navegador não troca a conta do agente: para isso, altere o arquivo configurado e reinicie o adaptador. Um cliente configurado com credenciais de duas contas terá os acessos concedidos por ambas. Essa separação da API não isola programas que tenham acesso direto aos arquivos da máquina; para usuários locais sem confiança entre si, use contas separadas do sistema operacional e mantenha os dados do serviço privados.
+
 ### Pela linha de comando
 
 Requer Node.js 20 ou superior, backend atualizado e dependências do backend instaladas. O esquema é atualizado automaticamente ao iniciar o backend.
