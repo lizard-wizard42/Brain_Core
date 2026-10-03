@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiRequest } from '../api/client';
 import { rememberService } from './rememberService';
+import { activeBrowserUserId } from '../api/browserSession';
 
 vi.mock('../api/client', () => ({ apiRequest: vi.fn() }));
+vi.mock('../api/browserSession', () => ({ activeBrowserUserId: vi.fn(() => 'owner-a') }));
 
 describe('rememberService', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => { vi.clearAllMocks(); vi.mocked(activeBrowserUserId).mockReturnValue('owner-a'); });
 
   it('centraliza status e start no backend Brain Core', async () => {
     vi.mocked(apiRequest).mockResolvedValue({ state: 'stopped' });
@@ -39,5 +41,34 @@ describe('rememberService', () => {
     expect(apiRequest).toHaveBeenNthCalledWith(2, '/api/remember/memory/voiceprint', { method: 'DELETE' });
     expect(vi.mocked(apiRequest).mock.calls[2][0]).toBe('/api/remember/memory/voiceprint?owner_user_id=synthetic-owner');
     expect(vi.mocked(apiRequest).mock.calls[2][1]).toMatchObject({ method: 'POST', headers: { 'Content-Type': 'audio/webm' } });
+  });
+
+  it('serializa consultas de segmentos e continua após falha', async () => {
+    let complete!: (value: unknown) => void;
+    vi.mocked(apiRequest).mockImplementationOnce(() => new Promise((resolve) => { complete = resolve; }))
+      .mockRejectedValueOnce(new Error('network')).mockResolvedValueOnce({ decision: null, suggestions: [] });
+    const first = rememberService.getSegmentParticipants('session', 1);
+    const second = rememberService.getSegmentParticipants('session', 2);
+    const secondResult = expect(second).rejects.toThrow('network');
+    const third = rememberService.getSegmentParticipants('session', 3);
+    await Promise.resolve();
+    expect(apiRequest).toHaveBeenCalledTimes(1);
+    complete({ decision: null, suggestions: [] });
+    await first; await secondResult; await third;
+    expect(apiRequest).toHaveBeenCalledTimes(3);
+  });
+
+  it('descarta resultado em voo e consultas pendentes quando a conta muda', async () => {
+    let complete!: (value: unknown) => void;
+    vi.mocked(apiRequest).mockImplementationOnce(() => new Promise((resolve) => { complete = resolve; }));
+    const first = rememberService.getSegmentParticipants('session', 1);
+    const second = rememberService.getSegmentParticipants('session', 2);
+    const firstResult = expect(first).rejects.toThrow('Conta alterada');
+    const secondResult = expect(second).rejects.toThrow('Conta alterada');
+    await Promise.resolve();
+    vi.mocked(activeBrowserUserId).mockReturnValue('owner-b');
+    complete({ decision: null, suggestions: [] });
+    await firstResult; await secondResult;
+    expect(apiRequest).toHaveBeenCalledTimes(1);
   });
 });

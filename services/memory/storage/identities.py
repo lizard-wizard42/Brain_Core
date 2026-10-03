@@ -1,13 +1,18 @@
 """Account-scoped manual participant identity decisions.
 
 No recognition score is treated as a probability and no automatic assignment
-is made here. Legacy `speaker` and the owner's `Minha voz` stay independent.
+is made here. The owner's enrolled voice is offered as a virtual participant;
+it is materialized only when the user manually confirms a segment.
 """
 
 import sqlite3
 import uuid
 
 from services.memory.storage.database import _now_iso, get_connection
+
+
+def owner_identity_id(owner_user_id: str) -> str:
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, "brain-core:voice-owner:" + _owner(owner_user_id)))
 
 
 def _owner(value: str) -> str:
@@ -67,11 +72,16 @@ def create_identity(owner_user_id: str, display_name: str) -> dict:
 def list_identities(owner_user_id: str) -> list[dict]:
     conn = get_connection()
     try:
-        return [dict(row) for row in conn.execute(
+        result = [dict(row) for row in conn.execute(
             "SELECT id, display_name FROM voice_identities "
             "WHERE owner_user_id = ? AND deleted_at IS NULL ORDER BY display_name",
             (_owner(owner_user_id),),
         )]
+        own_id = owner_identity_id(owner_user_id)
+        if conn.execute("SELECT 1 FROM account_voiceprints WHERE owner_user_id=?", (owner_user_id,)).fetchone():
+            result = [item for item in result if item["id"] != own_id]
+            result.insert(0, {"id": own_id, "display_name": "Minha voz"})
+        return result
     finally:
         conn.close()
 
@@ -90,6 +100,21 @@ def decide_segment(owner_user_id: str, segment_id: int,
         conn.execute("BEGIN IMMEDIATE")
         _segment(conn, owner_user_id, segment_id)
         if identity_id is not None:
+            if identity_id == owner_identity_id(owner_user_id) and conn.execute(
+                "SELECT 1 FROM account_voiceprints WHERE owner_user_id=?", (owner_user_id,)
+            ).fetchone():
+                if not conn.execute("SELECT 1 FROM voice_identities WHERE id=? AND owner_user_id=?",
+                                    (identity_id, owner_user_id)).fetchone():
+                    name, suffix = "Minha voz", 1
+                    while conn.execute("SELECT 1 FROM voice_identities WHERE owner_user_id=? "
+                                       "AND lower(display_name)=lower(?) AND deleted_at IS NULL",
+                                       (owner_user_id, name)).fetchone():
+                        name = f"Minha voz (titular {suffix})"
+                        suffix += 1
+                    conn.execute(
+                        "INSERT INTO voice_identities(id, owner_user_id, display_name, created_at) "
+                        "VALUES (?, ?, ?, ?)", (identity_id, owner_user_id, name, _now_iso()),
+                    )
             found = conn.execute(
                 "SELECT 1 FROM voice_identities WHERE id = ? AND owner_user_id = ? "
                 "AND deleted_at IS NULL", (identity_id, owner_user_id),

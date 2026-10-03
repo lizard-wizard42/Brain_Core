@@ -6,7 +6,7 @@ import { AuthRequest, authMiddleware } from '../middleware/auth';
 import { createRememberNote } from '../controllers/rememberController';
 import { getAudioRetention, putAudioRetention, previewAudioRetention, cleanAudioRetention } from './audioRetention';
 import { getTranscriptionPolicy, putTranscriptionPolicy, runTranscriptionNow, pauseTranscription } from './transcriptionPolicy';
-import { participants } from '../remember/service';
+import { getSegmentParticipants, participants } from '../remember/service';
 import { CeltwoUnavailableError } from '../remember/celtwoClient';
 
 const router = Router();
@@ -317,15 +317,30 @@ router.get('/sessions/:sessionId/participants/identities', authenticateDevice, a
   } catch (error) { participantFailure(error, res); }
 });
 
+router.post('/sessions/:sessionId/participants/identities', authenticateDevice, async (req: DeviceRequest, res: Response) => {
+  const name = typeof req.body?.display_name === 'string' ? req.body.display_name.trim() : '';
+  if (!name || name.length > 40) { res.status(400).json({ error: 'Nome inválido' }); return; }
+  try {
+    if (!await ownedParticipantSession(req, res)) return;
+    res.status(201).json(await participants.create(req.mobileUserId!, name));
+  } catch (error) { participantFailure(error, res); }
+});
+
+router.post('/sessions/:sessionId/participants/segments/:segmentId/template', authenticateDevice, async (req: DeviceRequest, res: Response) => {
+  const id = validSegmentId(String(req.params.segmentId));
+  if (!id) { res.status(400).json({ error: 'Segmento inválido' }); return; }
+  try {
+    if (!await ownedParticipantSession(req, res)) return;
+    res.status(201).json(await participants.createTemplate(req.mobileUserId!, String(req.params.sessionId), id));
+  } catch (error) { participantFailure(error, res); }
+});
+
 router.get('/sessions/:sessionId/participants/segments/:segmentId', authenticateDevice, async (req: DeviceRequest, res: Response) => {
   const id = validSegmentId(String(req.params.segmentId));
   if (!id) { res.status(400).json({ error: 'Segmento inválido' }); return; }
   try {
     if (!await ownedParticipantSession(req, res)) return;
-    res.json({
-      decision: await participants.decision(req.mobileUserId!, String(req.params.sessionId), id),
-      suggestions: await participants.suggestions(req.mobileUserId!, String(req.params.sessionId), id),
-    });
+    res.json(await getSegmentParticipants(req.mobileUserId!, String(req.params.sessionId), id));
   } catch (error) { participantFailure(error, res); }
 });
 

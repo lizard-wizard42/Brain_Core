@@ -1,12 +1,26 @@
 import { apiRequest } from '../api/client';
+import { activeBrowserUserId } from '../api/browserSession';
 import type { RememberDay, RememberSearchResponse, RememberSession, RememberSpeaker, RememberStatus, RememberTranscript, RememberVoiceprint } from '../types';
 
 const ROOT = '/api/remember/memory';
 export interface ParticipantIdentity { id: string; display_name: string }
 export interface ParticipantDecision { identity_id: string | null; display_name?: string | null; action: 'confirm' | 'correct' | 'ignore' | 'undo'; created_at: string }
 export interface ParticipantSuggestion { identity_id: string; display_name: string; similarity: number }
-export interface SegmentParticipants { decision: ParticipantDecision | null; suggestions: ParticipantSuggestion[] }
+export interface SegmentParticipants { decision: ParticipantDecision | null; suggestions: ParticipantSuggestion[]; suggestions_status?: 'ready' | 'busy' | 'unavailable' }
 const participantRoot = (sessionId: string) => `${ROOT}/sessions/${encodeURIComponent(sessionId)}/participants`;
+
+let participantReads: Promise<unknown> = Promise.resolve();
+function readParticipants(sessionId: string, segmentId: number): Promise<SegmentParticipants> {
+  const owner = activeBrowserUserId();
+  const result = participantReads.then(async () => {
+    if (activeBrowserUserId() !== owner) throw new Error('Conta alterada durante a consulta');
+    const data = await apiRequest<SegmentParticipants>(`${participantRoot(sessionId)}/segments/${segmentId}`);
+    if (activeBrowserUserId() !== owner) throw new Error('Conta alterada durante a consulta');
+    return data;
+  });
+  participantReads = result.catch(() => undefined);
+  return result;
+}
 
 export const rememberService = {
   getStatus: async () => apiRequest<RememberStatus>(`${ROOT}/status`),
@@ -20,7 +34,7 @@ export const rememberService = {
   getTranscript: async (sessionId: string) => apiRequest<RememberTranscript>(`${ROOT}/sessions/${encodeURIComponent(sessionId)}/transcript`),
   getParticipantIdentities: async (sessionId: string) => apiRequest<ParticipantIdentity[]>(`${participantRoot(sessionId)}/identities`),
   createParticipantIdentity: async (sessionId: string, displayName: string) => apiRequest<ParticipantIdentity>(`${participantRoot(sessionId)}/identities`, { method: 'POST', body: JSON.stringify({ display_name: displayName }) }),
-  getSegmentParticipants: async (sessionId: string, segmentId: number) => apiRequest<SegmentParticipants>(`${participantRoot(sessionId)}/segments/${segmentId}`),
+  getSegmentParticipants: readParticipants,
   decideSegment: async (sessionId: string, segmentId: number, action: ParticipantDecision['action'], identityId: string | null = null) => apiRequest<ParticipantDecision>(`${participantRoot(sessionId)}/segments/${segmentId}/decision`, { method: 'POST', body: JSON.stringify({ action, identity_id: identityId }) }),
   createParticipantTemplate: async (sessionId: string, segmentId: number) => apiRequest<unknown>(`${participantRoot(sessionId)}/segments/${segmentId}/template`, { method: 'POST' }),
   search: async (q: string, limit?: number, speaker?: RememberSpeaker) => {

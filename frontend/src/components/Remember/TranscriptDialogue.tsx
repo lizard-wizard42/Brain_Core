@@ -81,6 +81,7 @@ function ParticipantChoice({ sessionId, segmentId }: { sessionId: string; segmen
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [offline, setOffline] = useState(false);
+  const [refresh, setRefresh] = useState(0);
   useEffect(() => {
     let active = true;
     setData(null); setError(''); setOffline(false);
@@ -88,7 +89,7 @@ function ParticipantChoice({ sessionId, segmentId }: { sessionId: string; segmen
       .then(([result, names]) => { if (active) { setData(result); setIdentities(names); setSelected(names[0]?.id || ''); } })
       .catch(() => { if (active) { setOffline(true); setError('Identificação indisponível. Sem dados em cache para este segmento.'); } });
     return () => { active = false; };
-  }, [sessionId, segmentId]);
+  }, [sessionId, segmentId, refresh]);
   const decide = async (action: ParticipantDecision['action'], identityId: string | null = null) => {
     setBusy(true); setError('');
     try {
@@ -122,6 +123,10 @@ function ParticipantChoice({ sessionId, segmentId }: { sessionId: string; segmen
     {offline ? <p className="text-amber-400">{error}</p> : <p className="text-gray-500">{data ? 'Dados atuais do servidor' : 'Consultando identificação…'}</p>}
     {decision && decision.action !== 'undo' && <p className="text-emerald-400">{decision.action === 'ignore' ? 'Sugestão ignorada neste segmento' : `Identificado neste segmento: ${decision.display_name || identities.find((item) => item.id === decision.identity_id)?.display_name || 'Participante'}`}</p>}
     {suggestion && <p>Parece ser {suggestion.display_name} <span className="text-gray-500">(sugestão, sem confirmação)</span></p>}
+    {data?.suggestions_status && data.suggestions_status !== 'ready' && <p className="text-amber-400">
+      {data.suggestions_status === 'busy' ? 'Sugestões em processamento. Você pode identificar manualmente.' : 'Sugestões indisponíveis. Você pode identificar manualmente.'}
+    </p>}
+    {(offline || (data?.suggestions_status && data.suggestions_status !== 'ready')) && <button type="button" disabled={busy} onClick={() => setRefresh((value) => value + 1)} className="rounded bg-white/10 px-2 py-1">Atualizar identificação</button>}
     {!offline && data && <div className="flex flex-wrap items-center gap-1">
       {suggestion && <button type="button" disabled={busy} onClick={() => decide('confirm', suggestion.identity_id)} className="rounded bg-blue-700 px-2 py-1 text-white">Confirmar</button>}
       {suggestion && <button type="button" disabled={busy} onClick={() => decide('ignore')} className="rounded bg-white/10 px-2 py-1">Ignorar</button>}
