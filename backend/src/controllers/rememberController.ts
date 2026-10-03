@@ -374,7 +374,10 @@ export async function rememberVoiceprintPost(req: AuthRequest, res: Response): P
     res.status(201).json(await enrollRememberVoiceprint(req.userId!, body, contentType));
   } catch (error) {
     if (error instanceof CeltwoUnavailableError) {
-      res.status(error.statusCode === 400 ? 400 : 503).json({ error: error.message });
+      const status = error.statusCode && error.statusCode >= 400 && error.statusCode < 500 ? error.statusCode : 503;
+      const message = status === 413 ? 'Envie uma amostra de voz de 8 a 60 segundos e até 25 MiB.'
+        : status === 429 ? 'Há um cadastro de voz em andamento. Tente novamente em instantes.' : error.message;
+      res.status(status).json({ error: message });
       return;
     }
     throw error;

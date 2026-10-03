@@ -21,18 +21,47 @@ _OTHER_THR = float(os.environ.get("CELTWO_MEMORY_DIAR_OTHER_THRESHOLD", "0.35"))
 _SR = 16000
 
 
-def decode_pcm_16k_mono(path: str) -> np.ndarray:
+class AudioSampleLimitExceeded(ValueError):
+    """Decoded audio exceeds the caller's sample budget."""
+
+
+class AudioSampleBudget:
+    """Shared budget debited even if decoding fails after producing audio."""
+
+    def __init__(self, max_samples: int):
+        self.remaining = max_samples
+
+    def consume(self, samples: int) -> None:
+        if samples > self.remaining:
+            self.remaining = 0
+            raise AudioSampleLimitExceeded("decoded audio exceeds the sample budget")
+        self.remaining -= samples
+
+
+def decode_pcm_16k_mono(path: str, *, max_samples: int | None = None,
+                       sample_budget: AudioSampleBudget | None = None) -> np.ndarray:
     import av  # local import: optional dep (ships with faster-whisper)
 
+    if max_samples is not None:
+        if sample_budget is not None:
+            raise ValueError("use either max_samples or a shared sample_budget")
+        sample_budget = AudioSampleBudget(max_samples)
     resampler = av.AudioResampler(format="s16", layout="mono", rate=_SR)
     chunks: list[np.ndarray] = []
+
+    def append(resampled) -> None:
+        # Check before allocating a numpy array or retaining the decoded frame.
+        if sample_budget is not None:
+            sample_budget.consume(resampled.samples)
+        chunks.append(resampled.to_ndarray().reshape(-1))
+
     with av.open(path) as container:
         stream = container.streams.audio[0]
         for frame in container.decode(stream):
             for resampled in resampler.resample(frame):
-                chunks.append(resampled.to_ndarray().reshape(-1))
+                append(resampled)
         for resampled in resampler.resample(None):
-            chunks.append(resampled.to_ndarray().reshape(-1))
+            append(resampled)
     if not chunks:
         return np.zeros(0, dtype=np.float32)
     pcm = np.concatenate(chunks).astype(np.float32) / 32768.0

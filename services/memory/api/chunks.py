@@ -214,14 +214,17 @@ class SessionCompleteRequest(BaseModel):
 def complete_session_route(
     session_id: str,
     payload: SessionCompleteRequest,
+    owner_user_id: str | None = None,
     authorization: str | None = Header(default=None),
 ) -> dict:
     require_token(authorization)
+    if owner_user_id is not None:
+        owner_user_id = valid_owner(owner_user_id)
 
     if payload.status not in ("stopped", "failed"):
         raise HTTPException(status_code=400, detail="status must be 'stopped' or 'failed'")
 
-    if not database.complete_session(session_id, payload.status):
+    if not database.complete_session(session_id, payload.status, owner_user_id):
         raise HTTPException(status_code=404, detail="session not found")
 
     return {"session_id": session_id, "status": payload.status}

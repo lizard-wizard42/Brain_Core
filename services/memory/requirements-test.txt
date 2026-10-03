@@ -1,0 +1,6 @@
+# API, SQLite and synthetic-audio tests; no speech model downloads or GPU setup.
+fastapi==0.115.6
+pytest==9.1.1
+httpx==0.28.1
+numpy==2.5.3
+av==18.1.0

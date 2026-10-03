@@ -55,3 +55,13 @@ jobs:
       - run: npm audit --omit=dev --prefix mcp
       - run: python3 -m unittest discover -s scripts -p 'test_snapshot_memory.py'
       - run: node scripts/test-agent-postgres.mjs
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: services/memory/requirements-test.txt
+      - run: python -m pip install -r services/memory/requirements-test.txt
+      - run: python -m pytest services/memory/tests -q
+        env:
+          CELTWO_MEMORY_DATA_DIR: ${{ runner.temp }}/synthetic-memory
+          CELTWO_MEMORY_EMBEDDER: stub

@@ -18,6 +18,21 @@ recordings are bundled here.
 The API is an internal service. Keep the web entrypoint behind your HTTPS
 reverse proxy or Tailscale Serve and do not publish the Memory API port.
 
+Voice enrollment accepts 8–60 seconds of decoded audio and at most 25 MiB.
+Enrollment from a session shares the same total duration/byte budget and accepts
+at most 128 chunks. Larger inputs receive 413 without truncating the sample or
+replacing the existing reference. Decode/inference run outside the API event
+loop; simultaneous enrollment jobs receive 429. These limits do not apply to
+normal recording/transcription duration. Completion updates require a matching
+session owner in SQLite; an omitted owner matches only unowned legacy sessions.
+
+For offline regression tests with fictional audio and temporary SQLite databases:
+
+```sh
+python -m pip install -r services/memory/requirements-test.txt
+CELTWO_MEMORY_DATA_DIR=/tmp/brain-core-synthetic-memory CELTWO_MEMORY_EMBEDDER=stub python -m pytest services/memory/tests -q
+```
+
 ## Existing Linux installation
 
 All Memory and GPU source code lives in this repository. Generic user-systemd

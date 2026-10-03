@@ -243,7 +243,7 @@ export function RememberVoiceprintPanel({ onRelabelChange, refreshToken = 0 }: {
       {open && (
         <div className="mt-4 space-y-3">
           <p className="text-sm leading-6" style={{ color: 'var(--theme-muted)' }}>
-            Grave ~30 segundos só com a sua voz ou envie um áudio gravado. A amostra fica vinculada à sua conta.
+            Grave ~30 segundos só com a sua voz ou envie um áudio de 8 a 60 segundos, com até 25 MiB. A amostra fica vinculada à sua conta.
             Por enquanto, o Brain Core não marca automaticamente quem falou: confirme ou corrija as falas na transcrição.
           </p>
 

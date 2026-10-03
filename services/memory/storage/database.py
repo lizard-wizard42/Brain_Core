@@ -447,12 +447,12 @@ def insert_chunk(session_id: str, chunk_num: int, sha256: str, size_bytes: int, 
         conn.close()
 
 
-def complete_session(session_id: str, status: str) -> bool:
+def complete_session(session_id: str, status: str, owner_user_id: str | None = None) -> bool:
     conn = get_connection()
     try:
         cur = conn.execute(
-            "UPDATE sessions SET ended_at = ?, status = ? WHERE id = ?",
-            (_now_iso(), status, session_id),
+            "UPDATE sessions SET ended_at = ?, status = ? WHERE id = ? AND owner_user_id IS ?",
+            (_now_iso(), status, session_id, owner_user_id),
         )
         conn.commit()
         return cur.rowcount > 0
@@ -1167,12 +1167,12 @@ def compute_turns(session_id: str) -> list[dict]:
     return turns
 
 
-def get_chunks_for_session(session_id: str) -> list[dict]:
+def get_chunks_for_session(session_id: str, *, limit: int | None = None) -> list[dict]:
     conn = get_connection()
     try:
         cur = conn.execute(
-            "SELECT chunk_num, path FROM chunks WHERE session_id = ? ORDER BY chunk_num",
-            (session_id,),
+            "SELECT chunk_num, path FROM chunks WHERE session_id = ? ORDER BY chunk_num LIMIT ?",
+            (session_id, limit if limit is not None else -1),
         )
         return [dict(row) for row in cur.fetchall()]
     finally:
