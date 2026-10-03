@@ -1,0 +1,20 @@
+[Unit]
+Description=Brain Core GPU transcription worker
+After=brain-core-memory.service
+Requires=brain-core-memory.service
+
+[Service]
+WorkingDirectory=%h/apps/brain-core
+EnvironmentFile=%h/apps/brain-core/private-data/memory.env
+Environment=CELTWO_GPU_WHISPER_MODEL=medium
+Environment=CELTWO_GPU_WHISPER_DEVICE=cuda
+Environment=CELTWO_GPU_WHISPER_COMPUTE_TYPE=int8_float16
+Environment=CELTWO_GPU_DENOISE=0
+ExecStart=%h/apps/brain-core/services/gpu-worker/.venv/bin/python %h/apps/brain-core/services/gpu-worker/gpu_worker.py --loop --poll 5
+Restart=on-failure
+RestartSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

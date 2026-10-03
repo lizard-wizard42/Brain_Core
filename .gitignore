@@ -20,9 +20,7 @@ node_modules/
 !**/.env.*.example
 
 # Generated artifacts
-frontend/dist/
-frontend/dist-same-origin/
-frontend/dist-tailnet/
+frontend/dist*
 frontend/coverage/
 frontend/knip-report.txt
 backend/dist/
@@ -31,6 +29,7 @@ android/.kotlin/
 android/build/
 android/app/build/
 android/local.properties
+android/.idea/
 *.apk
 *.aab
 *.jks
@@ -46,7 +45,7 @@ android/local.properties
 *.pem
 __pycache__/
 .pytest_cache/
-.venv/
+.venv
 
 # OS Files
 .DS_Store
@@ -55,3 +54,6 @@ Thumbs.db
 # Local personal data directories: never version.
 dados-*/
 private-data/
+
+# Private host service definitions (generic templates live in deploy/systemd).
+ops/systemd-user/*.service
