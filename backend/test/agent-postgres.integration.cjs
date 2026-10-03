@@ -2,6 +2,10 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { randomUUID, randomBytes, createHash } = require('node:crypto');
 const express = require('express');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { createRequire } = require('node:module');
 if (process.env.BRAIN_AGENT_DISPOSABLE !== 'true' || !process.env.DB_HOST?.includes('brain-core-restore-')) {
   throw new Error('Run with scripts/test-agent-postgres.mjs, against a disposable database only');
 }
@@ -19,7 +23,7 @@ async function token(scopes, changes = {}) {
   return { id, secret };
 }
 async function call(kind, action, body, credential = writeToken) {
-  const response = await fetch(`${origin}/${kind}/${action}`, {
+  const response = await fetch(`${origin}/api/agent/${kind}/${action}`, {
     method: 'POST', headers: { 'content-type': 'application/json', ...(credential ? { authorization: `Bearer ${credential.secret}` } : {}) },
     body: JSON.stringify(body),
   });
@@ -33,7 +37,7 @@ before(async () => {
   await query(`INSERT INTO users (id,email,password_hash) VALUES ($1,'member@example.invalid','not-a-password')`, [other]);
   writeToken = await token(['pages:read', 'pages:write', 'notes:read', 'notes:write']);
   readToken = await token(['pages:read', 'notes:read']);
-  const app = express(); app.use(express.json({ limit: '1mb' })); app.use(router);
+  const app = express(); app.use(express.json({ limit: '1mb' })); app.use('/api/agent', router);
   await new Promise(resolve => { server = app.listen(0, '127.0.0.1', resolve); });
   origin = `http://127.0.0.1:${server.address().port}`;
 });
@@ -139,4 +143,51 @@ test('a pending revocation prevents a write that has already passed the initial 
     assert.equal((await pending).status, 401);
     assert.equal((await call('notes', 'get', { id: note.id })).data.title, 'Before');
   } finally { await connection.query('ROLLBACK'); connection.release(); }
+});
+
+test('MCP stdio performs all 12 tools against the real API and PostgreSQL', async () => {
+  const mcpRequire = createRequire(path.resolve(__dirname, '../../mcp/package.json'));
+  const { Client } = mcpRequire('@modelcontextprotocol/client');
+  const { StdioClientTransport } = mcpRequire('@modelcontextprotocol/client/stdio');
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'brain-mcp-e2e-'));
+  const file = path.join(directory, 'credential');
+  fs.writeFileSync(file, writeToken.secret, { mode: 0o600 });
+  const client = new Client({ name: 'synthetic-e2e', version: '1.0.0' });
+  const transport = new StdioClientTransport({ command: process.execPath,
+    args: [path.resolve(__dirname, '../../mcp/src/server.mjs')],
+    env: { BRAIN_CORE_URL: origin, BRAIN_CORE_TOKEN_FILE: file }, stderr: 'pipe' });
+  const invoke = async (kind, action, input, expectError = false) => {
+    const result = await client.callTool({ name: `brain_${kind}_${action}`, arguments: input });
+    assert.equal(result.isError, expectError, `${kind}/${action}: ${result.content[0]?.text}`);
+    return JSON.parse(result.content[0].text);
+  };
+  try {
+    await client.connect(transport);
+    assert.equal((await client.listTools()).tools.length, 12);
+    const doc = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Original', marks: [{ type: 'bold' }] }] }] };
+    for (const kind of ['pages', 'notes']) {
+      const input = { ...operation(), title: `MCP synthetic ${kind}`, ...(kind === 'pages' ? { content: doc } : { body: 'Original' }) };
+      const created = await invoke(kind, 'create', input);
+      assert.equal(created.revision, 0);
+      assert.deepEqual(await invoke(kind, 'create', input), created);
+      const listing = await invoke(kind, 'list', { query: `MCP synthetic ${kind}` });
+      assert.equal(listing.items.filter(item => item.id === created.id).length, 1);
+      assert.deepEqual(await invoke(kind, 'get', { id: created.id }), created);
+      const changes = { ...operation(), id: created.id, expected_revision: 0,
+        ...(kind === 'pages' ? { title: 'Edited through MCP' } : { body: 'Edited through MCP' }) };
+      const edited = await invoke(kind, 'update', changes);
+      assert.equal(edited.revision, 1);
+      assert.deepEqual(await invoke(kind, 'update', changes), edited);
+      await invoke(kind, 'update', { ...changes, ...operation() }, true);
+      const history = await invoke(kind, 'versions', { id: created.id });
+      assert.deepEqual(history.items.map(item => item.revision), [1, 0]);
+      const restored = await invoke(kind, 'restore', { ...operation(), id: created.id, expected_revision: 1, saved_revision: 0 });
+      assert.equal(restored.revision, 2);
+      assert.equal(restored.title, created.title);
+      if (kind === 'pages') assert.deepEqual(restored.content, doc);
+      else assert.equal(restored.body, 'Original');
+    }
+  } finally {
+    await client.close(); fs.rmSync(directory, { recursive: true });
+  }
 });

@@ -41,6 +41,11 @@ while IFS=$'\t' read -r author_email committer_email; do
   fi
 done < <(git log HEAD --format='%ae%x09%ce')
 
+# Co-author trailers also appear in GitHub contributor attribution.
+if ! git log HEAD --format='%B' | node scripts/check-commit-attribution.mjs; then
+  fail 'automated agent co-author attribution exists in release ancestry'
+fi
+
 if (( failures )); then
   exit 1
 fi

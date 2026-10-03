@@ -73,6 +73,9 @@ node scripts/test-agent-postgres.mjs
 ```
 
 O segundo comando exige os binários do PostgreSQL (`pg_config`, `initdb`, `pg_ctl`), cria um cluster descartável sem TCP e executa testes com contas/notas fictícias. Ele nunca usa o banco da instalação.
+O ensaio também inicia o adaptador stdio e chama as 12 ferramentas com o cliente
+oficial contra a API e o PostgreSQL reais desse ambiente descartável: criação,
+leitura, pesquisa, edição, histórico, recuperação, conflitos e repetição idempotente.
 
 Acesso remoto fica para uma segunda etapa: transporte HTTP, autenticação adequada ao cliente remoto, controle de origem e revisão das permissões. Não exponha o processo stdio ou a porta do banco para resolver essa etapa.
 

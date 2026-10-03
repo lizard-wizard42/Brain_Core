@@ -25,6 +25,25 @@ private installation's commit history as part of consolidation.
 Contributors use forks and pull requests. Maintainers decide what is merged;
 public visibility does not grant write access.
 
+## Commit attribution
+
+Keep human authors and collaborators credited. Automated agents must not add
+co-author trailers. The repository's agent settings disable automated attribution,
+and the public-release workflow checks the complete branch history for known
+agent identities.
+
+Enable the local commit-message guard after cloning:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+The guard rejects known agent co-author identities without removing human
+co-authors. Historical message corrections preserve file trees, human identities,
+dates and merge topology, but necessarily change commit IDs and invalidate
+signatures on affected commits. Keep a private recovery bundle before rewriting
+published history, and push only the intended ref with an explicit lease.
+
 ## Moving a private improvement into public code
 
 Do not push a private branch or private commit directly to this repository.
