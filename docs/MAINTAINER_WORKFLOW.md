@@ -8,8 +8,10 @@ documentation, fictional examples, and safe configuration templates.
 Do not add database dumps, `.env` files, uploads, backups, private URLs, local
 paths, credentials, cookies, API tokens, SSH material, or real user content.
 
-The maintainer's operational installation belongs in a separate private
-repository and separate runtime directory. It is not a remote for this checkout.
+Use one public repository for reusable code. Keep the operational installation
+in a separate runtime directory, with its environment, data and backups ignored
+by Git. A second private code repository is not required. Never publish the
+private installation's commit history as part of consolidation.
 
 ## Public contribution flow
 
@@ -32,7 +34,7 @@ examples, or documentation before committing.
 
 ## Using a public improvement privately
 
-After a public PR is merged, selectively apply the reviewed code to the private
+After a public PR is merged, apply the reviewed code to the local
 installation. Before deploying it, back up the local database and uploads, run
 the tests, build the artifacts, then restart only the intended service.
 
