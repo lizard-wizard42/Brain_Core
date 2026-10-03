@@ -1,0 +1,17 @@
+[Unit]
+Description=Brain Core speaker review worker
+After=brain-core-memory.service
+Requires=brain-core-memory.service
+
+[Service]
+WorkingDirectory=%h/apps/brain-core
+EnvironmentFile=%h/apps/brain-core/private-data/memory.env
+Environment=CELTWO_MEMORY_WORKER_ROLE=relabel
+ExecStart=%h/apps/brain-core/services/memory/.venv/bin/python -m services.memory.worker.worker
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

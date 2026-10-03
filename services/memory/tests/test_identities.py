@@ -3,6 +3,7 @@
 import pytest
 
 from services.memory.storage import database, identities
+from services.memory.storage.models import CURRENT_SCHEMA_VERSION
 
 
 @pytest.fixture(autouse=True)
@@ -42,7 +43,7 @@ def test_schema_upgrade_is_additive_and_idempotent():
     assert _segment_id("fiction-a") == a
     conn = database.get_connection()
     try:
-        assert conn.execute("SELECT version FROM schema_version WHERE id = 1").fetchone()[0] == 11
+        assert conn.execute("SELECT version FROM schema_version WHERE id = 1").fetchone()[0] == CURRENT_SCHEMA_VERSION
         assert conn.execute("SELECT count(*) FROM transcript_segments").fetchone()[0] == 2
     finally:
         conn.close()
@@ -88,5 +89,30 @@ def test_delete_removes_templates_and_hides_old_decisions():
     try:
         assert conn.execute("SELECT count(*) FROM voice_templates").fetchone()[0] == 0
         assert conn.execute("SELECT count(*) FROM segment_identity_decisions").fetchone()[0] == 1
+    finally:
+        conn.close()
+
+
+def test_upgrade_from_legacy_schema_preserves_text_and_manual_decisions():
+    segment = _segment_id("fiction-a")
+    identity = identities.create_identity("account-a", "Ana")
+    identities.decide_segment("account-a", segment, identity["id"], "confirm")
+    conn = database.get_connection()
+    try:
+        conn.execute("UPDATE schema_version SET version = 10 WHERE id = 1")
+        conn.execute("UPDATE transcript_segments SET speaker = 'me' WHERE id = ?", (segment,))
+        conn.commit()
+    finally:
+        conn.close()
+    database.init_db()
+    database.init_db()
+    assert identities.get_segment_decision("account-a", segment)["identity_id"] == identity["id"]
+    conn = database.get_connection()
+    try:
+        row = conn.execute("SELECT text, speaker FROM transcript_segments WHERE id = ?", (segment,)).fetchone()
+        assert row["text"] == "fala fictícia"
+        assert row["speaker"] is None
+        assert conn.execute("SELECT count(*) FROM sessions").fetchone()[0] == 2
+        assert conn.execute("SELECT count(*) FROM transcript_segments").fetchone()[0] == 2
     finally:
         conn.close()

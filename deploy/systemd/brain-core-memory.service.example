@@ -1,0 +1,15 @@
+[Unit]
+Description=Brain Core private Memory API
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/apps/brain-core
+EnvironmentFile=%h/apps/brain-core/private-data/memory.env
+ExecStart=%h/apps/brain-core/services/memory/.venv/bin/python -m uvicorn services.memory.api.main:app --host 127.0.0.1 --port 8765
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

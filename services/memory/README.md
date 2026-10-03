@@ -17,3 +17,37 @@ recordings are bundled here.
 
 The API is an internal service. Keep the web entrypoint behind your HTTPS
 reverse proxy or Tailscale Serve and do not publish the Memory API port.
+
+## Existing Linux installation
+
+All Memory and GPU source code lives in this repository. Generic user-systemd
+templates are in `deploy/systemd/`; adjust their installation and interpreter
+paths locally. Install the Memory requirements in `services/memory/.venv` and
+prepare the GPU environment in `services/gpu-worker/.venv` as described in
+the GPU worker guide. GPU library
+paths depend on the local environment and belong in a private service override.
+
+Keep the host API configuration in ignored `private-data/memory.env`, readable
+only by the service account. It uses `CELTWO_MEMORY_API_TOKEN`,
+`CELTWO_MEMORY_API_URL`, `CELTWO_MEMORY_DATA_DIR` and `CELTWO_MEMORY_DB_PATH`.
+The backend's `CELTWO_MEMORY_TOKEN` must match the API token. These host-service
+settings differ from Compose's environment-variable wiring. The API binds to
+loopback; only the Brain Core web entrypoint should be reachable remotely.
+
+Before switching an existing installation, stop its API and workers and make
+a consistent SQLite backup, preserve its audio directory and private service
+configuration, then test migration on a private copy. Confirm transcript text,
+session ownership, row counts and database integrity before starting workers.
+Version 12 clears uncalibrated legacy `me`/`other` speaker labels; it preserves
+transcript text. Unowned historical sessions require an explicit ownership
+review rather than assigning all recordings to an arbitrary account. Keep the
+previous code and database backup together for rollback. Never run two APIs or
+two GPU workers against the same installation while switching.
+
+When relocating existing audio, update both `chunks.path` and
+`chunks.denoised_path` to the new location and verify each stored file hash.
+Relative paths are resolved against the service working directory, so changing
+that directory without moving the files can break audio access even when
+transcript reads still work. Use an absolute private data directory in the
+service configuration. Recreate or validate relocated Python environments;
+console-script shebangs and GPU library paths can retain their old location.
