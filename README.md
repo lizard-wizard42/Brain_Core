@@ -182,6 +182,8 @@ explains the Nginx, Express, PostgreSQL, and Socket.IO boundaries.
 - [Banco de dados: esquema, retenção e consistência](docs/BANCO_DE_DADOS.md)
 - [Segurança de borda e LGPD](docs/SEGURANCA_DE_BORDA.md)
 - [Isolamento de gravações por conta](docs/ISOLAMENTO_DE_GRAVACOES.md)
+- [MCP local para consultar e editar notas](docs/NOTES_MCP.md)
+- [Backup completo e ensaio de restauração](docs/BACKUP_BRAIN_CORE.md)
 - [NVIDIA GPU worker](services/gpu-worker/README.md)
 - [Security policy](SECURITY.md)
 - [Contributing](CONTRIBUTING.md)

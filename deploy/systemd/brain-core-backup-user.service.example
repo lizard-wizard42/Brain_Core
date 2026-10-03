@@ -1,0 +1,9 @@
+[Unit]
+Description=Brain Core complete backup (PostgreSQL, files, Memory and audio)
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/apps/brain-core
+ExecStart=/usr/bin/bash %h/apps/brain-core/scripts/run-complete-backup.sh
+UMask=0077
+TimeoutStartSec=30min

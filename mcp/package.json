@@ -1,0 +1,10 @@
+{
+  "name": "brain-core-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node src/server.mjs", "test": "node --test test/*.test.mjs" },
+  "engines": { "node": ">=20" },
+  "dependencies": { "@modelcontextprotocol/server": "2.3.0", "zod": "^4.0.0" },
+  "devDependencies": { "@modelcontextprotocol/client": "2.3.0" }
+}
