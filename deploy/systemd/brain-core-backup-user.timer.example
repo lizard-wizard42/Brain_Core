@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily complete Brain Core backup
+
+[Timer]
+OnCalendar=*-*-* 03:35:00
+Persistent=true
+RandomizedDelaySec=10min
+Unit=brain-core-backup-user.service
+
+[Install]
+WantedBy=timers.target

@@ -28,6 +28,7 @@ jobs:
           cache-dependency-path: |
             backend/package-lock.json
             frontend/package-lock.json
+            mcp/package-lock.json
       - run: npm ci --prefix backend
       # This value exists only in the ephemeral CI runner. It is not a
       # deployment credential and is never used by a running installation.
@@ -42,3 +43,8 @@ jobs:
       - run: npm run build --prefix frontend
       - run: npm audit --omit=dev --prefix backend
       - run: npm audit --omit=dev --prefix frontend
+      - run: npm ci --prefix mcp
+      - run: npm test --prefix mcp
+      - run: npm audit --omit=dev --prefix mcp
+      - run: python3 -m unittest discover -s scripts -p 'test_snapshot_memory.py'
+      - run: node scripts/test-agent-postgres.mjs

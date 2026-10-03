@@ -1,4 +1,5 @@
 import { query } from './database';
+import { ensureAgentSchema } from './agentSchema';
 
 // Ensure additive schema changes for Notion-like features
 export async function ensureAppSchema(): Promise<void> {
@@ -222,4 +223,5 @@ export async function ensureAppSchema(): Promise<void> {
   await query(`CREATE INDEX IF NOT EXISTS idx_trusted_devices_user_expires ON trusted_devices(user_id, expires_at DESC)`);
   await query(`CREATE INDEX IF NOT EXISTS idx_mobile_devices_user ON mobile_devices(user_id, revoked_at)`);
   await query(`CREATE INDEX IF NOT EXISTS idx_mobile_sessions_user ON mobile_sessions(user_id, started_at DESC)`);
+  await ensureAgentSchema();
 }

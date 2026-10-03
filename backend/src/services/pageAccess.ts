@@ -37,10 +37,10 @@ export function removeMovedChildCard(content: unknown, movedPageId: string): unk
 // The row lock serializes saves and revocations. The revision is a monotonic
 // counter, independent of timestamp precision and never exposes internal hashes.
 export async function savePageRevision(pageId: string, userId: string, revision: number,
-  changes: Record<string, unknown>, reason: string): Promise<Record<string, unknown>> {
-  const client = await pool.connect();
+  changes: Record<string, unknown>, reason: string, transaction?: PoolClient): Promise<Record<string, unknown>> {
+  const client = transaction ?? await pool.connect();
   try {
-    await client.query('BEGIN');
+    if (!transaction) await client.query('BEGIN');
     const current = (await client.query<Record<string, unknown>>(
       'SELECT * FROM pages WHERE id = $1 AND deleted_at IS NULL FOR UPDATE', [pageId])).rows[0];
     const role = current ? await pageRole(pageId, userId, client) : null;
@@ -68,7 +68,7 @@ export async function savePageRevision(pageId: string, userId: string, revision:
       throw new PageMissing();
     }
     const entries = Object.entries(changes).filter(([key]) => allowed.includes(key));
-    if (!entries.length) { await client.query('COMMIT'); return current; }
+    if (!entries.length) { if (!transaction) await client.query('COMMIT'); return current; }
     const fields = entries.map(([key], index) => `${key} = $${index + 1}`);
     const values = entries.map(([key, value]) => key === 'content' ? JSON.stringify(value) : value);
     const updated = (await client.query<Record<string, unknown>>(
@@ -98,8 +98,8 @@ export async function savePageRevision(pageId: string, userId: string, revision:
           userId, parentUpdated.revision]);
       }
     }
-    await client.query('COMMIT');
+    if (!transaction) await client.query('COMMIT');
     return updated;
-  } catch (error) { await client.query('ROLLBACK'); throw error; }
-  finally { client.release(); }
+  } catch (error) { if (!transaction) await client.query('ROLLBACK'); throw error; }
+  finally { if (!transaction) client.release(); }
 }
