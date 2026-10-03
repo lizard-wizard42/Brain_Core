@@ -353,8 +353,8 @@ export const api = {
 
   renamePage: (id: string, title: string) => writePageRevision(id, 'PATCH', { title }),
 
-  patchPage: (id: string, data: { icon?: string; cover_url?: string | null; cover_position_y?: number; title?: string; sort_order?: number; parent_page_id?: string | null; status?: string | null; due_date?: string | null; tags?: string[]; working_directory?: string | null; content?: TiptapDoc | InfiniteDoc }) =>
-    writePageRevision(id, 'PATCH', data),
+  patchPage: (id: string, data: { icon?: string; cover_url?: string | null; cover_position_y?: number; title?: string; sort_order?: number; parent_page_id?: string | null; status?: string | null; due_date?: string | null; tags?: string[]; working_directory?: string | null; content?: TiptapDoc | InfiniteDoc }, options?: { keepalive?: boolean }) =>
+    writePageRevision(id, 'PATCH', data, options?.keepalive),
 
   uploadCover: async (id: string, file: File): Promise<import('../types').Page> => {
     const formData = new FormData();

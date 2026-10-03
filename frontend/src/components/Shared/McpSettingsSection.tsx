@@ -132,7 +132,7 @@ export function McpSettingsSection() {
       <details className="border-t pt-4">
         <summary className="cursor-pointer text-sm font-medium">Conectar um cliente de IA</summary>
         <div className="flex flex-col gap-3 mt-3">
-          <p className="text-xs text-gray-500">Configure o cliente no mesmo computador do Brain Core. O caminho do servidor já corresponde à instalação atual; informe o arquivo privado onde você salvou a credencial. O adaptador requer Node.js 20 ou superior e as dependências do diretório mcp instaladas.</p>
+          <p className="text-xs text-gray-500">Configure o cliente no mesmo computador do Brain Core. Confira os caminhos neste computador e informe o arquivo privado onde salvou a credencial. Em Docker, use o adaptador do checkout no host e o endereço HTTP publicado, normalmente http://127.0.0.1:8080; os caminhos internos do contêiner não servem ao cliente no host. O adaptador requer Node.js 20 ou superior e as dependências do diretório mcp instaladas.</p>
           <label className="text-xs">Arquivo do servidor MCP<input className={`${inputClass} mt-1`} value={scriptPath} onChange={e => setScriptPath(e.target.value)} /></label>
           <label className="text-xs">Arquivo privado da credencial<input className={`${inputClass} mt-1`} value={tokenPath} onChange={e => setTokenPath(e.target.value)} /></label>
           <label className="text-xs">Endereço local do backend<input className={`${inputClass} mt-1`} value={backendUrl} onChange={e => setBackendUrl(e.target.value)} /></label>

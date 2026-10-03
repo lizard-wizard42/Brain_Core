@@ -3,6 +3,8 @@ import path from 'path';
 import { Router } from 'express';
 import multer from 'multer';
 import { config } from '../config';
+import { uploadRateLimit } from '../middleware/uploadAdmission';
+import { ensureUploadStorageCapacity, isAllowedPngUpload, validateUploadedFileContent } from '../utils/uploadPolicy';
 import { createCustomEmoji, listCustomEmojis } from '../controllers/emojisController';
 
 const router = Router();
@@ -22,13 +24,11 @@ const uploadEmoji = multer({
   storage,
   limits: { fileSize: 2 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    const mime = (file.mimetype || '').toLowerCase();
-    const ext = path.extname(file.originalname || '').toLowerCase();
-    cb(null, mime === 'image/png' || ext === '.png');
+    cb(null, isAllowedPngUpload(file.originalname, file.mimetype));
   },
 });
 
 router.get('/custom', listCustomEmojis);
-router.post('/custom', uploadEmoji.single('emoji'), createCustomEmoji);
+router.post('/custom', uploadRateLimit, ensureUploadStorageCapacity, uploadEmoji.single('emoji'), validateUploadedFileContent, createCustomEmoji);
 
 export default router;

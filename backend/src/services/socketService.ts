@@ -24,6 +24,12 @@ function recordPayload(value: unknown): Record<string, unknown> | null {
 }
 
 let pageIo: SocketIO | null = null;
+export function disconnectAccountSockets(userId: string): void {
+  if (!pageIo) return;
+  for (const socket of pageIo.sockets.sockets.values()) {
+    if (socket.data.userId === userId) socket.disconnect(true);
+  }
+}
 export function notifyPageGrantChanged(pageId: string, userId: string): void {
   if (!pageIo) return;
   for (const socket of pageIo.sockets.sockets.values()) {
@@ -36,35 +42,73 @@ export function notifyPageGrantChanged(pageId: string, userId: string): void {
 export function registerSocketHandlers(io: SocketIO): void {
   pageIo = io;
   io.use(async (socket, next) => {
-    const rawToken = extractAccessToken(socket.handshake.headers);
-
-    if (!rawToken) {
-      next(new Error('Unauthorized'));
-      return;
-    }
-
-    const payload = await authenticateAccessToken(rawToken);
-    if (!payload) {
-      next(new Error('Unauthorized'));
-      return;
-    }
-
     try {
+      const rawToken = extractAccessToken(socket.handshake.headers);
+
+      if (!rawToken) {
+        next(new Error('Unauthorized'));
+        return;
+      }
+
+      const payload = await authenticateAccessToken(rawToken);
+      if (!payload) {
+        next(new Error('Unauthorized'));
+        return;
+      }
+
       const rows = await query<{ role: string }>('SELECT role FROM users WHERE id = $1', [payload.sub]);
       if (!rows.length) { next(new Error('Unauthorized')); return; }
       socket.data.userId = payload.sub;
       socket.data.role = rows[0].role;
+      socket.data.accessToken = rawToken;
+      socket.data.expiresAt = typeof payload.exp === 'number' ? payload.exp * 1000 : null;
       next();
     } catch { next(new Error('Unavailable')); }
   });
 
   io.on('connection', (socket) => {
     const userId = String(socket.data.userId || '');
-    const canUseTerminal = config.TERMINAL_ENABLED && socket.data.role === 'owner';
+    // Revalidate every packet, including terminal input. Expiry also disconnects
+    // idle subscribers, so they cannot keep receiving updates without sending.
+    const validateSession = async (): Promise<boolean> => {
+      const payload = await authenticateAccessToken(String(socket.data.accessToken || ''));
+      if (!payload || payload.sub !== userId) { socket.disconnect(true); return false; }
+      const rows = await query<{ role: string }>('SELECT role FROM users WHERE id = $1', [userId]);
+      if (!rows.length) { socket.disconnect(true); return false; }
+      if (socket.connected === false || (typeof socket.data.expiresAt === 'number' && socket.data.expiresAt <= Date.now())) { socket.disconnect(true); return false; }
+      socket.data.role = rows[0].role;
+      return true;
+    };
+    socket.use(async (_packet, next) => {
+      try { next(await validateSession() ? undefined : new Error('Unauthorized')); }
+      catch { socket.disconnect(true); next(new Error('Unavailable')); }
+    });
+    let expiryTimer: ReturnType<typeof setTimeout> | undefined;
+    let sessionTimer: ReturnType<typeof setInterval> | undefined;
+    socket.on('disconnect', () => {
+      clearTimeout(expiryTimer);
+      clearInterval(sessionTimer);
+      detachTerminalSessionsForSocket(socket.id);
+      logInfo('socket.disconnect', { socketId: socket.id, userId });
+    });
+    const scheduleExpiry = () => {
+      if (typeof socket.data.expiresAt !== 'number') return;
+      const remaining = socket.data.expiresAt - Date.now();
+      if (remaining <= 0) { socket.disconnect(true); return; }
+      expiryTimer = setTimeout(scheduleExpiry, Math.min(remaining, 2_147_483_647));
+      expiryTimer.unref();
+    };
+    scheduleExpiry();
+    if (socket.connected === false) return;
+    // Catches revocations made by operator workflows outside HTTP auth routes.
+    sessionTimer = setInterval(() => {
+      void validateSession().catch(() => socket.disconnect(true));
+    }, 5_000);
+    sessionTimer.unref();
     logInfo('socket.connect', { socketId: socket.id, userId });
 
     function denyTerminal(): boolean {
-      if (canUseTerminal) return false;
+      if (config.TERMINAL_ENABLED && socket.data.role === 'owner') return false;
       socket.emit('terminal:error', { message: 'Terminal disponível apenas ao proprietário do PC' });
       return true;
     }
@@ -74,7 +118,7 @@ export function registerSocketHandlers(io: SocketIO): void {
 
       session.pty.onData((data) => {
         const current = getTerminalSession(session.id);
-        if (!current || current.revision !== boundRevision) return;
+        if (!socket.connected || !current || current.revision !== boundRevision) return;
         socket.emit('terminal:data', { sessionId: session.id, data });
       });
 
@@ -268,9 +312,6 @@ export function registerSocketHandlers(io: SocketIO): void {
       }
     });
 
-    socket.on('disconnect', () => {
-      detachTerminalSessionsForSocket(socket.id);
-      logInfo('socket.disconnect', { socketId: socket.id, userId });
-    });
+
   });
 }

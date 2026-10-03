@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { randomBytes, createHash } from 'crypto';
 import path from 'path';
+import { existsSync } from 'fs';
 import { query } from '../config/database';
 import { config } from '../config';
 import { AuthRequest } from '../middleware/auth';
@@ -37,8 +38,9 @@ router.get('/mcp', async (req: AuthRequest, res) => {
         WHERE a.user_id = $1 ORDER BY a.created_at DESC, a.id LIMIT 30`, [req.userId]),
     ]);
     res.json({ enabled: settings[0].enabled, tokens, audit, connection: {
-      server_path: path.resolve(__dirname, '../../../mcp/src/server.mjs'),
-      backend_url: `http://127.0.0.1:${config.PORT}`,
+      server_path: existsSync(path.resolve(__dirname, '../../../mcp/src/server.mjs'))
+        ? path.resolve(__dirname, '../../../mcp/src/server.mjs') : '',
+      backend_url: process.env.MCP_BACKEND_URL || `http://127.0.0.1:${config.PORT}`,
     } });
   } catch { res.status(503).json({ error: 'Não foi possível consultar o MCP' }); }
 });

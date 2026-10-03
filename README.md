@@ -28,14 +28,14 @@ Node.js · Express · Socket.IO · PostgreSQL · Docker
 | Rich pages | Write and format content in Tiptap; organize pages and subpages in a tree; add tags, status, and due dates. |
 | Quick notes | Capture short notes and reminders on a compact board and search them. Telegram reminders are optional and require your own bot configuration. |
 | Visual pages | Sketch and arrange ideas on an infinite tldraw canvas. |
-| History and recovery | Review page versions and restore pages from trash. Trash is cleaned up after 30 days by default. |
+| History and recovery | Review page versions, restore retained note revisions through MCP, and restore pages from trash. Trash is cleaned up after 30 days by default. |
 | Attachments | Upload supported images and documents with server-side type and content checks. Read an attached PDF inside the page; download other supported documents. |
 | Sharing | Add another registered user as a contact, then share a page or folder with viewer or editor permission. There are no public share links. |
 | Live work | See page updates across browser tabs through Socket.IO. Use app tabs, themes, and a mobile-friendly layout. |
 
 Authentication uses session cookies, login throttling, optional TOTP
 two-factor authentication, and trusted-device support. The first account is
-created through a one-time setup wizard. Optional AI organization and the
+created through a one-time setup wizard. The operator can create member accounts; each account owns its notes, devices and integrations. Optional AI organization and the
 host terminal require separate configuration; the standard Docker profile
 starts with the terminal disabled.
 
@@ -51,8 +51,7 @@ remain tied to the linked account.
 The optional Memory service can transcribe recordings locally, group sessions
 by date, search transcripts, show speaker turns, and let you review or correct
 participant suggestions. You can turn transcript content into a Brain Core
-note or reminder. A voice sample is only a suggestion for speaker matching;
-review the result before assigning a person. The standard installation keeps
+note or reminder. Participant suggestions use manually confirmed segments; they never assign a person automatically. Voice enrollment accepts 8–60 seconds and up to 25 MiB. Each account can choose automatic, scheduled or manual transcription, pause new jobs, and configure audio retention. The standard installation keeps
 Memory **offline**. Phone recording and local playback work without it, but
 server upload and transcription require the private Memory API and worker.
 
@@ -65,6 +64,14 @@ firsthand usage report, not a benchmark or a guarantee for other GPUs.
 AMD and Intel users can use the CPU worker; ROCm and oneAPI GPU execution have
 not been validated in this project. No model, recording, voiceprint, token, or
 transcript is included in the repository or APK.
+
+### Local MCP for AI clients
+
+Open **Settings → MCP e acesso da IA** to enable MCP for your account, create a credential, choose read/write permissions for pages and quick notes, and set its expiry. Credentials can be revoked individually or together; switching MCP off suspends all access for that account. The panel also shows recent AI writes and produces a client configuration containing paths rather than the secret.
+
+The local stdio adapter exposes 12 note tools with ownership, revision checks, history and idempotent writes. It opens no extra listener and connects only to an HTTP loopback origin. A credential stays bound to its account when you switch browser logins. Shared pages owned by other accounts, canvas, audio, transcript and terminal tools are outside this API. The AI client receives the note content it requests and may use its configured cloud provider.
+
+Follow [the MCP guide](docs/NOTES_MCP.md) for private credential files, native/Docker paths, scopes and validation. See the [changelog](CHANGELOG.md) for the latest functionality and limits.
 
 ### Android app and private HTTPS access
 

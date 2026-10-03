@@ -265,6 +265,7 @@ test('socket contract: join needs access, save enforces role+revision, revoke ev
         emit(event, payload) { socket.emitted.push({ event, payload }); },
         to(room) { return { emit: (event, payload) => socket.emitted.push({ event, payload, room }) }; },
         on(event, fn) { socket.handlers[event] = fn; },
+        use() {}, disconnect() {},
       };
       return socket;
     }

@@ -37,7 +37,7 @@ def samples(tmp_path, monkeypatch):
             conn.commit()
         finally:
             conn.close()
-    monkeypatch.setattr(voice_templates, "decode_pcm_16k_mono", lambda path: clips[path])
+    monkeypatch.setattr(voice_templates, "decode_pcm_16k_mono", lambda path, **kwargs: clips[path])
     return {session: database.get_segments(session)[0]["id"] for session in clips}
 
 
@@ -97,7 +97,7 @@ def test_duration_quality_and_overlap(samples, monkeypatch):
         conn.commit()
     finally:
         conn.close()
-    monkeypatch.setattr(voice_templates, "decode_pcm_16k_mono", lambda path: np.zeros(64000, dtype=np.float32))
+    monkeypatch.setattr(voice_templates, "decode_pcm_16k_mono", lambda path, **kwargs: np.zeros(64000, dtype=np.float32))
     with pytest.raises(ValueError, match="quality"):
         voice_templates.create_template("a", sid, SyntheticEmbedder())
 
@@ -109,7 +109,7 @@ def test_unknown_noisy_and_two_speaker_samples_never_assign_identity(samples, mo
 
     rng = np.random.default_rng(47)
     noise = rng.normal(0, 0.2, 64000).astype(np.float32)
-    monkeypatch.setattr(voice_templates, "decode_pcm_16k_mono", lambda path: noise)
+    monkeypatch.setattr(voice_templates, "decode_pcm_16k_mono", lambda path, **kwargs: noise)
     # A noisy unknown voice may receive suggestions, but cannot create a decision.
     voice_templates.suggest_segment("a", samples["sc"], SyntheticEmbedder())
     assert identities.get_segment_decision("a", samples["sc"]) is None
@@ -126,3 +126,56 @@ def test_unknown_noisy_and_two_speaker_samples_never_assign_identity(samples, mo
     identities.decide_segment("a", samples["sb"], ana["id"], "confirm")
     with pytest.raises(ValueError, match="overlaps"):
         voice_templates.create_template("a", samples["sb"], SyntheticEmbedder())
+
+
+def test_decode_budget_and_no_inference_writer_lock(samples, monkeypatch):
+    ana = identities.create_identity("a", "Ana")
+    identities.decide_segment("a", samples["sa"], ana["id"], "confirm")
+    def decode(path, *, max_samples):
+        assert max_samples == 300 * 16000
+        return (0.3 * np.sin(2 * np.pi * 180 * np.arange(64000) / 16000)).astype(np.float32)
+    monkeypatch.setattr(voice_templates, "decode_pcm_16k_mono", decode)
+    class Encoder(SyntheticEmbedder):
+        def embed(self, pcm):
+            # A second connection must be able to write while inference runs.
+            identities.create_identity("b", "Independent writer")
+            return super().embed(pcm)
+    assert voice_templates.create_template("a", samples["sa"], Encoder())["identity_id"] == ana["id"]
+    assert len(identities.list_identities("b")) == 1
+
+
+def test_changed_manual_confirmation_during_inference_aborts_commit(samples):
+    ana = identities.create_identity("a", "Ana")
+    identities.decide_segment("a", samples["sa"], ana["id"], "confirm")
+    class Encoder(SyntheticEmbedder):
+        def embed(self, pcm):
+            identities.decide_segment("a", samples["sa"], None, "undo")
+            return super().embed(pcm)
+    with pytest.raises(ValueError, match="confirmation"):
+        voice_templates.create_template("a", samples["sa"], Encoder())
+    conn = database.get_connection()
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM voice_templates").fetchone()[0] == 0
+    finally:
+        conn.close()
+
+
+def test_participant_resource_limits_reach_api_before_embedding(samples, tmp_path, monkeypatch):
+    from fastapi import HTTPException
+    from services.memory.api.participants import _call
+    from services.memory.tests.test_voiceprint_limits import flac
+    path = tmp_path / "long-synthetic.flac"
+    path.write_bytes(flac(301))
+    from services.memory.worker.diarizer import decode_pcm_16k_mono
+    monkeypatch.setattr(voice_templates, "decode_pcm_16k_mono", lambda _, **kw: decode_pcm_16k_mono(str(path), **kw))
+    with pytest.raises(HTTPException) as too_long:
+        _call(voice_templates.suggest_segment, "a", samples["sa"], SyntheticEmbedder())
+    assert too_long.value.status_code == 413
+    assert voice_templates._processing.acquire(blocking=False)
+    try:
+        with pytest.raises(HTTPException) as busy:
+            _call(voice_templates.suggest_segment, "a", samples["sa"], SyntheticEmbedder())
+        assert busy.value.status_code == 429
+        assert busy.value.headers["Retry-After"] == "1"
+    finally:
+        voice_templates._processing.release()

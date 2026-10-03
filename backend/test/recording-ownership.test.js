@@ -294,3 +294,11 @@ test('mobile completion sends the device account to Memory, retaining device che
     await new Promise(resolve => server.close(resolve));
   }
 });
+
+
+test('voice enrollment rejects a changed initiating account before contacting Memory', async () => {
+  const controller = require('../dist/controllers/rememberController');
+  const response = { code: 0, status(code) { this.code = code; return this; }, json(body) { this.body = body; } };
+  await controller.rememberVoiceprintPost({ userId: 'current-account', query: { owner_user_id: 'initiating-account' }, body: Buffer.from('fictional'), headers: {} }, response);
+  assert.equal(response.code, 409);
+});

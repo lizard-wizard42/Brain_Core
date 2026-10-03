@@ -1,4 +1,4 @@
-"""Per-account GPU admission control; active jobs finish when a policy is paused."""
+"""Per-account CPU/GPU admission control; active jobs finish when a policy is paused."""
 import re
 import uuid
 from datetime import datetime

@@ -13,6 +13,7 @@ function connectedSocket(role) {
     on(event, handler) { handlers.set(event, handler); },
     emit(event, payload) { emitted.push({ event, payload }); },
     leave(room) { left.push(room); },
+    use() {}, disconnect() {},
   };
   const io = {
     sockets: { sockets: new Map() },

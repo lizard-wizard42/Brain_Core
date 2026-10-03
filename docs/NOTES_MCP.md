@@ -68,6 +68,12 @@ Configuração ilustrativa para um cliente MCP que aceite `mcpServers` (substitu
 
 A configuração equivalente pode ser cadastrada na interface do cliente. Ela contém somente o caminho do arquivo privado, nunca o segredo.
 
+## Docker e caminhos do host
+
+Execute `npm ci --prefix mcp` no checkout do host. O cliente MCP usa o caminho absoluto **do host** para `mcp/src/server.mjs` e a origem publicada pela interface web, normalmente `http://127.0.0.1:8080`. Não use `/app`, `/mcp` ou a porta interna 3001 do contêiner como se fossem caminhos/endereço do host. Na instalação nativa, o padrão é `http://127.0.0.1:3001`.
+
+A tela permite corrigir os três campos antes de copiar o JSON. Em Docker, o caminho do adaptador fica vazio até você informar a localização do host. `MCP_BACKEND_URL` fornece somente o endereço sugerido ao cliente; o adaptador continua aceitando exclusivamente HTTP loopback. Não é preciso expor o banco, o Memory ou outro servidor MCP.
+
 ## Ferramentas e edição
 
 Para cada coleção (`pages` e `notes`), existem seis ferramentas: `brain_<coleção>_list`, `get`, `versions`, `create`, `update` e `restore`.

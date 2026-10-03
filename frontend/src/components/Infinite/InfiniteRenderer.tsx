@@ -17,6 +17,7 @@ export function InfiniteRenderer({ page }: InfiniteRendererProps) {
   const hydratedRef = useRef(false);
   const dirtyRef = useRef(false);
   const pendingFlushRef = useRef(false);
+  const pendingKeepaliveRef = useRef(false);
   const lastSavedRef = useRef<string>('');
 
   const logInfiniteEvent = useCallback((event: string, payload: Record<string, unknown> = {}) => {
@@ -42,7 +43,7 @@ export function InfiniteRenderer({ page }: InfiniteRendererProps) {
     };
   }, [store]);
 
-  const persistSnapshot = useCallback(async (force = false): Promise<void> => {
+  const persistSnapshot = useCallback(async (force = false, keepalive = false): Promise<void> => {
     if (!hydratedRef.current) return;
 
     const content = buildContent();
@@ -50,6 +51,7 @@ export function InfiniteRenderer({ page }: InfiniteRendererProps) {
     if (!force && (!dirtyRef.current || serialized === lastSavedRef.current)) return;
     if (savingRef.current) {
       pendingFlushRef.current = true;
+      pendingKeepaliveRef.current ||= keepalive;
       return;
     }
 
@@ -57,7 +59,7 @@ export function InfiniteRenderer({ page }: InfiniteRendererProps) {
     setSaveIndicator('saving');
     dirtyRef.current = false;
     try {
-      await api.patchPage(page.id, { content });
+      await api.patchPage(page.id, { content }, { keepalive });
       lastSavedRef.current = serialized;
       setLastSavedAt(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
       setSaveIndicator('saved');
@@ -74,42 +76,17 @@ export function InfiniteRenderer({ page }: InfiniteRendererProps) {
       savingRef.current = false;
       if (pendingFlushRef.current) {
         pendingFlushRef.current = false;
-        void persistSnapshot(force);
+        const nextKeepalive = pendingKeepaliveRef.current;
+        pendingKeepaliveRef.current = false;
+        void persistSnapshot(force, nextKeepalive);
       }
     }
   }, [buildContent, logInfiniteEvent, page.id]);
 
   const flushSnapshotOnHide = useCallback(() => {
-    if (!hydratedRef.current || !dirtyRef.current) return;
-
-    const content = buildContent();
-    const serialized = JSON.stringify(content);
-    const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, '');
-
-    fetch(`${baseUrl}/api/pages/${page.id}`, {
-      method: 'PATCH',
-      keepalive: true,
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ content }),
-    }).then(() => {
-      setSaveIndicator('saved');
-      setLastSavedAt(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
-      logInfiniteEvent('autosave.flush');
-    }).catch((err) => {
-      setSaveIndicator('error');
-      console.error('[InfiniteRenderer]', {
-        event: 'autosave.flush.error',
-        pageId: page.id,
-        detail: String(err),
-      });
-    });
-
-    dirtyRef.current = false;
-    lastSavedRef.current = serialized;
-  }, [buildContent, logInfiniteEvent, page.id]);
+    // Use the same revision-aware API and acknowledgement rules as autosave.
+    void persistSnapshot(false, true);
+  }, [persistSnapshot]);
 
   // Load initial state
   useEffect(() => {
@@ -117,6 +94,7 @@ export function InfiniteRenderer({ page }: InfiniteRendererProps) {
     hydratedRef.current = false;
     dirtyRef.current = false;
     pendingFlushRef.current = false;
+    pendingKeepaliveRef.current = false;
     setSaveIndicator('idle');
     store.clear();
 
@@ -150,13 +128,13 @@ export function InfiniteRenderer({ page }: InfiniteRendererProps) {
 
   // Persist changes
   useEffect(() => {
-    const cleanup = store.listen(
-      throttle(() => {
-        dirtyRef.current = true;
-        if (!savingRef.current) setSaveIndicator('saving');
-        void persistSnapshot();
-      }, 3000)
-    );
+    const save = throttle(() => { void persistSnapshot(); }, 3000);
+    const cleanup = store.listen(() => {
+      // Mark changes immediately; hiding during the debounce must still flush.
+      dirtyRef.current = true;
+      if (!savingRef.current) setSaveIndicator('saving');
+      save();
+    });
 
     return () => cleanup();
   }, [page.id, store, persistSnapshot]);

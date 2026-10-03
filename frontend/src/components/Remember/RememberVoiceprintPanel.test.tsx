@@ -23,6 +23,7 @@ vi.mock('../../services/nativeBridge', () => ({
 
 beforeEach(() => {
   vi.resetAllMocks();
+  window.localStorage.setItem('brain-core:active-user-id', 'synthetic-owner');
   vi.mocked(nativeBridge.isNativeAndroidApp).mockReturnValue(false);
   vi.mocked(nativeBridge.isNativeBridgeAvailable).mockReturnValue(false);
   vi.mocked(rememberService.getVoiceprint).mockResolvedValue({ enrolled: false, updated_at: null, sample_seconds: null, model: null });
@@ -172,7 +173,7 @@ describe('RememberVoiceprintPanel', () => {
     const audioBlob = new File(['dummy audio content'], 'minha-voz.wav', { type: 'audio/wav' });
     fireEvent.change(fileInput, { target: { files: [audioBlob] } });
 
-    await waitFor(() => expect(rememberService.enrollVoiceprint).toHaveBeenCalledWith(audioBlob));
+    await waitFor(() => expect(rememberService.enrollVoiceprint).toHaveBeenCalledWith(audioBlob, 'synthetic-owner'));
   });
 
   it('envia a amostra ao completar 30 segundos sem usar tempo antigo', async () => {
@@ -203,7 +204,7 @@ describe('RememberVoiceprintPanel', () => {
       vi.useFakeTimers();
       await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Gravar minha voz' })); });
       await act(async () => { vi.advanceTimersByTime(30_000); });
-      expect(rememberService.enrollVoiceprint).toHaveBeenCalledWith(expect.any(Blob));
+      expect(rememberService.enrollVoiceprint).toHaveBeenCalledWith(expect.any(Blob), 'synthetic-owner');
       expect(track.stop).toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
@@ -211,4 +212,52 @@ describe('RememberVoiceprintPanel', () => {
       window.MediaRecorder = originalRecorder;
     }
   });
+  it('descarta um microfone concedido depois de sair da tela', async () => {
+    const originalDevices = navigator.mediaDevices;
+    const originalRecorder = window.MediaRecorder;
+    const track = { stop: vi.fn() };
+    let resolveStream!: (stream: MediaStream) => void;
+    const getUserMedia = vi.fn(() => new Promise<MediaStream>(resolve => { resolveStream = resolve; }));
+    const construct = vi.fn();
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia } });
+    Object.defineProperty(window, 'isSecureContext', { configurable: true, value: true });
+    window.MediaRecorder = construct as unknown as typeof MediaRecorder;
+    try {
+      const panel = render(<RememberVoiceprintPanel />);
+      await waitFor(() => expect(screen.getByText('não configurada')).toBeInTheDocument());
+      fireEvent.click(screen.getByRole('button', { name: /Minha voz/ }));
+      fireEvent.click(screen.getByRole('button', { name: 'Gravar minha voz' }));
+      expect(getUserMedia).toHaveBeenCalledOnce();
+      panel.unmount();
+      await act(async () => { resolveStream({ getTracks: () => [track] } as unknown as MediaStream); });
+      expect(track.stop).toHaveBeenCalledOnce();
+      expect(construct).not.toHaveBeenCalled();
+      expect(rememberService.enrollVoiceprint).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: originalDevices });
+      window.MediaRecorder = originalRecorder;
+    }
+  });
+
+  it('cancela a captura nativa que terminou de iniciar depois do logout', async () => {
+    vi.mocked(nativeBridge.isNativeAndroidApp).mockReturnValue(true);
+    vi.mocked(nativeBridge.isNativeBridgeAvailable).mockReturnValue(true);
+    vi.mocked(nativeBridge.getNativeStatus).mockResolvedValue({ microphonePermission: 'granted', nativeRecordingActive: false } as nativeBridge.NativeDeviceStatus);
+    let resolveStart!: (value: { success: boolean }) => void;
+    vi.mocked(nativeBridge.startNativeVoiceSample).mockImplementation(() => new Promise(resolve => { resolveStart = resolve; }));
+    render(<RememberVoiceprintPanel />);
+    await waitFor(() => expect(screen.getByText('não configurada')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /Minha voz/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Gravar minha voz' }));
+    await waitFor(() => expect(nativeBridge.startNativeVoiceSample).toHaveBeenCalledOnce());
+    await act(async () => {
+      window.dispatchEvent(new Event('brain-core:session-ended'));
+      window.localStorage.setItem('brain-core:active-user-id', 'different-owner');
+      resolveStart({ success: true });
+    });
+    expect(nativeBridge.cancelNativeVoiceSample).toHaveBeenCalledOnce();
+    expect(nativeBridge.stopNativeVoiceSample).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Parar e enviar' })).not.toBeInTheDocument();
+  });
+
 });

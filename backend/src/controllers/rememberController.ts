@@ -364,6 +364,10 @@ export async function rememberVoiceprintGet(req: AuthRequest, res: Response): Pr
 }
 
 export async function rememberVoiceprintPost(req: AuthRequest, res: Response): Promise<void> {
+  // Older native clients omit this field; current clients bind the initiating account.
+  if (req.query.owner_user_id !== undefined && req.query.owner_user_id !== req.userId) {
+    res.status(409).json({ error: 'A conta mudou durante a captura da amostra' }); return;
+  }
   const body = req.body;
   if (!Buffer.isBuffer(body) || body.length === 0) {
     res.status(400).json({ error: 'Áudio ausente' });

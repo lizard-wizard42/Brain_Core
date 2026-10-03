@@ -43,6 +43,9 @@ before(async () => {
   readToken = await token(['pages:read', 'notes:read']);
   const app = express(); app.use(express.json({ limit: '1mb' })); app.use('/api/agent', router);
   app.use('/api/integrations', authMiddleware, integrations);
+  app.use('/api/pages', authMiddleware, require('../dist/routes/pages').default);
+  app.post('/api/auth/login-2fa', require('../dist/controllers/authController').verifyLoginTwoFactor);
+  app.use('/uploads', authMiddleware, require('../dist/services/uploadOwnership').requireUploadedAssetOwner, (_req, res) => res.send('synthetic asset'));
   await new Promise(resolve => { server = app.listen(0, '127.0.0.1', resolve); });
   origin = `http://127.0.0.1:${server.address().port}`;
 });
@@ -267,4 +270,90 @@ test('a pending switch-off blocks a read that passed initial credential authenti
     await connection.query('ROLLBACK'); connection.release();
     await management('PUT', '', { enabled: true });
   }
+});
+
+
+test('a shared editor cannot create access to a private owner attachment', async () => {
+  const page = (await call('pages', 'create', { ...operation(), title: 'Shared fixture' })).data;
+  const file = `synthetic-private-${randomUUID()}.png`;
+  await query('INSERT INTO uploaded_assets (relative_path,owner_user_id) VALUES ($1,$2)', [file, owner]);
+  await query("INSERT INTO page_grants (page_id,user_id,role) VALUES ($1,$2,'editor')", [page.id, other]);
+  const login = user => jwt.sign({ sub: user, type: 'access', sv: 1 }, process.env.JWT_SECRET, { expiresIn: 60 });
+  const headers = user => ({ authorization: `Bearer ${login(user)}`, 'content-type': 'application/json' });
+  const ref = `/uploads/${file}`;
+  assert.equal((await fetch(`${origin}${ref}`, { headers: headers(other) })).status, 404);
+  const doc = { type: 'doc', content: [{ type: 'image', attrs: { src: ref } }] };
+  let response = await fetch(`${origin}/api/pages/${page.id}`, { method: 'PUT', headers: headers(other), body: JSON.stringify({ content: doc, revision: 0 }) });
+  assert.equal(response.status, 404);
+  assert.equal((await fetch(`${origin}${ref}`, { headers: headers(other) })).status, 404);
+  assert.equal((await query('SELECT revision FROM pages WHERE id=$1', [page.id]))[0].revision, 0);
+  response = await fetch(`${origin}/api/pages/${page.id}`, { method: 'PUT', headers: headers(owner), body: JSON.stringify({ content: doc, revision: 0 }) });
+  assert.equal(response.status, 200);
+  assert.equal((await fetch(`${origin}${ref}`, { headers: headers(other) })).status, 200);
+  response = await fetch(`${origin}/api/pages/${page.id}`, { method: 'PUT', headers: headers(other), body: JSON.stringify({ content: doc, revision: 1 }) });
+  assert.equal(response.status, 200, 'an editor may preserve an owner-shared attachment');
+  await query('DELETE FROM page_grants WHERE page_id=$1 AND user_id=$2', [page.id, other]);
+  assert.equal((await fetch(`${origin}${ref}`, { headers: headers(other) })).status, 404);
+});
+
+test('2FA account lockout serializes concurrent failures and rejects even a valid code while locked', async () => {
+  const totp = require('../dist/services/totpService');
+  const original = totp.verifyTotp;
+  let checked = 0;
+  totp.verifyTotp = (_secret, code) => { checked++; return code === '123456'; };
+  await query("UPDATE users SET two_factor_enabled=TRUE,two_factor_secret='synthetic',failed_login_attempts=0,login_locked_until=NULL WHERE id=$1", [other]);
+  const pending = jwt.sign({ sub: other, sv: 1, type: '2fa-pending' }, process.env.JWT_SECRET, { expiresIn: 300 });
+  const verify = code => fetch(`${origin}/api/auth/login-2fa`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ pendingToken: pending, code, rememberDevice: false }) });
+  try {
+    assert.equal((await verify('123456')).status, 200);
+    checked = 0;
+    const failures = await Promise.all(Array.from({ length: 7 }, () => verify('000000')));
+    assert.equal(checked, 5);
+    assert.ok(failures.some(r => r.status === 429));
+    const locked = await verify('123456');
+    assert.equal(locked.status, 429);
+    assert.ok(Number(locked.headers.get('Retry-After')) > 0);
+    assert.equal(checked, 5, 'lockout must precede code verification');
+    const row = (await query('SELECT failed_login_attempts, login_locked_until FROM users WHERE id=$1', [other]))[0];
+    assert.equal(row.failed_login_attempts, 5);
+    assert.ok(row.login_locked_until);
+    await query("UPDATE users SET login_locked_until=NOW()-interval '1 second' WHERE id=$1", [other]);
+    assert.equal((await verify('123456')).status, 200);
+  } finally { totp.verifyTotp = original; }
+});
+
+test('failed reminders from one account do not monopolize Telegram batches', async () => {
+  const { config } = require('../dist/config');
+  const { dispatchDueReminders } = require('../dist/services/rememberReminderService');
+  const originalFetch = global.fetch, originalToken = config.TELEGRAM_BOT_TOKEN;
+  const sent = [];
+  config.TELEGRAM_BOT_TOKEN = 'synthetic-test-token';
+  await query("UPDATE users SET telegram_notifications_enabled=TRUE,telegram_chat_id=CASE WHEN id=$1 THEN 'good' ELSE 'bad' END", [owner]);
+  for (let n = 0; n < 25; n++) {
+    await query("INSERT INTO remember_notes (user_id,title,body,reminder_date) VALUES ($1,'synthetic failing','', '2000-01-01')", [other]);
+  }
+  await query("INSERT INTO remember_notes (user_id,title,body,reminder_date) VALUES ($1,'synthetic good','', '2001-01-01')", [owner]);
+  global.fetch = async (_url, options) => {
+    assert.ok(options.signal instanceof AbortSignal);
+    const body = JSON.parse(options.body); sent.push(body.chat_id);
+    return new Response('', { status: body.chat_id === 'good' ? 200 : 400 });
+  };
+  try {
+    await dispatchDueReminders();
+    assert.ok(sent.includes('good'));
+    assert.equal((await query("SELECT COUNT(*)::int AS count FROM remember_notes WHERE user_id=$1 AND reminder_sent_at IS NOT NULL", [owner]))[0].count, 1);
+    assert.ok((await query('SELECT telegram_reminder_attempted_at FROM users WHERE id=$1', [other]))[0].telegram_reminder_attempted_at);
+  } finally { global.fetch = originalFetch; config.TELEGRAM_BOT_TOKEN = originalToken; }
+});
+
+test('current page saves apply the configured history retention and keep the latest revision', async () => {
+  const { config } = require('../dist/config');
+  const { savePageRevision } = require('../dist/services/pageAccess');
+  const old = config.PAGE_VERSION_RETENTION; config.PAGE_VERSION_RETENTION = 3;
+  try {
+    const page = (await call('pages', 'create', { ...operation(), title: 'Retention' })).data;
+    for (let revision = 0; revision < 5; revision++) await savePageRevision(page.id, owner, revision, { title: `Revision ${revision + 1}` }, 'synthetic');
+    const versions = await query('SELECT page_revision FROM page_versions WHERE page_id=$1 ORDER BY page_revision DESC', [page.id]);
+    assert.deepEqual(versions.map(v => v.page_revision), [5, 4, 3]);
+  } finally { config.PAGE_VERSION_RETENTION = old; }
 });

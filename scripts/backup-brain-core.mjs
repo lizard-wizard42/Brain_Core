@@ -7,6 +7,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
+import { backupSources } from './backup-sources.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(process.env.BRAIN_PROJECT_ROOT || path.join(scriptDir, '..'));
@@ -35,13 +36,7 @@ const db = {
   password: process.env.DB_PASSWORD || '',
 };
 
-const dataSources = [
-  {
-    name: 'markdown',
-    source: path.resolve(process.env.MD_SOURCE_PATH || path.join(projectRoot, 'data', 'markdown')),
-  },
-  { name: 'uploads', source: path.join(projectRoot, 'uploads') },
-];
+const { files: dataSources, memoryDir, memoryDb } = backupSources(projectRoot);
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -82,8 +77,6 @@ for (const item of dataSources) {
   }
 }
 
-const memoryDir = path.resolve(process.env.BRAIN_MEMORY_DIR || path.join(projectRoot, 'data', 'memory'));
-const memoryDb = path.resolve(process.env.BRAIN_MEMORY_DB || path.join(memoryDir, 'memory.db'));
 const memoryEnabled = fs.existsSync(memoryDb);
 if (memoryEnabled && process.env.BRAIN_MEMORY_QUIESCED !== 'true') {
   throw new Error('Pare os writers da Memory e use BRAIN_MEMORY_QUIESCED=true; instalações user-systemd podem usar run-complete-backup.sh');

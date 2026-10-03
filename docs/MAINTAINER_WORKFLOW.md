@@ -18,7 +18,9 @@ private installation's commit history as part of consolidation.
 1. Create a branch from `main`, such as `feat/graph-view`.
 2. Make the change without using real data or private environment files.
 3. Run `bash scripts/public-release-check.sh`, backend tests, frontend tests,
-   and the frontend build.
+   MCP tests, offline Memory tests, backup tests, the disposable PostgreSQL integration suite,
+   and `./build.sh`. See CONTRIBUTING.md for commands. Update CHANGELOG.md and the
+   relevant feature/operation guides when behavior changes.
 4. Open a pull request, review the diff as if it were visible to anyone, and
    merge only after the GitHub workflow is green.
 

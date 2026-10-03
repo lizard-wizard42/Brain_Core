@@ -33,6 +33,8 @@ python -m pip install -r services/memory/requirements-test.txt
 CELTWO_MEMORY_DATA_DIR=/tmp/brain-core-synthetic-memory CELTWO_MEMORY_EMBEDDER=stub python -m pytest services/memory/tests -q
 ```
 
+Participant template extraction requires a current manual confirmation, a 3–60 second segment and a decoded chunk of at most 300 seconds. One extraction/suggestion runs per API process; inference does not hold the SQLite writer lock. The source and confirmation are checked again before committing a template. CPU and GPU workers both honor account transcription policies and claim pending jobs atomically.
+
 ## Existing Linux installation
 
 All Memory and GPU source code lives in this repository. Generic user-systemd
