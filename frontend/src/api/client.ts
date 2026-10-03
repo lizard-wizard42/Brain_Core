@@ -109,6 +109,30 @@ export interface AuthenticatedUser {
   name: string | null;
 }
 
+export interface McpCredential {
+  id: string; name: string; scopes: string[]; expires_at: string;
+  revoked_at: string | null; created_at: string; valid: boolean;
+}
+export interface McpSettings {
+  enabled: boolean;
+  connection?: { server_path: string; backend_url: string };
+  tokens: McpCredential[];
+  audit: Array<{ id: string; operation: string; target_kind: string; target_id: string;
+    created_at: string; credential_name: string | null }>;
+}
+export const mcpApi = {
+  get: () => request<McpSettings>('/api/integrations/mcp'),
+  setEnabled: (enabled: boolean) => request<{ enabled: boolean }>('/api/integrations/mcp', {
+    method: 'PUT', body: JSON.stringify({ enabled }),
+  }),
+  createCredential: (name: string, scopes: string[], expires_in_days: number) =>
+    request<{ credential: Omit<McpCredential, 'valid' | 'revoked_at'>; secret: string }>('/api/integrations/mcp/tokens', {
+      method: 'POST', body: JSON.stringify({ name, scopes, expires_in_days }),
+    }),
+  revokeCredential: (id: string) => request<{ revoked: boolean }>(`/api/integrations/mcp/tokens/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  revokeAll: () => request<{ revoked: number }>('/api/integrations/mcp/tokens', { method: 'DELETE' }),
+};
+
 export interface CurrentUser {
   id: string;
   email: string;

@@ -28,6 +28,8 @@ async function main() {
   if (!parent.isDirectory() || parent.uid !== process.getuid() || (parent.mode & 0o077)) throw new Error('Diretório de destino deve pertencer a você e ter modo 0700');
   const users = await query('SELECT session_version FROM users WHERE id = $1', [userId]);
   if (!users.length) throw new Error('Conta não encontrada');
+  // The first CLI setup opts in. An explicit switch-off in Settings is preserved.
+  await query('INSERT INTO integration_settings (user_id, enabled) VALUES ($1, TRUE) ON CONFLICT DO NOTHING', [userId]);
   const token = `bc_${randomBytes(32).toString('base64url')}`;
   const scopes = ['pages:read', 'notes:read', ...(access === 'write' ? ['pages:write', 'notes:write'] : [])];
   const fd = fs.openSync(output, 'wx', 0o600);

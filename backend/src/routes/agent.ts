@@ -13,7 +13,9 @@ class AgentError extends Error {
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 const tokenSql = `SELECT t.id, t.user_id, t.scopes FROM integration_tokens t
-  JOIN users u ON u.id = t.user_id WHERE t.token_hash = $1 AND t.revoked_at IS NULL
+  JOIN users u ON u.id = t.user_id
+  JOIN integration_settings s ON s.user_id = t.user_id AND s.enabled = TRUE
+  WHERE t.token_hash = $1 AND t.revoked_at IS NULL
   AND t.expires_at > NOW() AND t.session_version = u.session_version`;
 const fields = {
   pages: 'id, title, content, revision, created_at, updated_at',
@@ -122,6 +124,10 @@ router.post('/:kind/:action', async (req: AgentRequest, res) => {
     };
     if (Object.keys(body).some(key => !allowed[action].includes(key))) throw new AgentError(400, 'Unsupported field');
     let token = req.integration!;
+    await client.query('BEGIN'); transaction = true;
+    // Switching off and revocation serialize with every call, including reads.
+    token = (await client.query<Token>(`${tokenSql} FOR SHARE OF t, u, s`, [req.integrationHash])).rows[0];
+    if (!token) throw new AgentError(401, 'Integration disabled, expired or revoked');
     checkScope(token, kind, write);
     if (!write) {
       const limit = body.limit ?? 20;
@@ -135,27 +141,27 @@ router.post('/:kind/:action', async (req: AgentRequest, res) => {
         const rows = (await client.query(`SELECT id, title, revision, updated_at FROM ${tables[kind]}
           WHERE ${owned[kind]} AND (strpos(lower(title),lower($2)) > 0 OR strpos(lower(${textField}),lower($2)) > 0)
           ORDER BY updated_at DESC, id LIMIT $3 OFFSET $4`, [token.user_id, search, limit, offset])).rows;
+        await client.query('COMMIT'); transaction = false;
         res.json({ items: rows, next_offset: rows.length === limit ? offset + limit : null }); return;
       }
       const id = validId(body.id);
       const row = await getOwned(client, kind, token.user_id, id);
-      if (action === 'get') { res.json(row); return; }
+      if (action === 'get') {
+        await client.query('COMMIT'); transaction = false;
+        res.json(row); return;
+      }
       const rows = kind === 'pages'
         ? (await client.query(`SELECT page_revision AS revision, title, created_at FROM page_versions
           WHERE page_id = $1 AND page_revision IS NOT NULL ORDER BY page_revision DESC, id DESC LIMIT $2 OFFSET $3`, [id, limit, offset])).rows
         : (await client.query(`SELECT revision, title, created_at FROM remember_note_versions
           WHERE note_id = $1 ORDER BY revision DESC LIMIT $2 OFFSET $3`, [id, limit, offset])).rows;
+      await client.query('COMMIT'); transaction = false;
       res.json({ items: rows, next_offset: rows.length === limit ? offset + limit : null }); return;
     }
     const operationId = validId(body.operation_id);
     const id = action === 'create' ? randomUUID() : validId(body.id);
     const expected = action === 'create' ? 0 : revision(body.expected_revision);
     const requestHash = hash(JSON.stringify([kind, action, Object.entries(body).sort(([a], [b]) => a.localeCompare(b))]));
-    await client.query('BEGIN'); transaction = true;
-    // Revocation and password changes serialize with writes, including replays.
-    token = (await client.query<Token>(`${tokenSql} FOR SHARE OF t, u`, [req.integrationHash])).rows[0];
-    if (!token) throw new AgentError(401, 'Integration expired or revoked');
-    checkScope(token, kind, true);
     await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`${token.id}:${operationId}`]);
     const previous = (await client.query(`SELECT request_hash, response FROM integration_operations
       WHERE token_id = $1 AND operation_id = $2`, [token.id, operationId])).rows[0];

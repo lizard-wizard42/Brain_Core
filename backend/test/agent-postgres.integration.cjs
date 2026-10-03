@@ -11,11 +11,15 @@ if (process.env.BRAIN_AGENT_DISPOSABLE !== 'true' || !process.env.DB_HOST?.inclu
 }
 const { pool, query } = require('../dist/config/database');
 const router = require('../dist/routes/agent').default;
+const integrations = require('../dist/routes/integrations').default;
+const { authMiddleware } = require('../dist/middleware/auth');
+const jwt = require('jsonwebtoken');
 const owner = randomUUID(), other = randomUUID();
 let server, origin, writeToken, readToken;
 async function token(scopes, changes = {}) {
   const secret = `bc_${randomBytes(32).toString('base64url')}`;
   const id = randomUUID();
+  await query('INSERT INTO integration_settings (user_id,enabled) VALUES ($1,TRUE) ON CONFLICT DO NOTHING', [changes.user ?? owner]);
   await query(`INSERT INTO integration_tokens (id,user_id,name,token_hash,session_version,scopes,expires_at,revoked_at)
     VALUES ($1,$2,'synthetic test',$3,$4,$5,$6,$7)`, [id, changes.user ?? owner,
     createHash('sha256').update(secret).digest('hex'), changes.session ?? 1, scopes,
@@ -38,6 +42,7 @@ before(async () => {
   writeToken = await token(['pages:read', 'pages:write', 'notes:read', 'notes:write']);
   readToken = await token(['pages:read', 'notes:read']);
   const app = express(); app.use(express.json({ limit: '1mb' })); app.use('/api/agent', router);
+  app.use('/api/integrations', authMiddleware, integrations);
   await new Promise(resolve => { server = app.listen(0, '127.0.0.1', resolve); });
   origin = `http://127.0.0.1:${server.address().port}`;
 });
@@ -189,5 +194,77 @@ test('MCP stdio performs all 12 tools against the real API and PostgreSQL', asyn
     }
   } finally {
     await client.close(); fs.rmSync(directory, { recursive: true });
+  }
+});
+
+async function management(method, suffix = '', body, user = owner, originHeader) {
+  const access = user ? jwt.sign({ sub: user, sv: 1, type: 'access' }, process.env.JWT_SECRET) : '';
+  const response = await fetch(`${origin}/api/integrations/mcp${suffix}`, {
+    method, headers: { 'content-type': 'application/json', ...(user ? { authorization: `Bearer ${access}` } : {}),
+      ...(originHeader ? { origin: originHeader } : {}) },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  return { status: response.status, data: await response.json(), cache: response.headers.get('cache-control') };
+}
+
+test('settings isolate accounts; token creation validates scope/expiry and returns its secret only once', async () => {
+  assert.equal((await management('GET', '', undefined, null)).status, 401);
+  assert.equal((await management('PUT', '', { enabled: false }, owner, 'https://untrusted.example.invalid')).status, 403);
+  const stranger = randomUUID();
+  await query(`INSERT INTO users (id,email,password_hash) VALUES ($1,'settings@example.invalid','not-a-password')`, [stranger]);
+  const first = await management('GET', '', undefined, stranger);
+  assert.equal(first.data.enabled, false); assert.deepEqual(first.data.tokens, []);
+  assert.equal((await management('POST', '/tokens', { name: 'Test', scopes: ['pages:read'], expires_in_days: 7 }, stranger)).status, 409);
+  assert.equal((await management('PUT', '', { enabled: true }, stranger)).status, 200);
+  for (const body of [
+    { name: 'Test', scopes: ['pages:write'], expires_in_days: 7 },
+    { name: 'Test', scopes: ['terminal:read'], expires_in_days: 7 },
+    { name: 'Test', scopes: ['pages:read'], expires_in_days: 1000 },
+    { name: 'Test', scopes: ['pages:read','pages:read'], expires_in_days: 7 },
+  ]) assert.equal((await management('POST', '/tokens', body, stranger)).status, 400);
+  const result = await management('POST', '/tokens', { name: 'Only pages', scopes: ['pages:read'], expires_in_days: 7 }, stranger);
+  assert.equal(result.status, 201); assert.match(result.data.secret, /^bc_[A-Za-z0-9_-]{43}$/);
+  assert.equal(result.cache, 'private, no-store');
+  const listed = await management('GET', '', undefined, stranger);
+  assert.equal(listed.data.tokens.length, 1);
+  assert.ok(!JSON.stringify(listed.data).includes(result.data.secret));
+  assert.ok(!JSON.stringify(listed.data).includes('token_hash'));
+  assert.equal((await call('pages', 'list', {}, { secret: result.data.secret })).status, 200);
+  assert.equal((await call('notes', 'list', {}, { secret: result.data.secret })).status, 403);
+  assert.equal((await management('DELETE', `/tokens/${writeToken.id}`, undefined, stranger)).status, 404);
+  await management('DELETE', '/tokens', undefined, stranger);
+  assert.equal((await call('pages', 'list', {}, { secret: result.data.secret })).status, 401);
+  assert.equal((await call('pages', 'list', {})).status, 200);
+});
+
+test('switch-off blocks reads, writes and idempotent replays; re-enable preserves valid credentials', async () => {
+  const input = { ...operation(), title: 'Before switch-off' };
+  const created = await call('notes', 'create', input);
+  assert.equal((await management('PUT', '', { enabled: false })).status, 200);
+  try {
+    assert.equal((await call('notes', 'list', {})).status, 401);
+    assert.equal((await call('notes', 'get', { id: created.data.id })).status, 401);
+    assert.equal((await call('notes', 'create', input)).status, 401);
+    const foreign = await token(['pages:read'], { user: other });
+    assert.equal((await call('pages', 'list', {}, foreign)).status, 200);
+    await require('../dist/config/agentSchema').ensureAgentSchema();
+    assert.equal((await call('notes', 'list', {})).status, 401, 'bootstrap must not re-enable an explicit switch-off');
+  } finally { await management('PUT', '', { enabled: true }); }
+  assert.equal((await call('notes', 'list', {})).status, 200);
+  assert.equal((await call('notes', 'create', input)).data.id, created.data.id);
+});
+
+test('a pending switch-off blocks a read that passed initial credential authentication', async () => {
+  const connection = await pool.connect();
+  try {
+    await connection.query('BEGIN');
+    await connection.query('UPDATE integration_settings SET enabled = FALSE WHERE user_id = $1', [owner]);
+    const pending = call('notes', 'list', {});
+    await new Promise(resolve => setTimeout(resolve, 50));
+    await connection.query('COMMIT');
+    assert.equal((await pending).status, 401);
+  } finally {
+    await connection.query('ROLLBACK'); connection.release();
+    await management('PUT', '', { enabled: true });
   }
 });

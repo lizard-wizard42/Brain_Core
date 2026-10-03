@@ -6,12 +6,29 @@ O adaptador `mcp/` usa o SDK oficial do Model Context Protocol e o transporte st
 
 A credencial dá acesso às **notas da conta escolhida**, incluindo seu conteúdo pessoal. O cliente de IA conectado recebe o conteúdo das ferramentas que chamar: escolha esse cliente conforme a privacidade desejada. A integração não envia notas por conta própria.
 
-- A credencial é independente do login, armazenada como SHA-256 no PostgreSQL, expira em 30 dias e pode ser revogada. Trocar a senha invalida as credenciais por `session_version`.
+- A credencial é independente do login, armazenada como SHA-256 no PostgreSQL e pode ser revogada. No menu Configurações você escolhe validade de 1, 7, 30 ou 90 dias; pela CLI, 30 dias. Trocar a senha invalida as credenciais por `session_version`.
 - Existem permissões separadas de leitura e escrita para páginas e notas rápidas. A autorização e a propriedade são verificadas no backend em todas as operações.
 - Páginas compartilhadas de outras contas, seções, canvases, terminal, gravações, áudio, arquivos e configurações não fazem parte das ferramentas. Referências a anexos que já estão dentro de uma nota podem aparecer no conteúdo, mas a integração não oferece download desses anexos.
 - O arquivo da credencial deve pertencer ao usuário que inicia o adaptador, com modo `0600`. Não coloque o segredo no Git, na configuração do cliente, em argumentos de comando ou na conversa com a IA.
 
 ## Instalação e credencial
+
+### Pelo menu Configurações
+
+Abra **Configurações → MCP e acesso da IA** na conta que fornecerá as notas.
+
+- **Ligar/desligar:** suspende todas as credenciais da conta no backend, incluindo leituras, edições e replays. Desligar preserva as credenciais; ligar novamente reativa somente as ainda válidas. Operações que já adquiriram os locks podem terminar antes de o desligamento ser confirmado; chamadas posteriores são recusadas.
+- **Nova credencial:** escolha nome, validade e acesso independente a páginas e notas rápidas: sem acesso, somente leitura ou leitura e edição.
+- **Segredo exibido uma única vez:** copie para um arquivo privado `0600`, em pasta `0700`. O app não grava o segredo no armazenamento do navegador nem na configuração do cliente.
+- **Revogar uma ou todas:** revogação é definitiva. Para renovar ou mudar permissões, crie uma credencial nova e revogue a anterior após atualizar o cliente.
+- **Conectar um cliente:** informe os caminhos locais do adaptador e do arquivo privado, além da origem HTTP de loopback do backend. Copie o JSON para o cliente MCP; ele contém somente caminhos, nunca o segredo.
+- **Últimas alterações:** até 30 escritas recentes, com operação, data, credencial e ID da nota, sem o conteúdo. Leituras não são registradas nessa lista.
+
+Contas novas começam com MCP desligado. A migração mantém habilitadas as contas que já tinham credenciais antes desse controle, sem reativar um desligamento explícito. A primeira configuração por CLI também habilita a conta; criar outra credencial não desfaz um desligamento já salvo nas Configurações.
+
+As configurações pertencem à conta autenticada. Uma credencial MCP não pode administrar credenciais nem ativar a integração. A conexão local não determina onde o cliente de IA processará as notas: confirme o provedor escolhido no cliente.
+
+### Pela linha de comando
 
 Requer Node.js 20 ou superior, backend atualizado e dependências do backend instaladas. O esquema é atualizado automaticamente ao iniciar o backend.
 

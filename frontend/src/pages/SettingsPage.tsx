@@ -5,6 +5,7 @@ import { api, type MobileDevice } from '../api/client';
 import { useTheme } from '../theme/ThemeProvider';
 import { themes, themeChoices } from '../theme/themes';
 import { ContactsSection } from '../components/Shared/ContactsSection';
+import { McpSettingsSection } from '../components/Shared/McpSettingsSection';
 import {
   type NativeDeviceStatus,
   cleanLocalAudio,
@@ -1076,6 +1077,7 @@ export function SettingsPage() {
         </section>
 
         <ContactsSection />
+        {user && <McpSettingsSection key={user.id} />}
         <ChangePasswordSection />
         <TwoFactorSection user={user} onUserChange={setUser} />
         <MobileDevicesSection />
