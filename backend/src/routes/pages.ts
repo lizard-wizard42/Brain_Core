@@ -3,6 +3,8 @@ import multer from 'multer';
 import { coverImageFilter } from '../services/uploadSafety';
 import path from 'path';
 import { config } from '../config';
+import { uploadRateLimit } from '../middleware/uploadAdmission';
+import { ensureUploadStorageCapacity } from '../utils/uploadPolicy';
 import { query } from '../config/database';
 import { AuthRequest } from '../middleware/auth';
 import { canEdit, pageRole } from '../services/pageAccess';
@@ -146,7 +148,7 @@ router.post('/', createPage);
 router.put('/:id', savePage);
 router.patch('/:id', patchPage);
 router.delete('/:id', deletePage);
-router.post('/:id/cover', upload.single('cover'), uploadCover);
+router.post('/:id/cover', requireOwnedPage, uploadRateLimit, ensureUploadStorageCapacity, upload.single('cover'), uploadCover);
 router.delete('/:id/cover', removeCover);
 
 export default router;

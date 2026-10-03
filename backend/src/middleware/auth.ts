@@ -11,6 +11,7 @@ export interface AccessTokenPayload {
   sub: string;
   sv: number;
   type?: string;
+  exp?: number;
 }
 
 export function verifyAccessToken(token: string): AccessTokenPayload {
@@ -24,7 +25,10 @@ function parseCookies(rawCookieHeader: string | undefined): Record<string, strin
     if (index <= 0) return acc;
     const key = part.slice(0, index).trim();
     const value = part.slice(index + 1).trim();
-    if (key) acc[key] = decodeURIComponent(value);
+    if (key) {
+      try { acc[key] = decodeURIComponent(value); }
+      catch { acc[key] = ''; }
+    }
     return acc;
   }, {});
 }
@@ -55,11 +59,11 @@ export async function authenticateAccessToken(token: string): Promise<AccessToke
     if (!rows.length || rows[0].session_version !== payload.sv) {
       return null;
     }
+    // The database lookup may cross the expiry boundary.
+    return verifyAccessToken(token);
   } catch {
     return null;
   }
-
-  return verifyAccessToken(token);
 }
 
 export async function authMiddleware(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {

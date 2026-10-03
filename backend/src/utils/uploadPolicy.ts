@@ -150,8 +150,7 @@ async function withCapacityLock<T>(operation: () => Promise<T>): Promise<T> {
 /**
  * Rejects a multipart request before Multer writes it when the local upload
  * store would exceed its configured capacity. This is intentionally a global
- * cap: the first public edition is a single-owner installation, not a
- * multi-tenant service.
+ * cap across accounts in this single-process installation.
  */
 export async function ensureUploadStorageCapacity(req: Request, res: Response, next: NextFunction): Promise<void> {
   const limit = Math.max(0, config.UPLOADS_MAX_BYTES);

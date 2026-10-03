@@ -43,7 +43,7 @@ class MobileApi(private val context: Context) {
         require(file.isFile && file.length() > 0L && file.length() <= 25L * 1024 * 1024)
         if (webLoginUserId() != expectedUserId) throw MobileApiException(409, "A conta mudou durante a gravação")
         val cookie = CookieManager.getInstance().getCookie(origin).orEmpty()
-        val connection = connection("/api/remember/memory/voiceprint", "POST")
+        val connection = connection("/api/remember/memory/voiceprint?${ownerQuery(expectedUserId)}", "POST")
         try {
             connection.readTimeout = 180_000
             connection.setRequestProperty("Cookie", cookie)

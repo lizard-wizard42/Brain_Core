@@ -4,6 +4,7 @@ import { logError, logInfo } from '../utils/logger';
 
 interface DueReminderRow {
   id: string;
+  user_id: string;
   title: string;
   body: string;
   checklist: Array<{ text: string; checked: boolean }>;
@@ -62,6 +63,7 @@ async function sendTelegramMessage(chatId: string, text: string): Promise<void> 
 
   const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
+    signal: AbortSignal.timeout(10_000),
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       chat_id: chatId,
@@ -75,7 +77,7 @@ async function sendTelegramMessage(chatId: string, text: string): Promise<void> 
   }
 }
 
-async function dispatchDueReminders(): Promise<void> {
+export async function dispatchDueReminders(): Promise<void> {
   if (!config.TELEGRAM_BOT_TOKEN) return;
   if (running) return;
 
@@ -86,7 +88,9 @@ async function dispatchDueReminders(): Promise<void> {
     const { currentDate, currentTime } = getLocalReminderWindow(now);
 
     const rows = await query<DueReminderRow>(
-      `SELECT rn.id, rn.title, rn.body, rn.checklist, rn.reminder_label, rn.reminder_date::text, rn.reminder_time::text, rn.reminder_repeat_daily, u.telegram_chat_id
+      `WITH due AS (SELECT rn.user_id, u.telegram_reminder_attempted_at,
+         ROW_NUMBER() OVER (PARTITION BY rn.user_id ORDER BY rn.reminder_date ASC, rn.updated_at DESC, rn.id) AS account_turn,
+         rn.id, rn.title, rn.body, rn.checklist, rn.reminder_label, rn.reminder_date::text, rn.reminder_time::text, rn.reminder_repeat_daily, u.telegram_chat_id
        FROM remember_notes rn
        JOIN users u ON u.id::text = rn.user_id
        WHERE rn.reminder_date IS NOT NULL
@@ -96,13 +100,16 @@ async function dispatchDueReminders(): Promise<void> {
          AND u.telegram_notifications_enabled = TRUE
          AND u.telegram_chat_id IS NOT NULL
          AND u.telegram_chat_id <> ''
-       ORDER BY rn.reminder_date ASC, rn.updated_at DESC
+       ) SELECT * FROM due
+       ORDER BY account_turn ASC, telegram_reminder_attempted_at ASC NULLS FIRST, reminder_date ASC, id
        LIMIT 25`,
       [currentDate, currentTime],
     );
 
     for (const row of rows) {
       try {
+        // Rotate accounts even when their destination rejects every delivery.
+        await query('UPDATE users SET telegram_reminder_attempted_at = NOW() WHERE id = $1', [row.user_id]);
         await sendTelegramMessage(row.telegram_chat_id, buildReminderMessage(row));
         if (row.reminder_repeat_daily === true) {
           await query(
@@ -128,6 +135,8 @@ async function dispatchDueReminders(): Promise<void> {
         });
       }
     }
+  } catch (error) {
+    logError('remember.reminder.dispatch_failed', { detail: String(error) });
   } finally {
     running = false;
   }

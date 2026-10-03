@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RememberVoiceprint } from '../../types';
 import { rememberService } from '../../services/rememberService';
+import { activeBrowserUserId } from '../../api/browserSession';
 import { browserRecording } from '../../services/browserRecording';
 import { cancelNativeVoiceSample, getNativeStatus, isNativeAndroidApp, isNativeBridgeAvailable, startNativeVoiceSample, stopNativeVoiceSample } from '../../services/nativeBridge';
 
 const MAX_SECONDS = 30;
 const MIN_SECONDS = 8;
 
-type Phase = 'idle' | 'recording' | 'uploading';
+type Phase = 'idle' | 'starting' | 'recording' | 'uploading';
 
 export function RememberVoiceprintPanel({ onRelabelChange, refreshToken = 0 }: { onRelabelChange?: () => void; refreshToken?: number } = {}) {
   const [voiceprint, setVoiceprint] = useState<RememberVoiceprint | null>(null);
@@ -16,6 +17,11 @@ export function RememberVoiceprintPanel({ onRelabelChange, refreshToken = 0 }: {
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
 
+  const mountedRef = useRef(true);
+  const generationRef = useRef(0);
+  const captureRef = useRef<{ owner: string; generation: number } | null>(null);
+  const isCurrent = useCallback((generation: number, owner: string) =>
+    mountedRef.current && generationRef.current === generation && activeBrowserUserId() === owner, []);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const tickRef = useRef<number | null>(null);
@@ -26,14 +32,16 @@ export function RememberVoiceprintPanel({ onRelabelChange, refreshToken = 0 }: {
   const previousRelabelCount = useRef<number | null>(null);
 
   const loadStatus = useCallback(async () => {
+    const owner = activeBrowserUserId();
     try {
       const next = await rememberService.getVoiceprint();
+      if (!mountedRef.current || activeBrowserUserId() !== owner) return;
       const remaining = (next.relabel?.pending ?? 0) + (next.relabel?.processing ?? 0);
       if (previousRelabelCount.current !== null && remaining !== previousRelabelCount.current) onRelabelChange?.();
       previousRelabelCount.current = remaining;
       setVoiceprint(next);
     }
-    catch { setVoiceprint((current) => current ?? { enrolled: false, updated_at: null, sample_seconds: null, model: null }); }
+    catch { if (!mountedRef.current || activeBrowserUserId() !== owner) return; setVoiceprint((current) => current ?? { enrolled: false, updated_at: null, sample_seconds: null, model: null }); }
   }, [onRelabelChange]);
 
   useEffect(() => { void loadStatus(); }, [loadStatus, refreshToken]);
@@ -49,28 +57,45 @@ export function RememberVoiceprintPanel({ onRelabelChange, refreshToken = 0 }: {
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [loadStatus]);
-  useEffect(() => () => {
-    if (tickRef.current !== null) window.clearInterval(tickRef.current);
+  const cancelCapture = useCallback(() => {
+    generationRef.current++;
+    captureRef.current = null;
+    if (tickRef.current !== null) { window.clearInterval(tickRef.current); tickRef.current = null; }
     const recorder = recorderRef.current;
-    if (recorder?.state === 'recording') recorder.stop();
-    recorder?.stream.getTracks().forEach((track) => track.stop());
-    if (nativeRecordingRef.current) void cancelNativeVoiceSample();
+    recorderRef.current = null;
+    if (recorder?.state === 'recording') { try { recorder.stop(); } catch { /* already stopped */ } }
+    recorder?.stream.getTracks().forEach(track => track.stop());
+    chunksRef.current = [];
+    if (nativeRecordingRef.current) { nativeRecordingRef.current = false; void cancelNativeVoiceSample(); }
+    if (mountedRef.current) setPhase('idle');
   }, []);
+  useEffect(() => {
+    mountedRef.current = true;
+    window.addEventListener('brain-core:session-ended', cancelCapture);
+    return () => {
+      mountedRef.current = false;
+      window.removeEventListener('brain-core:session-ended', cancelCapture);
+      cancelCapture();
+    };
+  }, [cancelCapture]);
 
   const finish = useCallback(async (secondsOverride?: number) => {
+    const capture = captureRef.current;
+    if (!capture || !isCurrent(capture.generation, capture.owner)) { cancelCapture(); return; }
     if (tickRef.current !== null) { window.clearInterval(tickRef.current); tickRef.current = null; }
     if (nativeRecordingRef.current) {
       nativeRecordingRef.current = false;
       setPhase('uploading');
       try {
         const result = await stopNativeVoiceSample();
+        if (!isCurrent(capture.generation, capture.owner)) return;
         if (!result.success) throw new Error(result.error || 'Não foi possível enviar a amostra');
         await loadStatus();
         onRelabelChange?.();
         setError(null);
       } catch (reason) {
-        setError(reason instanceof Error ? reason.message : 'Falha ao enviar a amostra');
-      } finally { setPhase('idle'); }
+        if (isCurrent(capture.generation, capture.owner)) setError(reason instanceof Error ? reason.message : 'Falha ao enviar a amostra');
+      } finally { if (isCurrent(capture.generation, capture.owner)) setPhase('idle'); }
       return;
     }
     const recorder = recorderRef.current;
@@ -91,6 +116,7 @@ export function RememberVoiceprintPanel({ onRelabelChange, refreshToken = 0 }: {
     startedAtRef.current = null;
 
     await stopped;
+    if (!isCurrent(capture.generation, capture.owner)) { cancelCapture(); return; }
 
     if (seconds < MIN_SECONDS) {
       setPhase('idle');
@@ -101,34 +127,44 @@ export function RememberVoiceprintPanel({ onRelabelChange, refreshToken = 0 }: {
     setError(null);
     try {
       const blob = new Blob(chunksRef.current, { type: chunksRef.current[0]?.type || 'audio/webm' });
-      await rememberService.enrollVoiceprint(blob);
+      await rememberService.enrollVoiceprint(blob, capture.owner);
+      if (!isCurrent(capture.generation, capture.owner)) return;
       await loadStatus();
       onRelabelChange?.();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Falha ao enviar a amostra');
+      if (isCurrent(capture.generation, capture.owner)) setError(reason instanceof Error ? reason.message : 'Falha ao enviar a amostra');
     } finally {
-      setPhase('idle');
+      if (isCurrent(capture.generation, capture.owner)) setPhase('idle');
     }
-  }, [loadStatus, onRelabelChange]);
+  }, [loadStatus, onRelabelChange, isCurrent, cancelCapture]);
 
   const start = useCallback(async () => {
     setError(null);
+    const owner = activeBrowserUserId();
+    if (!owner) { setError('Faça login antes de cadastrar sua voz.'); return; }
+    const generation = ++generationRef.current;
+    captureRef.current = { owner, generation };
     if (browserRecording.getState().phase !== 'idle') {
       setError('O Brain Core já está gravando nesta página. Pare e salve a gravação antes de cadastrar sua voz.');
       return;
     }
     if (isNativeAndroidApp() && isNativeBridgeAvailable()) {
+      setPhase('starting');
       try {
         const status = await getNativeStatus();
+        if (!isCurrent(generation, owner)) return;
         if (status.nativeRecordingActive) {
+          setPhase('idle');
           setError('O Brain Core está gravando no aparelho. Pare e salve a gravação antes de cadastrar sua voz.');
           return;
         }
         if (status.microphonePermission === 'denied') {
+          setPhase('idle');
           setError('O Brain Core está sem permissão de microfone no Android. Abra Configurações → Este aparelho para conceder a permissão.');
           return;
         }
         const result = await startNativeVoiceSample();
+        if (!isCurrent(generation, owner)) { void cancelNativeVoiceSample(); return; }
         if (!result.success) throw new Error(result.error || 'Não foi possível iniciar a gravação');
         nativeRecordingRef.current = true;
         startedAtRef.current = Date.now();
@@ -136,6 +172,7 @@ export function RememberVoiceprintPanel({ onRelabelChange, refreshToken = 0 }: {
         setElapsed(0);
         setPhase('recording');
         tickRef.current = window.setInterval(() => {
+          if (!isCurrent(generation, owner)) { cancelCapture(); return; }
           const seconds = Math.min(MAX_SECONDS, Math.floor((Date.now() - (startedAtRef.current ?? Date.now())) / 1000));
           elapsedRef.current = seconds;
           setElapsed(seconds);
@@ -143,6 +180,8 @@ export function RememberVoiceprintPanel({ onRelabelChange, refreshToken = 0 }: {
         }, 1000);
         return;
       } catch (reason) {
+        if (!isCurrent(generation, owner)) return;
+        setPhase('idle');
         setError(reason instanceof Error ? reason.message : 'O gravador do Android não pôde iniciar.');
         return;
       }
@@ -156,9 +195,12 @@ export function RememberVoiceprintPanel({ onRelabelChange, refreshToken = 0 }: {
       return;
     }
     let stream: MediaStream;
+    setPhase('starting');
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (err: unknown) {
+      if (!isCurrent(generation, owner)) return;
+      setPhase('idle');
       const domErr = err as { name?: string; message?: string };
       const name = domErr?.name || '';
       if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
@@ -174,14 +216,16 @@ export function RememberVoiceprintPanel({ onRelabelChange, refreshToken = 0 }: {
       }
       return;
     }
+    if (!isCurrent(generation, owner)) { stream.getTracks().forEach(track => track.stop()); return; }
     chunksRef.current = [];
     let recorder: MediaRecorder;
     try {
       recorder = new MediaRecorder(stream);
-      recorder.ondataavailable = (event) => { if (event.data.size) chunksRef.current.push(event.data); };
+      recorder.ondataavailable = (event) => { if (isCurrent(generation, owner) && event.data.size) chunksRef.current.push(event.data); };
       recorder.start();
     } catch (reason) {
       stream.getTracks().forEach((track) => track.stop());
+      setPhase('idle');
       setError(reason instanceof Error ? reason.message : 'Não foi possível iniciar o microfone.');
       return;
     }
@@ -191,16 +235,20 @@ export function RememberVoiceprintPanel({ onRelabelChange, refreshToken = 0 }: {
     setElapsed(0);
     setPhase('recording');
     tickRef.current = window.setInterval(() => {
+      if (!isCurrent(generation, owner)) { cancelCapture(); return; }
       const seconds = Math.min(MAX_SECONDS, Math.floor((Date.now() - (startedAtRef.current ?? Date.now())) / 1000));
       elapsedRef.current = seconds;
       setElapsed(seconds);
       if (seconds >= MAX_SECONDS) void finish(seconds);
     }, 1000);
-  }, [finish]);
+  }, [finish, isCurrent, cancelCapture]);
 
   const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    const owner = activeBrowserUserId();
+    if (!owner) { setError('Faça login antes de cadastrar sua voz.'); event.target.value = ''; return; }
+    const generation = ++generationRef.current;
     setError(null);
     if (file.size > 25 * 1024 * 1024) {
       setError('O arquivo de áudio deve ter no máximo 25MB.');
@@ -209,16 +257,17 @@ export function RememberVoiceprintPanel({ onRelabelChange, refreshToken = 0 }: {
     }
     setPhase('uploading');
     try {
-      await rememberService.enrollVoiceprint(file);
+      await rememberService.enrollVoiceprint(file, owner);
+      if (!isCurrent(generation, owner)) return;
       await loadStatus();
       onRelabelChange?.();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Falha ao enviar arquivo de áudio');
+      if (isCurrent(generation, owner)) setError(reason instanceof Error ? reason.message : 'Falha ao enviar arquivo de áudio');
     } finally {
-      setPhase('idle');
+      if (isCurrent(generation, owner)) setPhase('idle');
       event.target.value = '';
     }
-  }, [loadStatus, onRelabelChange]);
+  }, [loadStatus, onRelabelChange, isCurrent]);
 
   const remove = useCallback(async () => {
     setError(null);
@@ -301,6 +350,7 @@ export function RememberVoiceprintPanel({ onRelabelChange, refreshToken = 0 }: {
                 Parar e enviar
               </button>
             )}
+            {phase === 'starting' && <span role="status">Aguardando permissão do microfone…</span>}
             {phase === 'uploading' && <span role="status" className="text-sm" style={{ color: 'var(--theme-muted)' }}>Enviando e analisando sua voz no PC… Isso pode levar até 2 minutos.</span>}
             {enrolled && phase === 'idle' && (
               <button type="button" onClick={() => void remove()} className="rounded-2xl border border-white/15 px-5 py-2 text-sm text-gray-300 hover:bg-white/5">

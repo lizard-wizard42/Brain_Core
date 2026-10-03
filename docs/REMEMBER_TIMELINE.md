@@ -63,3 +63,23 @@ through your HTTPS reverse proxy or [Tailscale Serve](ANDROID.md).
 Transcripts may propose speaker labels. Review or correct each segment rather than treating a voice sample as proof of identity. The backend ties mobile devices and sessions to the linked account. The memory service requires a bearer token and scopes history, search, and transcript reads to the account ID supplied by the authenticated backend.
 
 Voice recordings and transcripts can contain sensitive information about other people. Obtain consent before recording, choose a retention period, and protect the device, memory storage, and backups. Do not commit recordings, database files, tokens, voiceprints, or real server addresses to Git.
+
+
+## Account settings and processing limits
+
+Settings offers automatic, scheduled and manual transcription, **run now** and **pause** for the current account. Scheduled windows can be 2, 4, 8 or 12 hours, using UTC or America/Sao_Paulo. CPU and GPU apply the same admission policy and claim jobs atomically. Pause stops new claims; an active transcription can finish. Uploading a recording and allowing transcription are separate actions.
+
+Audio retention supports 30, 90, 180 or 365 days. Automatic deletion is opt-in; manual cleanup previews eligible completed/transcribed chunks. Purging removes raw audio while keeping transcript text and session metadata. It does not remove copies already held in backups. Android also has a device-local retention policy.
+
+Voice enrollment accepts 8–60 seconds and up to 25 MiB. The session-based endpoint shares that byte/sample budget across at most 128 chunks; oversized sessions are rejected, not silently truncated. One enrollment runs per Memory process, off the API event loop.
+
+Participant templates require a manually confirmed, nonoverlapping segment of 3–60 seconds and a locally available embedding model. Participant processing accepts chunks up to 300 seconds of decoded audio and allows one inference operation per process. Oversized or busy requests are refused; existing templates and transcription remain available. Expensive processing happens outside the shared SQLite write lock, with source and manual decision rechecked before saving. Similarity scores are suggestions, not calibrated identity probabilities.
+
+Offline checks with fictional audio:
+
+```bash
+python -m pip install -r services/memory/requirements-test.txt
+CELTWO_MEMORY_EMBEDDER=stub python -m pytest services/memory/tests -q
+```
+
+These tests use temporary databases and generated samples, without a microphone, personal recordings or a downloaded voice model.

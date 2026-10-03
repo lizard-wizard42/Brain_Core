@@ -163,7 +163,7 @@ router.use('/memory/sessions/:sessionId/participants', async (req: AuthRequest, 
 const segmentId = (rawId: string) => { const value = Number(rawId); return Number.isSafeInteger(value) && value > 0 ? value : null; };
 const participantError = (error: unknown, res: import('express').Response) => {
   const status = error instanceof CeltwoUnavailableError ? error.statusCode : undefined;
-  res.status(status === 400 || status === 404 ? status : 503).json({ error: error instanceof Error ? error.message : 'Celtwo offline' });
+  res.status([400, 404, 413, 429].includes(status ?? 0) ? status! : 503).json({ error: error instanceof Error ? error.message : 'Celtwo offline' });
 };
 router.get('/memory/sessions/:sessionId/participants/identities', async (req: AuthRequest, res) => {
   try { res.json(await participants.list(req.userId!)); } catch (error) { participantError(error, res); }

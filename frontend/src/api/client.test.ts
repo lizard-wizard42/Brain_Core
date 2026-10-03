@@ -149,4 +149,15 @@ describe('api client auth/session behavior', () => {
 
     expect(result[0].url).toContain('/uploads/e.png');
   });
+  it('keeps the page revision and HTTP conflict check on keepalive canvas writes', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'canvas-revision', revision: 9 }) } as Response)
+      .mockResolvedValueOnce({ ok: false, status: 409, text: async () => 'conflict' } as Response);
+    await api.getPage('canvas-revision');
+    await expect(api.patchPage('canvas-revision', { content: { tldraw: true, version: 1, data: null } }, { keepalive: true })).rejects.toThrow('API 409');
+    const init = fetchSpy.mock.calls[1][1];
+    expect(init?.keepalive).toBe(true);
+    expect(JSON.parse(String(init?.body)).revision).toBe(9);
+  });
+
 });

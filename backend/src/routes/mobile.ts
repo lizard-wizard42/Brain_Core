@@ -7,6 +7,7 @@ import { createRememberNote } from '../controllers/rememberController';
 import { getAudioRetention, putAudioRetention, previewAudioRetention, cleanAudioRetention } from './audioRetention';
 import { getTranscriptionPolicy, putTranscriptionPolicy, runTranscriptionNow, pauseTranscription } from './transcriptionPolicy';
 import { participants } from '../remember/service';
+import { CeltwoUnavailableError } from '../remember/celtwoClient';
 
 const router = Router();
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -300,11 +301,20 @@ const validSegmentId = (raw: string): number | null => {
   return Number.isSafeInteger(id) && id > 0 ? id : null;
 };
 
+function participantFailure(error: unknown, res: Response): void {
+  if (error instanceof CeltwoUnavailableError && [400, 404, 413, 429].includes(error.statusCode ?? 0)) {
+    if (error.statusCode === 429) res.setHeader('Retry-After', '1');
+    res.status(error.statusCode!).json({ error: error.message });
+    return;
+  }
+  unavailable(res);
+}
+
 router.get('/sessions/:sessionId/participants/identities', authenticateDevice, async (req: DeviceRequest, res: Response) => {
   try {
     if (!await ownedParticipantSession(req, res)) return;
     res.json({ identities: await participants.list(req.mobileUserId!) });
-  } catch { unavailable(res); }
+  } catch (error) { participantFailure(error, res); }
 });
 
 router.get('/sessions/:sessionId/participants/segments/:segmentId', authenticateDevice, async (req: DeviceRequest, res: Response) => {
@@ -316,7 +326,7 @@ router.get('/sessions/:sessionId/participants/segments/:segmentId', authenticate
       decision: await participants.decision(req.mobileUserId!, String(req.params.sessionId), id),
       suggestions: await participants.suggestions(req.mobileUserId!, String(req.params.sessionId), id),
     });
-  } catch { unavailable(res); }
+  } catch (error) { participantFailure(error, res); }
 });
 
 router.post('/sessions/:sessionId/participants/segments/:segmentId/decision', authenticateDevice, async (req: DeviceRequest, res: Response) => {
@@ -331,7 +341,7 @@ router.post('/sessions/:sessionId/participants/segments/:segmentId/decision', au
   try {
     if (!await ownedParticipantSession(req, res)) return;
     res.json(await participants.decide(req.mobileUserId!, String(req.params.sessionId), id, action, identityId));
-  } catch { unavailable(res); }
+  } catch (error) { participantFailure(error, res); }
 });
 
 export default router;

@@ -34,10 +34,10 @@ describe('rememberService', () => {
     vi.mocked(apiRequest).mockResolvedValue({ enrolled: false });
     await rememberService.getVoiceprint();
     await rememberService.deleteVoiceprint();
-    await rememberService.enrollVoiceprint(new Blob(['x'], { type: 'audio/webm' }));
+    await rememberService.enrollVoiceprint(new Blob(['x'], { type: 'audio/webm' }), 'synthetic-owner');
     expect(apiRequest).toHaveBeenNthCalledWith(1, '/api/remember/memory/voiceprint');
     expect(apiRequest).toHaveBeenNthCalledWith(2, '/api/remember/memory/voiceprint', { method: 'DELETE' });
-    expect(vi.mocked(apiRequest).mock.calls[2][0]).toBe('/api/remember/memory/voiceprint');
+    expect(vi.mocked(apiRequest).mock.calls[2][0]).toBe('/api/remember/memory/voiceprint?owner_user_id=synthetic-owner');
     expect(vi.mocked(apiRequest).mock.calls[2][1]).toMatchObject({ method: 'POST', headers: { 'Content-Type': 'audio/webm' } });
   });
 });

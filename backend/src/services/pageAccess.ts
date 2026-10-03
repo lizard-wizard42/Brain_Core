@@ -1,6 +1,7 @@
 import { PoolClient } from 'pg';
 import { pool, query } from '../config/database';
 import { createHash } from 'crypto';
+import { config } from '../config';
 
 export type PageRole = 'owner' | 'editor' | 'viewer';
 export const pageAccessSql = `p.owner_user_id = $2 OR EXISTS (
@@ -19,6 +20,27 @@ export function canEdit(role: PageRole | null): boolean { return role === 'owner
 
 export class PageConflict extends Error { constructor() { super('Page revision conflict'); } }
 export class PageMissing extends Error { constructor() { super('Page not found'); } }
+
+async function trimPageVersions(client: PoolClient, pageId: string): Promise<void> {
+  const requested = config.PAGE_VERSION_RETENTION;
+  const limit = Number.isFinite(requested) ? Math.max(1, Math.min(1000, Math.trunc(requested))) : 100;
+  await client.query(`DELETE FROM page_versions WHERE page_id = $1 AND id NOT IN (
+    SELECT id FROM page_versions WHERE page_id = $1
+    ORDER BY page_revision DESC NULLS LAST, created_at DESC, id DESC LIMIT $2
+  )`, [pageId, limit]);
+}
+
+function uploadReferences(content: unknown): Set<string> {
+  const refs = new Set<string>();
+  const pending = [content];
+  while (pending.length) {
+    const value = pending.pop();
+    if (typeof value === 'string' && value.startsWith('/uploads/')) refs.add(value);
+    else if (Array.isArray(value)) pending.push(...value);
+    else if (value && typeof value === 'object') pending.push(...Object.values(value));
+  }
+  return refs;
+}
 
 // A moved page must disappear from its former parent's body. Keep explicit @ links.
 export function removeMovedChildCard(content: unknown, movedPageId: string): unknown | null {
@@ -67,6 +89,21 @@ export async function savePageRevision(pageId: string, userId: string, revision:
     if (role !== 'owner' && Object.keys(changes).some(key => !['title', 'content'].includes(key))) {
       throw new PageMissing();
     }
+    if (role === 'editor' && Object.prototype.hasOwnProperty.call(changes, 'content')) {
+      const existing = uploadReferences(current.content);
+      for (const reference of uploadReferences(changes.content)) {
+        if (existing.has(reference)) continue;
+        // The current page is still locked at its old content. An editor must
+        // already have access; the proposed content cannot grant that access.
+        const accessible = await client.query(`SELECT a.relative_path FROM uploaded_assets a
+          WHERE a.relative_path = $1 AND (a.owner_user_id = $2 OR EXISTS (
+            SELECT 1 FROM pages p JOIN page_grants g ON g.page_id = p.id AND g.user_id = $2
+            WHERE p.deleted_at IS NULL AND p.owner_user_id = a.owner_user_id
+              AND (p.cover_url = $3 OR position($4 IN p.content::text) > 0)
+          ))`, [reference.slice('/uploads/'.length), userId, reference, JSON.stringify(reference)]);
+        if (!accessible.rows.length) throw new PageMissing();
+      }
+    }
     const entries = Object.entries(changes).filter(([key]) => allowed.includes(key));
     if (!entries.length) { if (!transaction) await client.query('COMMIT'); return current; }
     const fields = entries.map(([key], index) => `${key} = $${index + 1}`);
@@ -80,6 +117,7 @@ export async function savePageRevision(pageId: string, userId: string, revision:
       JSON.stringify(updated.content), reason,
       createHash('sha256').update(JSON.stringify([updated.title, updated.content])).digest('hex'),
       userId, updated.revision]);
+    await trimPageVersions(client, pageId);
     if (Object.prototype.hasOwnProperty.call(changes, 'parent_page_id') &&
         current.parent_page_id && current.parent_page_id !== changes.parent_page_id) {
       const oldParent = (await client.query<Record<string, unknown>>(
@@ -96,6 +134,7 @@ export async function savePageRevision(pageId: string, userId: string, revision:
           JSON.stringify(parentUpdated.content), 'child-page-moved',
           createHash('sha256').update(JSON.stringify([parentUpdated.title, parentUpdated.content])).digest('hex'),
           userId, parentUpdated.revision]);
+        await trimPageVersions(client, String(oldParent.id));
       }
     }
     if (!transaction) await client.query('COMMIT');

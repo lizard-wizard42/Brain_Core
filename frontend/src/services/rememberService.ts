@@ -28,8 +28,8 @@ export const rememberService = {
     return apiRequest<RememberSearchResponse>(`${ROOT}/search?${query}`);
   },
   getVoiceprint: async () => apiRequest<RememberVoiceprint>(`${ROOT}/voiceprint`),
-  enrollVoiceprint: async (audio: Blob) =>
-    apiRequest<{ enrolled: boolean; sample_seconds: number | null; model: string | null }>(`${ROOT}/voiceprint`, {
+  enrollVoiceprint: async (audio: Blob, ownerUserId: string) =>
+    apiRequest<{ enrolled: boolean; sample_seconds: number | null; model: string | null }>(`${ROOT}/voiceprint?owner_user_id=${encodeURIComponent(ownerUserId)}`, {
       method: 'POST',
       body: audio,
       headers: { 'Content-Type': audio.type || 'audio/webm' },

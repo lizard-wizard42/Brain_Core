@@ -1,8 +1,7 @@
 # Instalação Docker local
 
 Esta composição cria uma instância pessoal, com PostgreSQL e uploads em volumes
-Docker locais. Nada é enviado para serviços externos; terminal e integrações de
-memória remota começam desativados.
+Docker locais. A configuração padrão não habilita envio de notas a serviços externos; terminal e Memory começam desativados. OpenAI, Telegram, imagens externas e o cliente de IA escolhido mudam os destinos dos dados quando utilizados.
 
 ## Primeiro uso
 
@@ -64,3 +63,10 @@ docker compose --env-file .env.docker up --build -d
 docker compose --env-file .env.docker logs --tail=100 backend
 curl -fsS http://localhost:8080/api/health
 ```
+
+
+## MCP no computador do Docker
+
+O cliente MCP inicia o adaptador no **host**, a partir de um checkout com `npm ci --prefix mcp`. A imagem do backend não contém um adaptador para ser iniciado pelo cliente externo. Nas Configurações, informe o caminho absoluto do host para `mcp/src/server.mjs` e `BRAIN_CORE_URL=http://127.0.0.1:8080` (ou a porta HTTP publicada pelo operador). O Compose fornece esse endereço como metadado `MCP_BACKEND_URL` (ajuste-o no `.env.docker` se usar uma porta web diferente por override); não publique outra porta. Salve a credencial em arquivo privado do host com modo 0600 e pasta 0700. Veja [o guia MCP](NOTES_MCP.md).
+
+Uma conta proprietária e contas de membros compartilham a instância, com autorização por conta e compartilhamento explícito. MCP começa desligado para novas contas; cada pessoa controla suas próprias credenciais.

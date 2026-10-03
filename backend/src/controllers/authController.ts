@@ -1,4 +1,6 @@
 import { Request, Response } from 'express';
+import type { PoolClient } from 'pg';
+import { disconnectAccountSockets } from '../services/socketService';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
@@ -268,38 +270,27 @@ async function consumeTrustedDevice(req: Request, userId: string): Promise<{ coo
   return { cookieValue: `${device.selector}.${nextVerifier}` };
 }
 
-async function registerFailedAccountAttempt(user: UserRow): Promise<{ lockedUntil: string | null }> {
-  const timestamp = new Date();
-  const windowStartedAt = user.failed_login_window_started_at ? new Date(user.failed_login_window_started_at) : null;
-  const insideWindow = !!windowStartedAt && (timestamp.getTime() - windowStartedAt.getTime()) <= config.LOGIN_ACCOUNT_WINDOW_MS;
-  const nextAttempts = insideWindow ? user.failed_login_attempts + 1 : 1;
-  const nextWindowStartedAt = insideWindow ? windowStartedAt : timestamp;
-  const lockedUntil = nextAttempts >= config.LOGIN_ACCOUNT_MAX_ATTEMPTS
-    ? new Date(timestamp.getTime() + config.LOGIN_LOCK_MS)
-    : null;
-
-  await query(
-    `UPDATE users
-     SET failed_login_attempts = $1,
-         failed_login_window_started_at = $2,
-         login_locked_until = $3
-     WHERE id = $4`,
-    [nextAttempts, nextWindowStartedAt?.toISOString() ?? null, lockedUntil?.toISOString() ?? null, user.id]
-  );
-
-  return { lockedUntil: lockedUntil?.toISOString() ?? null };
+async function registerFailedAccountAttempt(user: UserRow, client?: PoolClient): Promise<{ lockedUntil: string | null }> {
+  const increment = `CASE WHEN failed_login_window_started_at >= NOW() - $2 * INTERVAL '1 millisecond'
+    THEN failed_login_attempts + 1 ELSE 1 END`;
+  const sql = `UPDATE users SET failed_login_attempts = ${increment},
+    failed_login_window_started_at = CASE WHEN failed_login_window_started_at >= NOW() - $2 * INTERVAL '1 millisecond'
+      THEN failed_login_window_started_at ELSE NOW() END,
+    login_locked_until = CASE WHEN login_locked_until > NOW() THEN login_locked_until
+      WHEN (${increment}) >= $3 THEN NOW() + $4 * INTERVAL '1 millisecond' ELSE NULL END
+    WHERE id = $1 RETURNING login_locked_until`;
+  const params = [user.id, config.LOGIN_ACCOUNT_WINDOW_MS, config.LOGIN_ACCOUNT_MAX_ATTEMPTS, config.LOGIN_LOCK_MS];
+  const rows = client ? (await client.query<{ login_locked_until: string | null }>(sql, params)).rows
+    : await query<{ login_locked_until: string | null }>(sql, params);
+  return { lockedUntil: rows[0]?.login_locked_until ?? null };
 }
 
-async function clearFailedAccountAttempts(userId: string): Promise<void> {
-  await query(
-    `UPDATE users
-     SET failed_login_attempts = 0,
-         failed_login_window_started_at = NULL,
-         login_locked_until = NULL,
-         last_login_at = NOW()
-     WHERE id = $1`,
-    [userId]
-  );
+async function clearFailedAccountAttempts(userId: string, client?: PoolClient): Promise<void> {
+  const sql = `UPDATE users SET failed_login_attempts = 0,
+    failed_login_window_started_at = NULL, login_locked_until = NULL, last_login_at = NOW()
+    WHERE id = $1`;
+  if (client) await client.query(sql, [userId]);
+  else await query(sql, [userId]);
 }
 
 async function loadLoginUserByEmail(email: string): Promise<UserRow | null> {
@@ -315,17 +306,13 @@ async function loadLoginUserByEmail(email: string): Promise<UserRow | null> {
   return rows[0] ?? null;
 }
 
-async function loadUserById(userId: string): Promise<UserRow | null> {
-  const rows = await query<UserRow>(
-    `SELECT id, email, password_hash, name,
-            failed_login_attempts, failed_login_window_started_at, login_locked_until, session_version,
-            two_factor_enabled, two_factor_secret, two_factor_pending_secret,
-            telegram_chat_id, telegram_notifications_enabled
-     FROM users
-     WHERE id = $1`,
-    [userId]
-  );
-
+async function loadUserById(userId: string, client?: PoolClient): Promise<UserRow | null> {
+  const sql = `SELECT id, email, password_hash, name,
+    failed_login_attempts, failed_login_window_started_at, login_locked_until, session_version,
+    two_factor_enabled, two_factor_secret, two_factor_pending_secret,
+    telegram_chat_id, telegram_notifications_enabled FROM users WHERE id = $1`;
+  const rows = client ? (await client.query<UserRow>(`${sql} FOR UPDATE`, [userId])).rows
+    : await query<UserRow>(sql, [userId]);
   return rows[0] ?? null;
 }
 
@@ -506,16 +493,31 @@ export async function verifyLoginTwoFactor(req: Request, res: Response): Promise
     return;
   }
 
+  let client: PoolClient | undefined;
+  let inTransaction = false;
   try {
-    const user = await loadUserById(pending.sub);
+    client = await pool.connect();
+    await client.query('BEGIN');
+    inTransaction = true;
+    const user = await loadUserById(pending.sub, client);
     if (!user || user.session_version !== pending.sv || !user.two_factor_enabled || !user.two_factor_secret) {
       res.status(401).json({ error: 'Sessão de login 2FA expirada. Faça login novamente.' });
       return;
     }
 
+    const lockedUntil = user.login_locked_until ? new Date(user.login_locked_until).getTime() : 0;
+    if (lockedUntil > Date.now()) {
+      const retryAfterSeconds = Math.max(1, Math.ceil((lockedUntil - Date.now()) / 1000));
+      res.setHeader('Retry-After', String(retryAfterSeconds));
+      res.status(429).json({ error: 'Conta temporariamente bloqueada por excesso de tentativas. Aguarde antes de tentar novamente.', retryAfterSeconds });
+      return;
+    }
+
     if (!verifyTotp(user.two_factor_secret, code)) {
       registerFailedIpLoginAttempt(req);
-      const failedState = await registerFailedAccountAttempt(user);
+      const failedState = await registerFailedAccountAttempt(user, client);
+      await client.query('COMMIT');
+      inTransaction = false;
       await delayFailedLoginResponse();
       if (failedState.lockedUntil) {
         const retryAfterSeconds = Math.max(1, Math.ceil((new Date(failedState.lockedUntil).getTime() - Date.now()) / 1000));
@@ -530,7 +532,9 @@ export async function verifyLoginTwoFactor(req: Request, res: Response): Promise
       return;
     }
 
-    await clearFailedAccountAttempts(user.id);
+    await clearFailedAccountAttempts(user.id, client);
+    await client.query('COMMIT');
+    inTransaction = false;
     clearFailedIpLoginAttempts(req);
 
     const token = buildAccessToken(user.id, user.email, user.session_version);
@@ -547,6 +551,9 @@ export async function verifyLoginTwoFactor(req: Request, res: Response): Promise
     });
   } catch {
     res.status(500).json({ error: 'Erro interno' });
+  } finally {
+    if (inTransaction) await client?.query('ROLLBACK').catch(() => undefined);
+    client?.release();
   }
 }
 
@@ -562,6 +569,7 @@ export async function logout(req: AuthRequest, res: Response): Promise<void> {
        WHERE id = $1`,
       [req.userId]
     );
+    disconnectAccountSockets(req.userId);
     res.setHeader('Set-Cookie', clearAuthCookie(req));
     res.json({ ok: true });
   } catch {
@@ -619,6 +627,7 @@ export async function changePassword(req: AuthRequest, res: Response): Promise<v
        WHERE id = $3`,
       [newHash, nextSessionVersion, req.userId]
     );
+    disconnectAccountSockets(req.userId);
     await clearTrustedDevicesForUser(req.userId);
 
     const token = buildAccessToken(req.userId, user.email, nextSessionVersion);
@@ -730,6 +739,7 @@ export async function confirmTwoFactorSetup(req: AuthRequest, res: Response): Pr
        WHERE id = $2`,
       [nextSessionVersion, req.userId]
     );
+    disconnectAccountSockets(req.userId);
     await clearTrustedDevicesForUser(req.userId);
 
     const token = buildAccessToken(req.userId, user.email, nextSessionVersion);
@@ -783,6 +793,7 @@ export async function disableTwoFactor(req: AuthRequest, res: Response): Promise
        WHERE id = $2`,
       [nextSessionVersion, req.userId]
     );
+    disconnectAccountSockets(req.userId);
     await clearTrustedDevicesForUser(req.userId);
 
     const token = buildAccessToken(req.userId, user.email, nextSessionVersion);

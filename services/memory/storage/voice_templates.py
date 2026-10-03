@@ -2,6 +2,8 @@
 
 import os
 import uuid
+import threading
+from functools import wraps
 
 import numpy as np
 
@@ -13,6 +15,25 @@ _SR = 16000
 _MIN_SECONDS = 3.0
 _MIN_RMS = 0.01
 _MAX_CLIPPED = 0.01
+_MAX_CHUNK_SECONDS = 300
+_MAX_SEGMENT_SECONDS = 60
+_processing = threading.Lock()
+
+
+class ParticipantProcessingBusy(ValueError):
+    pass
+
+
+def _bounded_processing(fn):
+    @wraps(fn)
+    def run(*args, **kwargs):
+        if not _processing.acquire(blocking=False):
+            raise ParticipantProcessingBusy("participant voice processing is busy")
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            _processing.release()
+    return run
 
 
 def _local_embedder():
@@ -64,7 +85,9 @@ def _embedding(row, embedder):
     start, end = row["start_ms"], row["end_ms"]
     if start < 0 or (end - start) < _MIN_SECONDS * 1000:
         raise ValueError("segment is too short")
-    pcm = decode_pcm_16k_mono(row["path"])
+    if end - start > _MAX_SEGMENT_SECONDS * 1000:
+        raise ValueError("segment exceeds 60 seconds")
+    pcm = decode_pcm_16k_mono(row["path"], max_samples=_MAX_CHUNK_SECONDS * _SR)
     if end > pcm.size * 1000 / _SR:
         raise ValueError("segment extends beyond audio")
     clip = pcm[round(start * _SR / 1000):round(end * _SR / 1000)]
@@ -79,12 +102,12 @@ def _embedding(row, embedder):
     return vec / norm
 
 
+@_bounded_processing
 def create_template(owner: str, segment_id: int, embedder=None) -> dict:
     if not owner:
         raise ValueError("owner_user_id is required")
     conn = get_connection()
     try:
-        conn.execute("BEGIN IMMEDIATE")
         row, decision = _source(conn, owner, segment_id, True)
         existing = conn.execute(
             "SELECT id, model FROM voice_templates WHERE owner_user_id=? "
@@ -94,6 +117,14 @@ def create_template(owner: str, segment_id: int, embedder=None) -> dict:
             raise ValueError("segment already has a template; delete it before re-extraction")
         encoder = embedder or _local_embedder()
         vector = _embedding(row, encoder)
+        # Expensive decoding/inference never holds the shared SQLite writer lock.
+        conn.execute("BEGIN IMMEDIATE")
+        current_row, current_decision = _source(conn, owner, segment_id, True)
+        if dict(current_row) != dict(row) or dict(current_decision) != dict(decision):
+            raise ValueError("segment or manual confirmation changed during processing")
+        if conn.execute("SELECT 1 FROM voice_templates WHERE owner_user_id=? "
+                        "AND source_segment_id=? AND deleted_at IS NULL", (owner, segment_id)).fetchone():
+            raise ValueError("segment already has a template; delete it before re-extraction")
         template_id = str(uuid.uuid4())
         conn.execute(
             "INSERT INTO voice_templates (id, owner_user_id, identity_id, embedding, model, dim, "
@@ -123,6 +154,7 @@ def delete_template(owner: str, template_id: str) -> bool:
         conn.close()
 
 
+@_bounded_processing
 def suggest_segment(owner: str, segment_id: int, embedder=None, limit: int = 3) -> list[dict]:
     if not owner:
         raise ValueError("owner_user_id is required")

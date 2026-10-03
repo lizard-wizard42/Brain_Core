@@ -17,6 +17,7 @@ export async function ensureAppSchema(): Promise<void> {
   `);
 
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'member'`);
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_reminder_attempted_at TIMESTAMPTZ`);
 
   await query(`
     CREATE TABLE IF NOT EXISTS pages (

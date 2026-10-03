@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 from services.memory.api.chunks import require_token
 from services.memory.storage import database, identities, voice_templates
+from services.memory.worker.diarizer import AudioSampleLimitExceeded
 
 router = APIRouter(prefix="/participants")
 
@@ -21,6 +22,10 @@ class DecisionInput(BaseModel):
 def _call(fn, *args):
     try:
         return fn(*args)
+    except voice_templates.ParticipantProcessingBusy as exc:
+        raise HTTPException(status_code=429, detail=str(exc), headers={"Retry-After": "1"}) from exc
+    except AudioSampleLimitExceeded as exc:
+        raise HTTPException(status_code=413, detail="participant audio exceeds 300 seconds") from exc
     except ValueError as exc:
         message = str(exc)
         raise HTTPException(status_code=404 if "not found" in message else 400, detail=message) from exc

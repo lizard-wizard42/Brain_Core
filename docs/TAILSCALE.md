@@ -18,6 +18,7 @@ PORT=3001
 FRONTEND_STATIC_DIR=/caminho/absoluto/para/brain-core/frontend/dist-same-origin
 CORS_ORIGIN=https://NOME-DO-PC.NOME-DA-TAILNET.ts.net
 TRUSTED_PROXIES=127.0.0.1
+AUTH_COOKIE_SECURE=true
 ```
 `TRUSTED_PROXIES` deve listar o proxy que fica na frente do backend (o Serve conecta por loopback); sem isso o IP do cliente e o HTTPS não são reconhecidos corretamente.
 
@@ -33,7 +34,7 @@ Se houver outros dispositivos na tailnet, restrinja com [grants](https://tailsca
 | Checagem | Esperado |
 | --- | --- |
 | `https://<host>/api/health` pelo celular | `200` |
-| Login | Cookie de sessão HttpOnly; nenhuma senha ou token no app |
+| Login | Cookie de sessão HttpOnly/Secure no WebView; credencial de dispositivo criptografada pelo Android Keystore para sincronização |
 | Páginas, canvas e anexos | Abrem, salvam e exibem no WebView |
 | Tailscale desligado no celular | O app informa indisponibilidade e a captura nativa continua offline |
 

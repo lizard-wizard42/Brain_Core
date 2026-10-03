@@ -1,12 +1,13 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Page } from '../../types';
 
+const state = vi.hoisted(() => ({ changed: undefined as undefined | (() => void) }));
 vi.mock('tldraw', () => ({
   Tldraw: () => <div data-testid="tldraw" />,
-  createTLStore: () => ({ clear: vi.fn(), listen: () => () => undefined }),
+  createTLStore: () => ({ clear: vi.fn(), listen: (fn: () => void) => { state.changed = fn; return () => undefined; } }),
   defaultShapeUtils: [],
-  throttle: (fn: () => void) => fn,
+  throttle: () => () => undefined,
   getSnapshot: () => ({}),
   loadSnapshot: vi.fn(),
 }));
@@ -14,6 +15,7 @@ vi.mock('tldraw/tldraw.css', () => ({}));
 vi.mock('../../api/client', () => ({ api: { patchPage: vi.fn().mockResolvedValue({}) } }));
 
 import { InfiniteRenderer } from './InfiniteRenderer';
+import { api } from '../../api/client';
 
 const page = {
   id: 'p1',
@@ -44,4 +46,19 @@ describe('InfiniteRenderer status pill', () => {
     expect(status.getAttribute('style')).toContain('var(--theme-card)');
     expect(status.getAttribute('style')).toContain('var(--theme-text)');
   });
+});
+
+
+it('flushes a change during debounce with revision-aware keepalive and retains failed work', async () => {
+  vi.mocked(api.patchPage).mockClear();
+  vi.mocked(api.patchPage).mockRejectedValueOnce(new Error('API 409: conflict'));
+  render(<InfiniteRenderer page={page} />);
+  await screen.findByRole('status');
+  act(() => { state.changed?.(); window.dispatchEvent(new Event('pagehide')); });
+  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Erro ao salvar'));
+  expect(api.patchPage).toHaveBeenLastCalledWith('p1', expect.objectContaining({ content: expect.any(Object) }), { keepalive: true });
+  vi.mocked(api.patchPage).mockResolvedValueOnce(page);
+  act(() => window.dispatchEvent(new Event('pagehide')));
+  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Salvo'));
+  expect(api.patchPage).toHaveBeenCalledTimes(2);
 });

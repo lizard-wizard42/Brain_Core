@@ -3,6 +3,7 @@ import os
 import time
 
 from services.memory.storage import database
+from services.memory.api.transcription_policy import claim_allowed_owners
 from services.memory.storage.database import init_db
 from services.memory.worker.diarizer import label_chunk
 from services.memory.worker.transcriber import transcribe_chunk
@@ -13,11 +14,10 @@ RELABEL_MAX_ATTEMPTS = int(os.environ.get("CELTWO_MEMORY_RELABEL_MAX_ATTEMPTS", 
 
 
 def process_one_job() -> bool:
-    job = database.next_pending_job()
+    job = database.claim_next_job("cpu", claim_allowed_owners())
     if job is None:
         return False
 
-    database.mark_job_processing(job["id"])
     try:
         chunk = database.get_chunk(job["session_id"], job["chunk_num"])
         segments = transcribe_chunk(chunk["path"])

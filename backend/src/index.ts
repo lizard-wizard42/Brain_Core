@@ -26,6 +26,7 @@ import agentRouter from './routes/agent';
 import integrationsRouter from './routes/integrations';
 import { AuthRequest, authMiddleware } from './middleware/auth';
 import { perUserRateLimit } from './middleware/rateLimit';
+import { uploadRateLimit } from './middleware/uploadAdmission';
 import { apiSecurityHeaders, hstsWhenSecure } from './middleware/securityHeaders';
 import { createApiRateLimit } from './middleware/apiRateLimit';
 import { slowRequestLogger } from './middleware/slowRequestLogger';
@@ -162,7 +163,6 @@ app.use('/api/remember', authMiddleware, rememberRouter);
 app.use('/api/ai', authMiddleware, perUserRateLimit({ burst: 5, ratePerMin: 10 }), aiRouter);
 
 // Uploads touch disk + CPU. The store also has a global capacity cap.
-const uploadRateLimit = perUserRateLimit({ burst: 3, ratePerMin: 6 });
 
 // Upload de imagem inline — retorna { url: '/uploads/filename.ext' }
 app.post('/api/upload/image', authMiddleware, uploadRateLimit, ensureUploadStorageCapacity, uploadImage.single('image'), validateUploadedFileContent, async (req, res) => {
