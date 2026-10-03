@@ -46,7 +46,7 @@ android/local.properties
 *.pem
 __pycache__/
 .pytest_cache/
-.venv/
+.venv
 
 # OS Files
 .DS_Store

@@ -10,7 +10,7 @@ Environment=CELTWO_GPU_WHISPER_MODEL=medium
 Environment=CELTWO_GPU_WHISPER_DEVICE=cuda
 Environment=CELTWO_GPU_WHISPER_COMPUTE_TYPE=int8_float16
 Environment=CELTWO_GPU_DENOISE=0
-ExecStart=%h/.local/share/brain-core-gpu/venv/bin/python %h/apps/brain-core/services/gpu-worker/gpu_worker.py --loop --poll 5
+ExecStart=%h/apps/brain-core/services/gpu-worker/.venv/bin/python %h/apps/brain-core/services/gpu-worker/gpu_worker.py --loop --poll 5
 Restart=on-failure
 RestartSec=15
 NoNewPrivileges=true
