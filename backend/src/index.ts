@@ -23,6 +23,7 @@ import aiRouter from './routes/ai';
 import mobileRouter from './routes/mobile';
 import contactsRouter from './routes/contacts';
 import agentRouter from './routes/agent';
+import integrationsRouter from './routes/integrations';
 import { AuthRequest, authMiddleware } from './middleware/auth';
 import { perUserRateLimit } from './middleware/rateLimit';
 import { apiSecurityHeaders, hstsWhenSecure } from './middleware/securityHeaders';
@@ -149,6 +150,7 @@ app.use('/uploads', authMiddleware, requireUploadedAssetOwner, (req, res, next) 
 app.use('/api/auth', authRouter);
 app.use('/api/mobile', mobileRouter);
 app.use('/api/agent', agentRouter);
+app.use('/api/integrations', authMiddleware, integrationsRouter);
 app.use('/api/contacts', authMiddleware, contactsRouter);
 app.use('/api/terminal', authMiddleware, ownerOnly);
 app.use('/api/folders', authMiddleware, foldersRouter);

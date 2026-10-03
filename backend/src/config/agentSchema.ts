@@ -12,6 +12,14 @@ export async function ensureAgentSchema(): Promise<void> {
     revoked_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`);
+  await query(`CREATE TABLE IF NOT EXISTS integration_settings (
+    user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+  // Preserve existing installations; new accounts must explicitly enable MCP.
+  await query(`INSERT INTO integration_settings (user_id, enabled)
+    SELECT DISTINCT user_id, TRUE FROM integration_tokens ON CONFLICT DO NOTHING`);
   await query(`CREATE TABLE IF NOT EXISTS integration_operations (
     token_id UUID NOT NULL REFERENCES integration_tokens(id) ON DELETE CASCADE,
     operation_id UUID NOT NULL,

@@ -22,6 +22,9 @@ vi.mock('qrcode', () => ({
 }));
 
 vi.mock('../api/client', () => ({
+  mcpApi: {
+    get: vi.fn().mockResolvedValue({ enabled: false, tokens: [], audit: [] }),
+  },
   api: {
     getMe: vi.fn(),
     logout: vi.fn(),
