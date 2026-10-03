@@ -23,7 +23,8 @@ reverse proxy or Tailscale Serve and do not publish the Memory API port.
 All Memory and GPU source code lives in this repository. Generic user-systemd
 templates are in `deploy/systemd/`; adjust their installation and interpreter
 paths locally. Install the Memory requirements in `services/memory/.venv` and
-prepare the GPU environment as described in the GPU worker guide. GPU library
+prepare the GPU environment in `services/gpu-worker/.venv` as described in
+the GPU worker guide. GPU library
 paths depend on the local environment and belong in a private service override.
 
 Keep the host API configuration in ignored `private-data/memory.env`, readable
@@ -42,3 +43,11 @@ transcript text. Unowned historical sessions require an explicit ownership
 review rather than assigning all recordings to an arbitrary account. Keep the
 previous code and database backup together for rollback. Never run two APIs or
 two GPU workers against the same installation while switching.
+
+When relocating existing audio, update both `chunks.path` and
+`chunks.denoised_path` to the new location and verify each stored file hash.
+Relative paths are resolved against the service working directory, so changing
+that directory without moving the files can break audio access even when
+transcript reads still work. Use an absolute private data directory in the
+service configuration. Recreate or validate relocated Python environments;
+console-script shebangs and GPU library paths can retain their old location.
