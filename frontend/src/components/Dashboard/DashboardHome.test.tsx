@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DashboardHome } from './DashboardHome';
 import { api } from '../../api/client';
@@ -34,7 +34,7 @@ describe('DashboardHome', () => {
     render(<DashboardHome onOpenPage={vi.fn()} />);
 
     await waitFor(() => expect(rememberService.getDay).toHaveBeenCalledTimes(2));
-    expect(screen.getByText('Nenhuma gravação ainda.')).toBeInTheDocument();
+    expect(await screen.findByText('Nenhuma gravação ainda.')).toBeInTheDocument();
     expect(screen.queryByText('Gravação de ontem')).not.toBeInTheDocument();
   });
 
@@ -68,5 +68,60 @@ describe('DashboardHome', () => {
     expect(screen.getByRole('img', { name: 'Transcrição pronta' })).toBeInTheDocument();
     expect(screen.getByText('Gravações hoje')).toBeInTheDocument();
     expect(screen.queryByText(/\.md$/)).not.toBeInTheDocument();
+  });
+});
+
+
+describe('dashboard loading and recovery', () => {
+  it('does not claim there are no recordings or pages while requests are pending', async () => {
+    vi.mocked(rememberService.getDay).mockImplementation(() => new Promise(() => {}));
+    vi.mocked(api.getTree).mockImplementation(() => new Promise(() => {}));
+    await act(async () => { render(<DashboardHome onOpenPage={vi.fn()} />); });
+    expect(screen.getByText('Carregando memórias…')).toBeInTheDocument();
+    expect(screen.queryByText('Nenhuma gravação ainda.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Nenhuma página editada recentemente.')).not.toBeInTheDocument();
+  });
+
+  it('shows a recording load failure and recovers through a dedicated retry', async () => {
+    vi.mocked(rememberService.getDay).mockRejectedValue(new Error('Synthetic network failure'));
+    render(<DashboardHome onOpenPage={vi.fn()} />);
+    expect(await screen.findByText('Não foi possível carregar as gravações de hoje.')).toBeInTheDocument();
+    expect(screen.queryByText('Nenhuma gravação ainda.')).not.toBeInTheDocument();
+    expect(screen.getByText('Gravações indisponíveis')).toBeInTheDocument();
+    vi.mocked(rememberService.getDay).mockImplementation(async date => ({ date, sessions: [], total_seconds: 0, session_count: 0 }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar carregar gravações novamente' }));
+    expect(await screen.findByText('Nenhuma gravação ainda.')).toBeInTheDocument();
+    expect(screen.queryByText('Gravações indisponíveis')).not.toBeInTheDocument();
+    expect(api.getTree).toHaveBeenCalledTimes(1);
+  });
+
+  it('recovers a page error and lets the user continue on the most recently edited page', async () => {
+    vi.mocked(rememberService.getDay).mockImplementation(async date => ({ date, sessions: [], total_seconds: 0, session_count: 0 }));
+    vi.mocked(api.getTree).mockRejectedValueOnce(new Error('Synthetic network failure'));
+    const onOpenPage = vi.fn();
+    render(<DashboardHome onOpenPage={onOpenPage} />);
+    expect(await screen.findByText('Não foi possível carregar as páginas recentes.')).toBeInTheDocument();
+    expect(screen.queryByText('Nenhuma página editada recentemente.')).not.toBeInTheDocument();
+    const newest = { id: 'recent', title: 'Página recente', updated_at: new Date().toISOString() };
+    vi.mocked(api.getTree).mockResolvedValueOnce({ pages: [{ id: 'old', title: 'Antiga', updated_at: '2020-01-01T00:00:00Z' }, newest] } as never);
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar carregar páginas novamente' }));
+    const resume = await screen.findByRole('button', { name: /Continue daqui/ });
+    expect(resume).toHaveTextContent('Página recente');
+    fireEvent.click(resume);
+    expect(onOpenPage).toHaveBeenCalledWith(newest);
+    expect(rememberService.getDay).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(['', 'Trecho parcial'])('shows a failed transcription as an error, including with text %s', async text => {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+    const started_at = new Date(`${today}T12:00:00-03:00`).toISOString();
+    vi.mocked(rememberService.getDay).mockImplementation(async date => ({
+      date, total_seconds: 0, session_count: 1,
+      sessions: [{ id: 'failed', started_at, ended_at: started_at, device_id: null, status: 'error', text }],
+    }));
+    render(<DashboardHome onOpenPage={vi.fn()} />);
+    expect(await screen.findByText(/Erro na transcrição/)).toBeInTheDocument();
+    expect(screen.queryByText('Processando…')).not.toBeInTheDocument();
+    if (text) expect(screen.getByText(text)).toBeInTheDocument();
   });
 });

@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-04 — Ações de páginas e estados do painel
+
+- Remover uma referência retira apenas o bloco do editor; mover uma subpágina para a lixeira exige confirmação e permite restauração posterior.
+- Falhas ao renomear ou excluir preservam o bloco e permitem tentar novamente. Ações ficam disponíveis por teclado e toque.
+- O painel distingue carregamento, erro e listas vazias, com nova tentativa independente para páginas e gravações.
+- Estados de transcrição aparecem em texto, inclusive quando há erro ou uma transcrição parcial.
+- “Continue daqui” abre a página mais recente e recebe destaque; os componentes alterados usam as cores semânticas dos temas.
+- Validação usa apenas dados fictícios. Não há alteração de esquema, configuração ou formato de armazenamento.
+
 ## 2026-10-03 — Correção da identificação de voz / Android 1.1.1
 
 - A referência de “Minha voz” alimenta sugestões da própria conta, sem atribuição automática. O titular pode ser confirmado antes do primeiro template manual.
