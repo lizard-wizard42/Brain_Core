@@ -1,0 +1,4 @@
+interface:
+  display_name: "Brain Core — Notas"
+  short_description: "Consulte e edite suas notas pelo MCP do Brain Core"
+  default_prompt: "Use $brain-core-notes para encontrar e organizar minhas anotações sobre o assunto que eu indicar."

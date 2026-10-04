@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { mcpConfiguration, type McpClient } from './mcpConnection';
 import { mcpApi, type McpSettings } from '../../api/client';
 
 type Access = 'off' | 'read' | 'write';
@@ -20,6 +21,7 @@ export function McpSettingsSection() {
   const [confirmAll, setConfirmAll] = useState(false);
   const [scriptPath, setScriptPath] = useState('/opt/brain-core/mcp/src/server.mjs');
   const [tokenPath, setTokenPath] = useState('/private/directory/brain-core-token.txt');
+  const [client, setClient] = useState<McpClient>('codex');
   const [backendUrl, setBackendUrl] = useState('http://127.0.0.1:3001');
 
   useEffect(() => {
@@ -46,8 +48,7 @@ export function McpSettingsSection() {
   }
   const scopes = [['pages', pages], ['notes', notes]].flatMap(([kind, access]) =>
     access === 'off' ? [] : [`${kind}:read`, ...(access === 'write' ? [`${kind}:write`] : [])]);
-  const configuration = JSON.stringify({ mcpServers: { 'brain-core': { command: 'node', args: [scriptPath],
-    env: { BRAIN_CORE_URL: backendUrl, BRAIN_CORE_TOKEN_FILE: tokenPath } } } }, null, 2);
+  const configuration = mcpConfiguration(client, scriptPath, tokenPath, backendUrl);
 
   return <section className="flex flex-col gap-4" aria-labelledby="mcp-heading">
     <h2 id="mcp-heading" className="text-[11px] uppercase tracking-widest text-gray-500">MCP e acesso da IA</h2>
@@ -132,6 +133,36 @@ export function McpSettingsSection() {
       <details className="border-t pt-4">
         <summary className="cursor-pointer text-sm font-medium">Conectar um cliente de IA</summary>
         <div className="flex flex-col gap-3 mt-3">
+          <label className="text-xs">Onde conectar
+            <select className={`${inputClass} mt-1`} value={client} onChange={e => setClient(e.target.value as McpClient)}>
+              <option value="codex">Codex / aplicativo desktop — local</option>
+              <option value="json">Outro cliente MCP — JSON</option>
+              <option value="chatgpt">ChatGPT web / celular — túnel privado</option>
+            </select>
+          </label>
+          {client === 'chatgpt' ? <div className="flex flex-col gap-3 text-sm">
+            <p>O ChatGPT web não acessa o localhost deste computador. O Secure MCP Tunnel conecta o adaptador local à sua conta OpenAI, quando disponível para sua conta ou workspace.</p>
+            <ol className="list-decimal pl-5 space-y-2">
+              <li>Crie um túnel na organização OpenAI desejada e associe o workspace do ChatGPT que vai utilizá-lo.</li>
+              <li>Configure o tunnel-client oficial neste computador para iniciar este adaptador por STDIO, com o arquivo privado da credencial do Brain Core.</li>
+              <li>Valide o túnel e conecte um app em modo de desenvolvedor no ChatGPT, escolhendo a conexão Tunnel.</li>
+            </ol>
+            <p>O computador, o Brain Core e o tunnel-client precisam estar ligados. O túnel requer credencial própria da OpenAI; a credencial do Brain Core continua limitada às permissões e à validade que você escolheu.</p>
+            <a className="underline" href="https://developers.openai.com/api/docs/guides/secure-mcp-tunnels" target="_blank" rel="noreferrer">Abrir guia oficial do Secure MCP Tunnel</a>
+            <p className="text-xs text-gray-500">Esta tela orienta a configuração; ela não cria o túnel nem confirma que o ChatGPT está conectado. Use uma conexão privada, sem publicar o plugin no catálogo.</p>
+          </div> : <>
+          {client === 'codex' && <div className="flex flex-col gap-2 text-sm">
+            <p>Na tela de MCPs do aplicativo, adicione “brain-core”, escolha STDIO e preencha:</p>
+            <dl className="grid gap-1 text-xs">
+              <dt className="font-medium">Comando para iniciar</dt><dd className="font-mono break-all">node</dd>
+              <dt className="font-medium">Argumento (um único campo)</dt><dd className="font-mono break-all">{scriptPath}</dd>
+              <dt className="font-medium">Variáveis de ambiente</dt>
+              <dd className="font-mono break-all">BRAIN_CORE_URL = {backendUrl}</dd>
+              <dd className="font-mono break-all">BRAIN_CORE_TOKEN_FILE = {tokenPath}</dd>
+            </dl>
+            <p>Salve e reinicie a conexão MCP no cliente. A configuração fica disponível nas próximas conversas locais. Diretório de trabalho e encaminhamento de variáveis podem ficar vazios.</p>
+            <p className="text-xs text-gray-500">Alternativa: acrescente o TOML abaixo ao config.toml do Codex, preservando outras configurações. Se já houver uma seção brain-core, atualize-a em vez de duplicá-la. Se “node” não for encontrado, use o caminho absoluto do executável.</p>
+          </div>}
           <p className="text-xs text-gray-500">Configure o cliente no mesmo computador do Brain Core. Confira os caminhos neste computador e informe o arquivo privado onde salvou a credencial. Em Docker, use o adaptador do checkout no host e o endereço HTTP publicado, normalmente http://127.0.0.1:8080; os caminhos internos do contêiner não servem ao cliente no host. O adaptador requer Node.js 20 ou superior e as dependências do diretório mcp instaladas.</p>
           <label className="text-xs">Arquivo do servidor MCP<input className={`${inputClass} mt-1`} value={scriptPath} onChange={e => setScriptPath(e.target.value)} /></label>
           <label className="text-xs">Arquivo privado da credencial<input className={`${inputClass} mt-1`} value={tokenPath} onChange={e => setTokenPath(e.target.value)} /></label>
@@ -139,7 +170,8 @@ export function McpSettingsSection() {
           <p className="text-xs text-gray-500">O arquivo da credencial deve ter permissão 0600 e pertencer ao usuário que inicia o cliente. Use uma pasta privada com permissão 0700. O endereço deve ser HTTP em 127.0.0.1 ou ::1.</p>
           <textarea aria-label="Configuração do cliente MCP" readOnly value={configuration} spellCheck={false} rows={12} className={`${inputClass} font-mono text-xs`} />
           <button type="button" className={`${buttonClass} self-start`} onClick={() => void copy(configuration)}>Copiar configuração</button>
-          <p className="text-xs text-gray-500">Esta configuração contém somente caminhos. O segredo permanece no arquivo privado.</p>
+          <p className="text-xs text-gray-500">Esta configuração contém somente caminhos e o endereço local. O segredo permanece no arquivo privado. Quando a credencial expirar, renove-a e reinicie a conexão MCP.</p>
+          </>}
         </div>
       </details>
       <details className="border-t pt-4">

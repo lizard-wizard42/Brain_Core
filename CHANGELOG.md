@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-04 — Conexão MCP persistente
+
+- Configurações guiam o cadastro por STDIO no Codex/desktop, geram TOML ou JSON e distinguem o caminho remoto do ChatGPT via túnel privado.
+- O MCP fornece instruções de edição no handshake; uma skill opcional reutiliza o fluxo de pesquisa, revisões e preservação dos documentos.
+- Documentação explica descoberta nas próximas conversas, renovação de credenciais e dependências do acesso remoto, sem apresentar um guia como conexão já ativa.
+
 ## 2026-10-04 — Busca de referências no editor
 
 - O seletor `@` explica quando não há resultados ou páginas disponíveis; Escape fecha também nesses estados.

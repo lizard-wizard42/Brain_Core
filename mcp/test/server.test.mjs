@@ -45,6 +45,8 @@ test('official client negotiates stdio, lists 12 tools, forwards exact writes an
   const client = new Client({ name: 'synthetic-test', version: '1.0.0' });
   try {
     await client.connect(transport);
+    assert.match(client.getInstructions(), /expected_revision/);
+    assert.match(client.getInstructions(), /cannot create subpages/);
     const { tools } = await client.listTools(); assert.equal(tools.length, 12);
     assert.ok(tools.every(t => !/terminal|memory|audio|delete/.test(t.name)));
     const listing = await client.callTool({ name: 'brain_pages_list', arguments: { query: 'Synthetic', limit: 5 } });
