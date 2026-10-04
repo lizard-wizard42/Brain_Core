@@ -21,7 +21,7 @@ Abra **Configurações → MCP e acesso da IA** na conta que fornecerá as notas
 - **Nova credencial:** escolha nome, validade e acesso independente a páginas e notas rápidas: sem acesso, somente leitura ou leitura e edição.
 - **Segredo exibido uma única vez:** copie para um arquivo privado `0600`, em pasta `0700`. O app não grava o segredo no armazenamento do navegador nem na configuração do cliente.
 - **Revogar uma ou todas:** revogação é definitiva. Para renovar ou mudar permissões, crie uma credencial nova e revogue a anterior após atualizar o cliente.
-- **Conectar um cliente:** informe os caminhos locais do adaptador e do arquivo privado, além da origem HTTP de loopback do backend. Copie o JSON para o cliente MCP; ele contém somente caminhos, nunca o segredo.
+- **Conectar um cliente:** informe os caminhos locais do adaptador e do arquivo privado, além da origem HTTP de loopback do backend. Escolha Codex (TOML e campos da interface), outro cliente (JSON) ou o guia do ChatGPT remoto; as configurações geradas nunca contêm o segredo.
 - **Últimas alterações:** até 30 escritas recentes, com operação, data, credencial e ID da nota, sem o conteúdo. Leituras não são registradas nessa lista.
 
 Contas novas começam com MCP desligado. A migração mantém habilitadas as contas que já tinham credenciais antes desse controle, sem reativar um desligamento explícito. A primeira configuração por CLI também habilita a conta; criar outra credencial não desfaz um desligamento já salvo nas Configurações.
@@ -72,7 +72,7 @@ A configuração equivalente pode ser cadastrada na interface do cliente. Ela co
 
 Execute `npm ci --prefix mcp` no checkout do host. O cliente MCP usa o caminho absoluto **do host** para `mcp/src/server.mjs` e a origem publicada pela interface web, normalmente `http://127.0.0.1:8080`. Não use `/app`, `/mcp` ou a porta interna 3001 do contêiner como se fossem caminhos/endereço do host. Na instalação nativa, o padrão é `http://127.0.0.1:3001`.
 
-A tela permite corrigir os três campos antes de copiar o JSON. Em Docker, o caminho do adaptador fica vazio até você informar a localização do host. `MCP_BACKEND_URL` fornece somente o endereço sugerido ao cliente; o adaptador continua aceitando exclusivamente HTTP loopback. Não é preciso expor o banco, o Memory ou outro servidor MCP.
+A tela permite corrigir os três campos antes de copiar a configuração local. Em Docker, o caminho do adaptador fica vazio até você informar a localização do host. `MCP_BACKEND_URL` fornece somente o endereço sugerido ao cliente; o adaptador continua aceitando exclusivamente HTTP loopback. Não é preciso expor o banco, o Memory ou outro servidor MCP.
 
 ## Ferramentas e edição
 
@@ -106,6 +106,67 @@ O ensaio também inicia o adaptador stdio e chama as 12 ferramentas com o client
 oficial contra a API e o PostgreSQL reais desse ambiente descartável: criação,
 leitura, pesquisa, edição, histórico, recuperação, conflitos e repetição idempotente.
 
-Acesso remoto fica para uma segunda etapa: transporte HTTP, autenticação adequada ao cliente remoto, controle de origem e revisão das permissões. Não exponha o processo stdio ou a porta do banco para resolver essa etapa.
+## Codex e aplicativo desktop: configurar uma vez
+
+Na interface de MCPs, adicione `brain-core` por **STDIO**. O comando é `node`
+(ou o caminho absoluto do executável); o único argumento é o caminho absoluto
+para `mcp/src/server.mjs`. Adicione `BRAIN_CORE_URL` e `BRAIN_CORE_TOKEN_FILE`
+como variáveis de ambiente. Diretório de trabalho e encaminhamento de variáveis
+podem ficar vazios. Salve e reinicie a conexão MCP no cliente.
+
+Também é possível cadastrar pela CLI, substituindo os caminhos ilustrativos:
+
+```bash
+codex mcp add brain-core \
+  --env BRAIN_CORE_URL=http://127.0.0.1:3001 \
+  --env BRAIN_CORE_TOKEN_FILE=/private/directory/brain-core-token.txt \
+  -- node /opt/brain-core/mcp/src/server.mjs
+```
+
+A configuração global persiste em `~/.codex/config.toml` e é compartilhada
+pelos clientes locais do mesmo host. A tela do Brain Core gera o trecho TOML
+alternativo. Não duplique uma seção já existente. O servidor inicia sob demanda;
+uma conversa já aberta pode precisar de reconexão para descobrir as ferramentas.
+
+O adaptador envia instruções no handshake MCP. Há também uma skill opcional em
+`mcp/skills/brain-core-notes`: copie essa pasta para
+`${CODEX_HOME:-$HOME/.codex}/skills/brain-core-notes` sem sobrescrever uma skill
+personalizada existente. Ela ensina o fluxo de pesquisa, revisões e preservação
+de Tiptap, mas não substitui a conexão nem fornece credenciais.
+
+**Persistente não significa sem validade:** backend e computador precisam estar
+ligados e a credencial deve continuar válida. Depois de renovar o arquivo da
+credencial, reinicie o processo MCP, pois ele carrega o segredo na inicialização.
+
+## ChatGPT web e celular: conexão privada opcional
+
+O ChatGPT web não lê a configuração local do Codex. O caminho documentado pela
+OpenAI para servidores privados é o **Secure MCP Tunnel**, que aceita nosso
+adaptador STDIO. Essa opção depende de disponibilidade e permissões na conta.
+O Brain Core não cria nem gerencia o túnel automaticamente.
+
+1. Em [Platform → Tunnels](https://platform.openai.com/settings/organization/tunnels),
+   crie o túnel na organização desejada e associe o workspace do ChatGPT.
+2. Instale o cliente oficial pelo link da página e siga o
+   [guia oficial](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels).
+   Configure um perfil STDIO com o comando Node e caminho do adaptador, além das
+   duas variáveis do Brain Core no ambiente do processo. O cliente do túnel exige
+   uma credencial própria da OpenAI, diferente da credencial do Brain Core.
+3. Rode `tunnel-client doctor --profile brain-core --explain` e mantenha
+   `tunnel-client run --profile brain-core` ativo. Para inicialização automática,
+   use um serviço do sistema operacional com os segredos em arquivos privados,
+   fora do repositório. Não inclua valores de credenciais nos argumentos.
+4. No ChatGPT, crie um app em modo de desenvolvedor, selecione **Tunnel** e escolha
+   o túnel associado. Confirme a descoberta das ferramentas antes de usar notas.
+   Verifique também a disponibilidade do app no cliente móvel da sua conta.
+
+Use credenciais separadas do Brain Core para os clientes local e remoto quando
+precisar revogá-los independentemente. O servidor continua aplicando os escopos
+selecionados. O túnel é privado e não serve para publicar um plugin no catálogo.
+Não é necessário tornar o backend ou banco público. As respostas solicitadas
+pelo ChatGPT são transmitidas à OpenAI; os dados originais continuam no Brain Core.
+
+Referência de configuração persistente:
+[MCP no Codex e desktop](https://developers.openai.com/codex/mcp).
 
 Referências: [SDK oficial](https://github.com/modelcontextprotocol/typescript-sdk) e [segurança do MCP](https://modelcontextprotocol.io/docs/2025-11-25/tutorials/security/security_best_practices).
