@@ -2,7 +2,7 @@
 
 ## Páginas e referências
 
-Subpáginas e referências possuem rótulos distintos no editor. Uma referência inserida com `@` aponta para uma página existente: **Remover referência** remove apenas esse bloco, sem mover a página de destino para a lixeira. A alteração do documento segue o salvamento normal do editor.
+Cartões de subpáginas mostram o título sem repetir o rótulo “Subpágina”. Referências mantêm o rótulo “Referência”, pois apontam para uma página existente. Uma referência inserida com `@` aponta para uma página existente: **Remover referência** remove apenas esse bloco, sem mover a página de destino para a lixeira. A alteração do documento segue o salvamento normal do editor.
 
 **Mover página para a lixeira** pede confirmação e só remove o bloco após a API confirmar a operação. A página pode ser restaurada pela lixeira. Se a operação falhar, o bloco permanece visível e o diálogo oferece nova tentativa.
 
@@ -73,3 +73,16 @@ backup completo. O backend cria a tabela `page_templates` automaticamente ao ini
 Os modelos prontos funcionam mesmo quando a listagem de modelos próprios falha.
 Nesta versão, modelos são cópias fixas: editar uma nota criada a partir deles não
 atualiza o modelo. Renomear e excluir modelos ainda não estão disponíveis.
+
+## Expandir e recolher Conhecimento
+
+Ao lado de **Conhecimento**, o ícone de grade abre a visão geral com cartões das
+páginas principais, assim como clicar no título. O outro botão alterna entre **Expandir tudo** e
+**Recolher tudo**. Ele abre todos os níveis da árvore ou recolhe todos os ramos,
+inclusive o caminho da página atualmente aberta, sem trocar de página.
+Quando alguns ramos estão fechados, a próxima ação é expandir tudo.
+
+As setas individuais continuam disponíveis e o estado é lembrado neste navegador.
+Selecionar outra página revela o caminho dela novamente. O botão fica desativado
+quando não existem ramos com filhos. Linha do tempo e Compartilhados mantêm seus
+próprios controles; esta ação não muda a organização nem o conteúdo das notas.

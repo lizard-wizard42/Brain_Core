@@ -24,6 +24,7 @@ function openTrashDialog() {
 describe('subpage and reference actions', () => {
   it('removes only the reference, without deleting or refreshing the target page', () => {
     const actions = show('reference');
+    expect(screen.getByText('Referência')).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Remover referência' }));
     expect(actions.deleteNode).toHaveBeenCalledOnce();
     expect(api.deletePage).not.toHaveBeenCalled();
@@ -97,6 +98,7 @@ describe('subpage and reference actions', () => {
 
   it('cancels rename without a request and exposes a focusable page action', () => {
     const actions = show();
+    expect(screen.queryByText('Subpágina')).not.toBeInTheDocument();
     const open = screen.getByRole('button', { name: 'Abrir subpágina: Página de exemplo' });
     open.focus();
     expect(open).toHaveFocus();

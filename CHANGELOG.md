@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-04 — Árvore de Conhecimento e cartões discretos
+
+- Cartões de subpáginas deixam de repetir o rótulo “Subpágina”; referências preservam sua identificação.
+- Ícone de grade em Conhecimento abre a visão geral; o botão ao lado expande ou recolhe todos os níveis, mantém a página atual e lembra a expansão no navegador. Navegar para outra página revela seu caminho.
+- README e guia do editor refletem busca, navegação, modelos, barra única e subpáginas pelo MCP.
+
 ## 2026-10-04 — Barra única do editor
 
 - Modelos passa a ser um botão com ícone de raio ao lado de Anexar arquivo.
