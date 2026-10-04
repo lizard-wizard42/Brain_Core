@@ -52,13 +52,13 @@ Uma página compartilhada não revela a estrutura privada de quem a compartilhou
 
 O título se ajusta à largura disponível, incluindo telas pequenas. Ações de
 ícone ficam visíveis sem passar o mouse. Diálogos de tabela, subpágina e busca
-seguem as cores do tema. A barra de formatação rola horizontalmente; histórico,
-corretor e status de salvamento ficam em uma linha própria sempre acessível.
+seguem as cores do tema. A barra ocupa uma única linha: as ferramentas rolam horizontalmente em telas
+pequenas; histórico, corretor e status de salvamento permanecem à direita.
 Uma falha ao salvar o ícone mostra uma mensagem e mantém o ícone anterior.
 
 ## Modelos de notas
 
-No rodapé do editor, **Modelos** abre as estruturas de Estudo, Reunião e Projeto.
+Na barra do editor, o botão de raio **Modelos**, ao lado de **Anexar arquivo**, abre as estruturas de Estudo, Reunião e Projeto.
 Escolha um modelo, dê um título e crie uma página na raiz ou marque
 **Criar dentro da página atual**. A nova nota tem conteúdo e histórico próprios.
 

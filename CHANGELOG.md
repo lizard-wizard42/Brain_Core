@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-04 — Barra única do editor
+
+- Modelos passa a ser um botão com ícone de raio ao lado de Anexar arquivo.
+- Ferramentas, histórico, corretor e status de salvamento ocupam uma única linha; ferramentas rolam horizontalmente quando necessário.
+
 ## 2026-10-04 — Modelos de notas
 
 - Modelos prontos de estudo, reunião e projeto criam páginas na raiz ou dentro da nota atual.

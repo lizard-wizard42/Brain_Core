@@ -225,8 +225,8 @@ export function BottomToolbar({
   if (!editor) return null;
 
   return (
-    <div className="editor-controls sticky bottom-0 z-10 shrink-0 bg-[var(--theme-background)] border-t border-[var(--theme-border)] safe-area-bottom">
-      <div role="toolbar" aria-label="Ferramentas da página" className="flex min-w-0 items-center gap-1 overflow-x-auto px-2 py-1 sm:px-6">
+    <div className="editor-controls flex min-w-0 items-center sticky bottom-0 z-10 shrink-0 bg-[var(--theme-background)] border-t border-[var(--theme-border)] safe-area-bottom">
+      <div role="toolbar" aria-label="Ferramentas da página" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-2 py-1 sm:px-6">
       {showHistory && (
         <PageHistoryPanel
           versions={versions}
@@ -331,6 +331,14 @@ export function BottomToolbar({
         📎
       </button>
 
+      {onOpenTemplates && (
+        <ToolbarButton title="Modelos" onClick={onOpenTemplates}>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m13 2-9 12h7l-1 8 10-12h-7l1-8Z" />
+          </svg>
+        </ToolbarButton>
+      )}
+
       <span className="text-[var(--theme-border)] mx-1">|</span>
 
       {/* Sub-page */}
@@ -357,8 +365,7 @@ export function BottomToolbar({
       </button>
 
       </div>
-      <div className="flex min-h-11 flex-wrap items-center justify-end gap-3 border-t border-[var(--theme-border)] px-3 sm:px-6">
-        {onOpenTemplates && <button type="button" onClick={onOpenTemplates} className="mr-auto min-h-11 rounded px-2 text-xs text-[var(--theme-text)] hover:bg-[var(--theme-hover)]">Modelos</button>}
+      <div className="flex min-h-11 shrink-0 items-center gap-1 border-l border-[var(--theme-border)] px-2 sm:gap-3 sm:px-4">
         <button
           type="button"
           aria-pressed={spellcheckEnabled}
@@ -374,11 +381,11 @@ export function BottomToolbar({
           aria-label="Histórico de versões"
           title="Histórico de versões"
           onClick={() => setShowHistory(v => !v)}
-          className="px-2 py-1 text-xs rounded transition-colors text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-hover)]"
+          className="min-h-11 whitespace-nowrap px-2 py-1 text-xs rounded transition-colors text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-hover)]"
         >
           ↺ {versions.length}
         </button>
-        <span role="status" aria-live="polite" className={`text-xs transition-colors ${statusColor[saveStatus]}`}>
+        <span role="status" aria-live="polite" className={`whitespace-nowrap text-xs transition-colors ${statusColor[saveStatus]}`}>
           {statusText[saveStatus]}
         </span>
         {saveStatus === 'error' && (
