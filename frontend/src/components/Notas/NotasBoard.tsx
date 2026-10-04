@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { RememberNote } from '../../types';
 import { NotasComposer } from './NotasComposer';
 import { NotasCard } from './NotasCard';
@@ -8,6 +8,7 @@ const COLUMNS = 'columns-1 gap-4 sm:columns-2 lg:columns-3 xl:columns-4';
 
 export function NotasBoard({
   notes,
+  focusedNoteId,
   loading,
   error,
   onCreate,
@@ -15,6 +16,7 @@ export function NotasBoard({
   onDelete,
 }: {
   notes: RememberNote[];
+  focusedNoteId?: string | null;
   loading: boolean;
   error: string | null;
   onCreate: (draft: NoteDraft) => Promise<void>;
@@ -24,6 +26,12 @@ export function NotasBoard({
   const [composerOpen, setComposerOpen] = useState(false);
   const [composerSeed, setComposerSeed] = useState<NoteDraft>(() => emptyDraft());
   const [search, setSearch] = useState('');
+  useEffect(() => {
+    if (!focusedNoteId || loading) return;
+    const card = document.getElementById(`quick-note-${focusedNoteId}`);
+    card?.scrollIntoView?.({ block: 'center' });
+    card?.focus({ preventScroll: true });
+  }, [focusedNoteId, loading, notes]);
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -64,7 +72,7 @@ export function NotasBoard({
         ) : (
           <div className={COLUMNS}>
             {filtered.map((note) => (
-              <div key={note.id} className="mb-4 break-inside-avoid">
+              <div key={note.id} id={`quick-note-${note.id}`} tabIndex={-1} className="mb-4 break-inside-avoid rounded-2xl focus:outline focus:outline-2 focus:outline-[var(--theme-primary)]">
                 <NotasCard note={note} onSave={onSave} onDelete={onDelete} />
               </div>
             ))}

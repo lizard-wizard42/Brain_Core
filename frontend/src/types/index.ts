@@ -199,3 +199,10 @@ export interface RememberSearchResponse {
   query: string;
   results: RememberSearchResult[];
 }
+
+export interface SearchResult {
+  id: string; title: string; kind: 'page' | 'note'; type: 'note' | 'infinite';
+  icon: string | null; updated_at: string; parent_page_id: string | null;
+  snippet: string; path: { id: string; title: string }[];
+}
+export interface NoteSearchResponse { items: SearchResult[]; next_offset: number | null }

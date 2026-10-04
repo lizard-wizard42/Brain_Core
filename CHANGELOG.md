@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-04 — Busca unificada
+
+- Busca por título e conteúdo de páginas e notas rápidas, com filtros, trechos destacados, caminhos e paginação.
+- Resultados respeitam a conta e a lixeira; consultas antigas não substituem a busca atual. Notas rápidas abrem com foco no cartão correspondente.
+
 ## 2026-10-04 — Conexão MCP persistente
 
 - Configurações guiam o cadastro por STDIO no Codex/desktop, geram TOML ou JSON e distinguem o caminho remoto do ChatGPT via túnel privado.
