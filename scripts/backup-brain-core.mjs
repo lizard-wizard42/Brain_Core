@@ -93,7 +93,7 @@ try {
     await connection.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
     const snapshot = (await connection.query('SELECT pg_export_snapshot() AS id')).rows[0].id;
     postgresCounts = {};
-    const includedTables = ['users', 'pages', 'page_versions', 'remember_notes', 'uploaded_assets',
+    const includedTables = ['users', 'pages', 'page_templates', 'page_versions', 'remember_notes', 'uploaded_assets',
       'integration_tokens', 'integration_settings', 'integration_operations', 'integration_audit', 'remember_note_versions'];
     for (const table of includedTables) {
       if (!(await connection.query('SELECT to_regclass($1) AS relation', [table])).rows[0].relation) continue;

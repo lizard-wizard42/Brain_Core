@@ -439,3 +439,46 @@ test('MCP subpages validate parents, preserve hierarchy on restore and remain id
   assert.equal((await call('notes','create',{...operation(),title:'Invalid',parent_page_id:parent.id})).status,400);
   assert.equal((await call('pages','update',{...operation(),id:child.data.id,expected_revision:2,parent_page_id:null})).status,400);
 });
+
+test('templates are account snapshots without media or live child cards; new pages preserve source and history', async () => {
+  const request = async (route, method='GET', body, user=owner) => {
+    const response = await fetch(`${origin}/api/pages${route}`, { method, headers: {
+      'content-type':'application/json', ...(user ? {authorization:`Bearer ${jwt.sign({sub:user,sv:1,type:'access'},process.env.JWT_SECRET)}`} : {})
+    }, ...(body ? {body:JSON.stringify(body)} : {}) });
+    return {status:response.status,data:await response.json()};
+  };
+  const doc = {type:'doc',content:[
+    {type:'heading',attrs:{level:2},content:[{type:'text',text:'Plano fictício'}]},
+    {type:'image',attrs:{src:'/uploads/fictional.png'}},
+    {type:'attachmentBlock',attrs:{url:'/uploads/fictional.pdf'}},
+    {type:'subPageBlock',attrs:{pageId:randomUUID()}},
+    {type:'taskList',content:[{type:'taskItem',attrs:{checked:true},content:[{type:'paragraph',content:[{type:'text',text:'Revisar'}]}]}]},
+    {type:'blockquote',content:[{type:'image',attrs:{src:'/uploads/fictional.png'}}]},
+  ]};
+  const source = (await call('pages','create',{...operation(),title:'Fonte fictícia',content:doc})).data;
+  assert.equal((await request('/templates','GET',undefined,null)).status,401);
+  for (const body of [{name:'',content:doc},{name:'x'.repeat(81),content:doc},{name:'Invalid',content:{type:'doc',content:[{type:'script'}]}}]) {
+    assert.equal((await request('/templates','POST',body)).status,400);
+  }
+  const saved = await request('/templates','POST',{name:'  Plano fictício  ',content:doc});
+  assert.equal(saved.status,201); assert.equal(saved.data.name,'Plano fictício'); assert.equal(saved.data.content,undefined);
+  assert.equal((await request('/templates','POST',{name:'Plano fictício',content:doc})).status,409);
+  assert.equal((await request('/templates','POST',{name:'Plano fictício',content:doc},other)).status,201);
+  const list = (await request('/templates')).data;
+  assert.deepEqual(list.map(t=>t.id),[saved.data.id]); assert.equal(list[0].content,undefined);
+  assert.equal((await request(`/templates/${saved.data.id}`,'GET',undefined,other)).status,404);
+  assert.equal((await request('/templates/not-a-uuid')).status,404);
+  const template = (await request(`/templates/${saved.data.id}`)).data;
+  assert.deepEqual(template.content.content.map(n=>n.type),['heading','taskList','blockquote']);
+  assert.equal(template.content.content[1].content[0].attrs.checked,false);
+  assert.deepEqual(template.content.content[2].content,[{type:'paragraph'}]);
+  for (const parent_page_id of [null,source.id]) {
+    const created = await request('','POST',{title:'Nova fictícia',slug:randomUUID(),type:'note',parent_page_id,content:template.content});
+    assert.equal(created.status,201); assert.notEqual(created.data.id,source.id); assert.equal(created.data.parent_page_id,parent_page_id);
+    assert.deepEqual(created.data.content,template.content);
+    const versions = await query('SELECT content FROM page_versions WHERE page_id=$1',[created.data.id]);
+    assert.deepEqual(versions.map(v=>v.content),[template.content]);
+  }
+  const original = (await call('pages','get',{id:source.id})).data;
+  assert.deepEqual(original.content,doc); assert.equal(original.revision,0);
+});

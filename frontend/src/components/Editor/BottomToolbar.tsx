@@ -186,6 +186,7 @@ export function BottomToolbar({
   spellcheckEnabled,
   onToggleSpellcheck,
   onRetrySave,
+  onOpenTemplates,
 }: {
   editor: TiptapEditor | null;
   saveStatus: SaveStatus;
@@ -201,6 +202,7 @@ export function BottomToolbar({
   spellcheckEnabled: boolean;
   onToggleSpellcheck: () => void;
   onRetrySave: () => void;
+  onOpenTemplates?: () => void;
 }) {
   const [showTableModal, setShowTableModal] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -356,6 +358,7 @@ export function BottomToolbar({
 
       </div>
       <div className="flex min-h-11 flex-wrap items-center justify-end gap-3 border-t border-[var(--theme-border)] px-3 sm:px-6">
+        {onOpenTemplates && <button type="button" onClick={onOpenTemplates} className="mr-auto min-h-11 rounded px-2 text-xs text-[var(--theme-text)] hover:bg-[var(--theme-hover)]">Modelos</button>}
         <button
           type="button"
           aria-pressed={spellcheckEnabled}

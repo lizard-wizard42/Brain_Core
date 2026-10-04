@@ -55,3 +55,21 @@ O título se ajusta à largura disponível, incluindo telas pequenas. Ações de
 seguem as cores do tema. A barra de formatação rola horizontalmente; histórico,
 corretor e status de salvamento ficam em uma linha própria sempre acessível.
 Uma falha ao salvar o ícone mostra uma mensagem e mantém o ícone anterior.
+
+## Modelos de notas
+
+No rodapé do editor, **Modelos** abre as estruturas de Estudo, Reunião e Projeto.
+Escolha um modelo, dê um título e crie uma página na raiz ou marque
+**Criar dentro da página atual**. A nova nota tem conteúdo e histórico próprios.
+
+**Salvar esta página como modelo** captura o texto e a estrutura atuais do editor,
+incluindo alterações ainda não salvas na nota. Imagens, anexos e cartões de
+subpáginas são removidos da cópia; tarefas ficam desmarcadas. Links de texto são
+preservados. A página original não é alterada. Dê um nome único de até 80 caracteres;
+o documento pode ter até 256 KB. Uma falha mantém o diálogo aberto para tentar novamente.
+
+Modelos próprios ficam no PostgreSQL local, separados por conta, e entram no
+backup completo. O backend cria a tabela `page_templates` automaticamente ao iniciar.
+Os modelos prontos funcionam mesmo quando a listagem de modelos próprios falha.
+Nesta versão, modelos são cópias fixas: editar uma nota criada a partir deles não
+atualiza o modelo. Renomear e excluir modelos ainda não estão disponíveis.
