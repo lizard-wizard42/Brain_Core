@@ -168,6 +168,8 @@ export interface InitialSetupStatus {
 }
 
 export const api = {
+  searchNotes: (query: string, kind = 'all', offset = 0, signal?: AbortSignal) =>
+    request<import('../types').NoteSearchResponse>(`/api/pages/search?${new URLSearchParams({ q: query, kind, offset: String(offset) })}`, { signal }),
   // ── Auth ────────────────────────────────────────────────────────────────
   login: async (email: string, password: string): Promise<LoginSuccessResponse | LoginTwoFactorPendingResponse> => {
     const res = await fetch(`${API_HOST}${BASE_URL}/api/auth/login`, {

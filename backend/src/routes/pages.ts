@@ -1,3 +1,4 @@
+import { search } from '../controllers/searchController';
 import { Router, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { coverImageFilter } from '../services/uploadSafety';
@@ -39,6 +40,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: coverImageFilter });
 
 const router = Router();
+router.get('/search', search);
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 async function requireOwnedPage(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {

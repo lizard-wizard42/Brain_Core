@@ -357,3 +357,30 @@ test('current page saves apply the configured history retention and keep the lat
     assert.deepEqual(versions.map(v => v.page_revision), [5, 4, 3]);
   } finally { config.PAGE_VERSION_RETENTION = old; }
 });
+
+
+test('unified search reads note text, handles accents, paths and pagination without crossing accounts or trash', async () => {
+  const parent = randomUUID(), child = randomUUID(), hidden = randomUUID(), trashed = randomUUID();
+  const doc = {type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'Pesquisa sintética: investigação lunar.'}]},{type:'image',attrs:{src:'https://example.invalid/not-searchable-secret'}}]};
+  await query(`INSERT INTO pages(id,owner_user_id,title,slug,content) VALUES ($1,$2,'Pasta fictícia',$1::uuid::text,'{}')`,[parent,owner]);
+  for (const [id,user,deleted] of [[child,owner,null],[hidden,other,null],[trashed,owner,new Date()]]) {
+    await query(`INSERT INTO pages(id,owner_user_id,title,slug,content,parent_page_id,deleted_at) VALUES ($1,$2,'Caderno',$1::uuid::text,$3,$4,$5)`,[id,user,JSON.stringify(doc),user===owner?parent:null,deleted]);
+  }
+  await query(`INSERT INTO remember_notes(user_id,title,body) VALUES ($1,'Nota fictícia','investigação lunar')`,[owner]);
+  const access=jwt.sign({sub:owner,sv:1,type:'access'},process.env.JWT_SECRET);
+  const search=async (params,auth=true)=>{const r=await fetch(`${origin}/api/pages/search?${new URLSearchParams(params)}`,{headers:auth?{authorization:`Bearer ${access}`}:{}});return {status:r.status,data:await r.json()}};
+  assert.equal((await search({q:'investigacao'},false)).status,401);
+  const result=await search({q:'INVESTIGACAO'});
+  assert.equal(result.status,200);assert.equal(result.data.items.length,2);
+  const page=result.data.items.find(r=>r.kind==='page');assert.equal(page.id,child);
+  assert.deepEqual(page.path.map(p=>p.id),[parent,child]);assert.match(page.snippet,/investigação/);
+  assert.ok(!JSON.stringify(result).includes('not-searchable-secret'));
+  assert.equal((await search({q:'not-searchable-secret'})).data.items.length,0);
+  assert.equal((await search({q:'investigacao',kind:'notes'})).data.items.length,1);
+  assert.equal((await search({q:'investigacao',kind:'pages'})).data.items.length,1);
+  for(const params of [{q:''},{q:'a',kind:'audio'},{q:'a',offset:'-1'},{q:'a',offset:'1.5'}]) assert.equal((await search(params)).status,400);
+  await query(`INSERT INTO remember_notes(user_id,title,body) SELECT $1,'Batch '||n,'paginationfixture' FROM generate_series(1,25) n`,[owner]);
+  const first=(await search({q:'paginationfixture'})).data;assert.equal(first.items.length,20);assert.equal(first.next_offset,20);
+  const second=(await search({q:'paginationfixture',offset:'20'})).data;assert.equal(second.items.length,5);assert.equal(second.next_offset,null);
+  assert.equal(new Set([...first.items,...second.items].map(p=>p.id)).size,25);
+});

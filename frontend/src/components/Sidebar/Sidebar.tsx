@@ -1,3 +1,4 @@
+import { UnifiedSearchResults } from '../Search/UnifiedSearchResults';
 import { memo, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { TreePage } from '../../types';
@@ -618,17 +619,6 @@ export const Sidebar = memo(function Sidebar({
   const [showTrash, setShowTrash] = useState(false);
   const [search, setSearch] = useState('');
 
-  const searchMatches = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return [] as TreePage[];
-    const out: TreePage[] = [];
-    const walk = (nodes: TreePage[]) => nodes.forEach((node) => {
-      if (node.title.toLowerCase().includes(query)) out.push(node);
-      walk(node.children);
-    });
-    walk(tree);
-    return out.slice(0, 40);
-  }, [search, tree]);
   const [openIds, setOpenIds] = useState<Set<string>>(loadOpenIds);
   const [drag, setDrag] = useState<DragState | null>(null);
 
@@ -793,6 +783,8 @@ export const Sidebar = memo(function Sidebar({
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Buscar…"
+          aria-label="Buscar páginas e notas"
+          maxLength={200}
           className="w-full rounded-md border border-[#242424] bg-[#161616] px-2.5 py-1.5 text-[12px] text-gray-200 outline-none placeholder:text-gray-600 focus:border-[#333]"
         />
       </div>
@@ -823,23 +815,7 @@ export const Sidebar = memo(function Sidebar({
         onDragOver={e => e.preventDefault()}
       >
         {search.trim() ? (
-          <div className="px-1">
-            {searchMatches.length === 0 ? (
-              <p className="px-2 py-2 text-[11px] text-gray-600">Nada encontrado.</p>
-            ) : (
-              searchMatches.map(page => (
-                <button
-                  key={page.id}
-                  type="button"
-                  onClick={() => onPageClick?.(page)}
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-gray-300 hover:bg-white/[0.04]"
-                >
-                  <span aria-hidden="true">{page.icon || '📄'}</span>
-                  <span className="truncate">{page.title}</span>
-                </button>
-              ))
-            )}
-          </div>
+          <UnifiedSearchResults query={search.trim()} onPageClick={onPageClick} onClose={onClose} />
         ) : (
           <>
         <p className="px-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-600">Memória</p>

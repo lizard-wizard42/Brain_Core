@@ -23,3 +23,17 @@ Use ↑/↓ para escolher, Enter para inserir e Esc para fechar. Uma busca sem r
 O status das gravações aparece em texto. Uma transcrição com erro permanece identificada como erro, mesmo que possua texto parcial. As consultas preservam o recorte de dia de São Paulo, incluindo sessões do dia seguinte em UTC.
 
 As mudanças não exigem migração de dados nem novas variáveis de ambiente.
+
+
+## Busca unificada
+
+A busca lateral pesquisa títulos e conteúdo de páginas e notas rápidas da conta.
+Resultados mostram um trecho destacado e o caminho da página; o filtro alterna
+entre as duas coleções. A busca ignora maiúsculas e acentos comuns do português,
+e “Carregar mais resultados” pagina os resultados em grupos de 20.
+
+Somente o texto dos blocos do editor é pesquisado, sem atributos, URLs de anexos
+ou dados internos dos canvases. Notas rápidas incluem o corpo e itens de checklist.
+Páginas na lixeira e páginas de outras contas não entram nos resultados. Áudios
+e transcrições continuam em sua busca própria. Um resultado de nota rápida abre
+o quadro com foco na nota correspondente. Falhas oferecem nova tentativa.
