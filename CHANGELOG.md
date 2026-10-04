@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-04 — Subpáginas pelo MCP
+
+- Criação de subpáginas com `parent_page_id`, filtro por pai na listagem e hierarquia nas respostas de páginas.
+- Repetições continuam idempotentes; destinos são notas da própria conta e a revisão do pai é preservada. Skill e documentação acompanham o novo fluxo.
+
 ## 2026-10-04 — Acabamento visual do editor
 
 - Título e diálogos seguem as cores do tema, com controles maiores para toque e foco visível.
