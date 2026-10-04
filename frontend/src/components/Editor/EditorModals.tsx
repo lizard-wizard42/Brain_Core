@@ -30,19 +30,20 @@ export function NewTableModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center"
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4"
       onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl shadow-2xl p-6 w-80 flex flex-col gap-4">
+      <div role="dialog" aria-label="Inserir tabela" className="bg-[var(--theme-surface)] border border-[var(--theme-border)] rounded-2xl shadow-2xl p-5 sm:p-6 w-full max-w-xs flex flex-col gap-4">
         <div>
-          <h2 className="text-[15px] font-semibold text-white mb-0.5">Inserir tabela</h2>
-          <p className="text-[12px] text-gray-600">Defina o tamanho inicial</p>
+          <h2 className="text-[15px] font-semibold text-[var(--theme-text)] mb-0.5">Inserir tabela</h2>
+          <p className="text-[12px] text-[var(--theme-muted)]">Defina o tamanho inicial</p>
         </div>
 
         <div className="flex gap-3">
           <div className="flex-1 flex flex-col gap-1.5">
-            <label className="text-[11px] text-gray-600 uppercase tracking-wider">Linhas</label>
+            <label htmlFor="table-rows" className="text-[11px] text-[var(--theme-muted)] uppercase tracking-wider">Linhas</label>
             <input
+              id="table-rows"
               ref={rowsRef}
               type="number"
               min={1}
@@ -50,33 +51,34 @@ export function NewTableModal({
               value={rows}
               onChange={e => setRows(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') handleConfirm(); }}
-              className="w-full bg-[#111] border border-[#2a2a2a] focus:border-[#444] rounded-lg px-3 py-2 text-[14px] text-white outline-none transition-colors text-center"
+              className="min-h-11 w-full bg-[var(--theme-input)] border border-[var(--theme-border)] focus:border-[var(--theme-primary)] rounded-lg px-3 py-2 text-[14px] text-[var(--theme-text)] outline-none transition-colors text-center"
             />
           </div>
-          <div className="flex items-end pb-2 text-gray-600 text-lg">×</div>
+          <div className="flex items-end pb-2 text-[var(--theme-muted)] text-lg">×</div>
           <div className="flex-1 flex flex-col gap-1.5">
-            <label className="text-[11px] text-gray-600 uppercase tracking-wider">Colunas</label>
+            <label htmlFor="table-columns" className="text-[11px] text-[var(--theme-muted)] uppercase tracking-wider">Colunas</label>
             <input
+              id="table-columns"
               type="number"
               min={1}
               max={20}
               value={cols}
               onChange={e => setCols(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') handleConfirm(); }}
-              className="w-full bg-[#111] border border-[#2a2a2a] focus:border-[#444] rounded-lg px-3 py-2 text-[14px] text-white outline-none transition-colors text-center"
+              className="min-h-11 w-full bg-[var(--theme-input)] border border-[var(--theme-border)] focus:border-[var(--theme-primary)] rounded-lg px-3 py-2 text-[14px] text-[var(--theme-text)] outline-none transition-colors text-center"
             />
           </div>
         </div>
 
         <div className="flex gap-2 justify-end">
           <button
-            className="px-4 py-2 text-[13px] text-gray-500 hover:text-gray-300 rounded-lg hover:bg-white/5 transition-colors"
+            className="min-h-11 px-4 py-2 text-[13px] text-[var(--theme-muted)] hover:text-[var(--theme-text)] rounded-lg hover:bg-[var(--theme-hover)] transition-colors"
             onClick={onClose}
           >
             Cancelar
           </button>
           <button
-            className="px-4 py-2 text-[13px] bg-white text-black font-medium rounded-lg hover:bg-gray-100 transition-colors"
+            className="min-h-11 px-4 py-2 text-[13px] bg-[var(--theme-text)] text-[var(--theme-background)] font-medium rounded-lg hover:opacity-90 transition-colors"
             onClick={handleConfirm}
           >
             Inserir
@@ -119,19 +121,20 @@ export function NewSubPageModal({
   return (
     /* Backdrop */
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center"
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4"
       onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       {/* Panel */}
-      <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl shadow-2xl p-6 w-96 flex flex-col gap-4">
+      <div role="dialog" aria-label="Nova sub-página" className="bg-[var(--theme-surface)] border border-[var(--theme-border)] rounded-2xl shadow-2xl p-5 sm:p-6 w-full max-w-sm flex flex-col gap-4">
         <div>
-          <h2 className="text-[15px] font-semibold text-white mb-0.5">Nova sub-página</h2>
-          <p className="text-[12px] text-gray-600">Será criada dentro desta página</p>
+          <h2 className="text-[15px] font-semibold text-[var(--theme-text)] mb-0.5">Nova sub-página</h2>
+          <p className="text-[12px] text-[var(--theme-muted)]">Será criada dentro desta página</p>
         </div>
 
         <input
           ref={inputRef}
-          className="w-full bg-[#111] border border-[#2a2a2a] focus:border-accent rounded-xl px-4 py-2.5 text-[14px] text-gray-100 outline-none transition-colors placeholder-[#444]"
+          className="min-h-11 w-full bg-[var(--theme-input)] border border-[var(--theme-border)] focus:border-[var(--theme-primary)] rounded-xl px-4 py-2.5 text-[14px] text-[var(--theme-text)] outline-none transition-colors placeholder:text-[var(--theme-muted)]"
+          aria-label="Nome da sub-página"
           placeholder="Nome da sub-página…"
           value={value}
           onChange={e => setValue(e.target.value)}
@@ -143,13 +146,13 @@ export function NewSubPageModal({
 
         <div className="flex gap-2 justify-end">
           <button
-            className="px-4 py-2 text-[13px] text-gray-500 hover:text-gray-300 rounded-lg hover:bg-white/5 transition-colors"
+            className="min-h-11 px-4 py-2 text-[13px] text-[var(--theme-muted)] hover:text-[var(--theme-text)] rounded-lg hover:bg-[var(--theme-hover)] transition-colors"
             onClick={onClose}
           >
             Cancelar
           </button>
           <button
-            className="px-4 py-2 text-[13px] bg-accent hover:bg-accent/90 text-white rounded-lg transition-colors disabled:opacity-40"
+            className="min-h-11 px-4 py-2 text-[13px] bg-[var(--theme-text)] hover:opacity-90 text-[var(--theme-background)] rounded-lg transition-colors disabled:opacity-40"
             disabled={!value.trim()}
             onClick={handleConfirm}
           >
@@ -178,44 +181,44 @@ export function TypeSelectorModal({
 
   return (
     <div
-      className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[300] flex items-center justify-center bg-black/40 p-4 backdrop-blur-[2px]"
       onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl shadow-2xl p-6 w-80 flex flex-col gap-5">
+      <div role="dialog" aria-label="Novo tipo de sub-página" className="bg-[var(--theme-surface)] border border-[var(--theme-border)] rounded-2xl shadow-2xl p-5 sm:p-6 w-full max-w-xs flex flex-col gap-5">
         <div className="flex flex-col gap-1">
-          <h2 className="text-[15px] font-semibold text-white">Novo tipo de sub-página</h2>
-          <p className="text-[13px] text-gray-400">Escolha o formato da sub-página.</p>
+          <h2 className="text-[15px] font-semibold text-[var(--theme-text)]">Novo tipo de sub-página</h2>
+          <p className="text-[13px] text-[var(--theme-muted)]">Escolha o formato da sub-página.</p>
         </div>
         <div className="flex flex-col gap-2">
           <button
             autoFocus
-            className="flex items-center gap-3 w-full p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all text-left group"
+            className="flex items-center gap-3 w-full p-3 rounded-xl bg-[var(--theme-card)] border border-[var(--theme-border)] hover:bg-[var(--theme-hover)] hover:border-[var(--theme-primary)] transition-all text-left group"
             onClick={() => onSelect('note')}
           >
             <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-400 text-xl group-hover:scale-110 transition-transform">
               📄
             </div>
             <div className="flex-1">
-              <div className="text-sm font-medium text-white">Nota</div>
-              <div className="text-[11px] text-gray-500">Documento de texto rico com Markdown.</div>
+              <div className="text-sm font-medium text-[var(--theme-text)]">Nota</div>
+              <div className="text-[11px] text-[var(--theme-muted)]">Documento de texto rico com Markdown.</div>
             </div>
           </button>
           <button
-            className="flex items-center gap-3 w-full p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all text-left group"
+            className="flex items-center gap-3 w-full p-3 rounded-xl bg-[var(--theme-card)] border border-[var(--theme-border)] hover:bg-[var(--theme-hover)] hover:border-[var(--theme-primary)] transition-all text-left group"
             onClick={() => onSelect('infinite')}
           >
             <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center text-purple-400 text-xl group-hover:scale-110 transition-transform">
               ♾️
             </div>
             <div className="flex-1">
-              <div className="text-sm font-medium text-white">Infinite</div>
-              <div className="text-[11px] text-gray-500">Espaço livre para ideias sem limites.</div>
+              <div className="text-sm font-medium text-[var(--theme-text)]">Infinite</div>
+              <div className="text-[11px] text-[var(--theme-muted)]">Espaço livre para ideias sem limites.</div>
             </div>
           </button>
         </div>
         <div className="flex gap-2 justify-end">
           <button
-            className="px-4 py-2 text-[13px] text-gray-500 hover:text-gray-300 rounded-lg hover:bg-white/5 transition-colors"
+            className="min-h-11 px-4 py-2 text-[13px] text-[var(--theme-muted)] hover:text-[var(--theme-text)] rounded-lg hover:bg-[var(--theme-hover)] transition-colors"
             onClick={onClose}
           >
             Cancelar
