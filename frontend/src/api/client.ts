@@ -168,6 +168,9 @@ export interface InitialSetupStatus {
 }
 
 export const api = {
+  listPageTemplates: () => request<import('../types').PageTemplateSummary[]>('/api/pages/templates'),
+  getPageTemplate: (id: string) => request<import('../types').PageTemplate>(`/api/pages/templates/${id}`),
+  savePageTemplate: (name: string, content: TiptapDoc) => request<import('../types').PageTemplateSummary>('/api/pages/templates', { method: 'POST', body: JSON.stringify({ name, content }) }),
   getPagePath: (id: string) => request<{ id: string; title: string }[]>(`/api/pages/${id}/path`),
   searchNotes: (query: string, kind = 'all', offset = 0, signal?: AbortSignal) =>
     request<import('../types').NoteSearchResponse>(`/api/pages/search?${new URLSearchParams({ q: query, kind, offset: String(offset) })}`, { signal }),
@@ -345,7 +348,7 @@ export const api = {
   restorePageVersion: (id: string, versionId: string) =>
     request<import('../types').Page>(`/api/pages/${id}/versions/${versionId}/restore`, { method: 'POST' }),
 
-  createPage: (body: { parent_page_id?: string | null; title: string; slug: string; is_section?: boolean; type?: 'note' | 'infinite' }) =>
+  createPage: (body: { content?: TiptapDoc; parent_page_id?: string | null; title: string; slug: string; is_section?: boolean; type?: 'note' | 'infinite' }) =>
     request<import('../types').Page>('/api/pages', { method: 'POST', body: JSON.stringify(body) }),
 
   savePage: (id: string, body: { content: TiptapDoc | InfiniteDoc; title?: string }, options?: { keepalive?: boolean }) =>

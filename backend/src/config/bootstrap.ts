@@ -16,6 +16,15 @@ export async function ensureAppSchema(): Promise<void> {
     )
   `);
 
+  await query(`CREATE TABLE IF NOT EXISTS page_templates (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 80),
+    content JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (user_id, name)
+  )`);
+
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'member'`);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_reminder_attempted_at TIMESTAMPTZ`);
 

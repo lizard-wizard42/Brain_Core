@@ -206,3 +206,6 @@ export interface SearchResult {
   snippet: string; path: { id: string; title: string }[];
 }
 export interface NoteSearchResponse { items: SearchResult[]; next_offset: number | null }
+
+export interface PageTemplateSummary { id: string; name: string; created_at: string }
+export interface PageTemplate extends PageTemplateSummary { content: TiptapDoc }

@@ -36,6 +36,7 @@ import { NewSubPageModal, TypeSelectorModal } from './EditorModals';
 import { CoverImage } from './EditorCover';
 import { AtPicker } from './AtPicker';
 import { PageHeader } from './PageHeader';
+import { NoteTemplatesDialog } from './NoteTemplatesDialog';
 import { PageNavigation } from './PageNavigation';
 import { type SavedSel, TableControls } from './ToolbarControls';
 import { BottomToolbar } from './BottomToolbar';
@@ -81,6 +82,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
   const [nameById, setNameById] = useState<Map<string, string>>(new Map());
   const [grants, setGrants] = useState<PageGrant[]>([]);
   const [isShareOwner, setIsShareOwner] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   const [showShareManager, setShowShareManager] = useState(false);
   const [spellcheckEnabled, setSpellcheckEnabled] = useState(true);
   const shared = useSharedPages();
@@ -708,6 +710,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
+      {showTemplates && editor && <NoteTemplatesDialog pageId={page.id} title={title} getCurrentContent={() => editor.getJSON() as TiptapDoc} onClose={() => setShowTemplates(false)} onRefresh={onRefresh} onNavigate={onNavigatePage} />}
       {showShareManager && (
         <ShareManagerModal
           pageId={page.id}
@@ -865,6 +868,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
       <BottomToolbar
         editor={editor}
         saveStatus={saveStatus}
+        onOpenTemplates={() => setShowTemplates(true)}
         onCreateSubPage={() => setShowSubPageModal(true)}
         creatingSubPage={creatingSubPage}
         onOpenImagePicker={() => imageInputRef.current?.click()}

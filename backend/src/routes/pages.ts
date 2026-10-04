@@ -1,3 +1,4 @@
+import templatesRouter from './pageTemplates';
 import { search } from '../controllers/searchController';
 import { ownedPagePaths } from '../services/noteSearch';
 import { Router, Response, NextFunction } from 'express';
@@ -42,6 +43,7 @@ const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 }, fileFil
 
 const router = Router();
 router.get('/search', search);
+router.use('/templates', templatesRouter);
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 async function requireOwnedPage(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {

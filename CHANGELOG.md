@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-04 — Modelos de notas
+
+- Modelos prontos de estudo, reunião e projeto criam páginas na raiz ou dentro da nota atual.
+- Modelos próprios salvam texto e estrutura por conta no banco local, sem copiar anexos ou subpáginas; tarefas são reiniciadas. A nota original é preservada.
+- A tabela de modelos integra o backup completo e sua verificação de restauração.
+
 ## 2026-10-04 — Subpáginas pelo MCP
 
 - Criação de subpáginas com `parent_page_id`, filtro por pai na listagem e hierarquia nas respostas de páginas.

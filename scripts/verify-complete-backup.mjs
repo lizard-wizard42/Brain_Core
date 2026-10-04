@@ -27,7 +27,7 @@ await withPrivatePostgres(async (config) => {
   await client.connect();
   try {
     for (const [table, count] of Object.entries(manifest.postgresCounts)) {
-      if (!['users', 'pages', 'page_versions', 'remember_notes', 'uploaded_assets', 'integration_tokens', 'integration_settings', 'integration_operations', 'integration_audit', 'remember_note_versions'].includes(table)) throw new Error('Unexpected table');
+      if (!['users', 'pages', 'page_templates', 'page_versions', 'remember_notes', 'uploaded_assets', 'integration_tokens', 'integration_settings', 'integration_operations', 'integration_audit', 'remember_note_versions'].includes(table)) throw new Error('Unexpected table');
       const restored = Number((await client.query(`SELECT count(*)::text AS count FROM ${table}`)).rows[0].count);
       if (restored !== count) throw new Error('PostgreSQL restoration count mismatch');
     }
