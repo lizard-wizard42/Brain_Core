@@ -168,6 +168,7 @@ export interface InitialSetupStatus {
 }
 
 export const api = {
+  getPagePath: (id: string) => request<{ id: string; title: string }[]>(`/api/pages/${id}/path`),
   searchNotes: (query: string, kind = 'all', offset = 0, signal?: AbortSignal) =>
     request<import('../types').NoteSearchResponse>(`/api/pages/search?${new URLSearchParams({ q: query, kind, offset: String(offset) })}`, { signal }),
   // ── Auth ────────────────────────────────────────────────────────────────

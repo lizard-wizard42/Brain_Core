@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-04 — Navegação nas notas
+
+- Caminho clicável da página, sumário atualizado durante a edição e referências recebidas consultadas sob demanda.
+- Estados de falha permitem nova tentativa; referências e ancestrais preservam os limites da conta.
+
 ## 2026-10-04 — Busca unificada
 
 - Busca por título e conteúdo de páginas e notas rápidas, com filtros, trechos destacados, caminhos e paginação.

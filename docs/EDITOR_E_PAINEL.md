@@ -37,3 +37,13 @@ ou dados internos dos canvases. Notas rápidas incluem o corpo e itens de checkl
 Páginas na lixeira e páginas de outras contas não entram nos resultados. Áudios
 e transcrições continuam em sua busca própria. Um resultado de nota rápida abre
 o quadro com foco na nota correspondente. Falhas oferecem nova tentativa.
+
+## Navegação nas notas
+
+Acima do título, o caminho permite voltar às páginas ancestrais. “Nesta página”
+lista os títulos do documento e acompanha a edição; selecionar um título leva
+ao trecho correspondente, inclusive quando há títulos repetidos.
+
+“Páginas que citam esta” carrega as referências recebidas ao abrir o painel.
+Fechar e abrir atualiza a lista. São consideradas as suas páginas fora da lixeira.
+Uma página compartilhada não revela a estrutura privada de quem a compartilhou.
