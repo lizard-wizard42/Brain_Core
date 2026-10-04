@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-04 — Acabamento visual do editor
+
+- Título e diálogos seguem as cores do tema, com controles maiores para toque e foco visível.
+- O status de salvamento permanece numa linha própria enquanto a formatação rola horizontalmente.
+- Falhas ao salvar o ícone são visíveis e preservam o ícone anterior; remoção do ícone é persistida explicitamente.
+
 ## 2026-10-04 — Navegação nas notas
 
 - Caminho clicável da página, sumário atualizado durante a edição e referências recebidas consultadas sob demanda.

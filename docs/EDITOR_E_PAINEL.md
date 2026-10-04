@@ -47,3 +47,11 @@ ao trecho correspondente, inclusive quando há títulos repetidos.
 “Páginas que citam esta” carrega as referências recebidas ao abrir o painel.
 Fechar e abrir atualiza a lista. São consideradas as suas páginas fora da lixeira.
 Uma página compartilhada não revela a estrutura privada de quem a compartilhou.
+
+## Leitura e controles do editor
+
+O título se ajusta à largura disponível, incluindo telas pequenas. Ações de
+ícone ficam visíveis sem passar o mouse. Diálogos de tabela, subpágina e busca
+seguem as cores do tema. A barra de formatação rola horizontalmente; histórico,
+corretor e status de salvamento ficam em uma linha própria sempre acessível.
+Uma falha ao salvar o ícone mostra uma mensagem e mantém o ícone anterior.

@@ -113,9 +113,9 @@ export function FontColorDropdown({ editor, savedSel }: { editor: TiptapEditor |
         title="Cor do texto"
         onPointerDown={e => e.preventDefault()}
         onClick={handleToggle}
-        className="min-h-10 min-w-10 px-2 py-1 text-xs rounded transition-colors flex items-center justify-center gap-1 text-gray-400 hover:text-gray-200 hover:bg-white/5"
+        className="min-h-11 min-w-11 px-2 py-1 text-xs rounded transition-colors flex items-center justify-center gap-1 text-gray-400 hover:text-gray-200 hover:bg-white/5"
       >
-        <span style={{ color: currentColor || '#d4d4d4', fontWeight: 700 }}>A</span>
+        <span style={{ color: currentColor || 'var(--theme-text)', fontWeight: 700 }}>A</span>
         <span className="text-[8px] opacity-60">▾</span>
       </button>
       {open && createPortal(
@@ -136,7 +136,7 @@ export function FontColorDropdown({ editor, savedSel }: { editor: TiptapEditor |
                 className="w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 flex items-center justify-center"
                 style={{
                   backgroundColor: color || '#2a2a2a',
-                  borderColor: currentColor === color ? '#fff' : 'transparent',
+                  borderColor: currentColor === color ? 'var(--theme-text)' : 'transparent',
                 }}
                 aria-label={label}
               >
@@ -287,7 +287,7 @@ export function HighlightDropdown({ editor, savedSel }: { editor: TiptapEditor |
         title="Destacar texto"
         onPointerDown={e => e.preventDefault()}
         onClick={handleToggle}
-        className={`min-h-10 min-w-10 px-2 py-1 text-xs rounded transition-colors flex items-center justify-center gap-1 ${
+        className={`min-h-11 min-w-11 px-2 py-1 text-xs rounded transition-colors flex items-center justify-center gap-1 ${
           isHighlighted
             ? 'bg-yellow-300/20 text-yellow-300'
             : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
@@ -461,7 +461,7 @@ export function LinkButton({ editor, savedSel }: { editor: TiptapEditor | null; 
         title="Link"
         onMouseDown={e => { e.preventDefault(); }}
         onClick={openPopover}
-        className={`min-h-10 min-w-10 px-2 py-1 text-xs rounded transition-colors font-medium ${
+        className={`min-h-11 min-w-11 px-2 py-1 text-xs rounded transition-colors font-medium ${
           isActive
             ? 'bg-white/10 text-white'
             : 'text-gray-500 hover:text-gray-200 hover:bg-white/5'
@@ -541,7 +541,7 @@ export function EmojiToolbarButton({ editor }: { editor: TiptapEditor | null }) 
           const rect = e.currentTarget.getBoundingClientRect();
           setAnchorRect(r => (r ? null : rect));
         }}
-        className="min-h-10 min-w-10 px-2 py-1 text-xs rounded transition-colors text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-hover)]"
+        className="min-h-11 min-w-11 px-2 py-1 text-xs rounded transition-colors text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-hover)]"
       >
         😊
       </button>
@@ -752,11 +752,12 @@ export function ToolbarButton({
     <button
       type="button"
       aria-label={title}
+      aria-pressed={active}
       title={title}
       onMouseDown={e => e.preventDefault()}
       onClick={onClick}
       disabled={disabled}
-      className={`min-h-10 min-w-10 px-2 py-1 text-xs rounded transition-colors font-medium disabled:opacity-30 ${
+      className={`min-h-11 min-w-11 px-2 py-1 text-xs rounded transition-colors font-medium disabled:opacity-30 ${
         active
           ? 'bg-[var(--theme-hover)] text-[var(--theme-text)]'
           : 'text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-hover)]'

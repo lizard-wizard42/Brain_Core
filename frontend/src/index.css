@@ -376,3 +376,12 @@
   from { opacity: 0; transform: scale(0.98) translateY(-6px); }
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
+
+/* Editor controls remain usable with touch and keyboard in every theme. */
+.editor-controls [role='toolbar'] > button { flex-shrink: 0; }
+.editor-controls button { min-height: 44px; }
+.editor-controls button:focus-visible { outline: 2px solid var(--theme-primary); outline-offset: -2px; }
+.tiptap-editor { overflow-wrap: anywhere; }
+.tiptap-editor > p + p { margin-top: .65em; }
+.tiptap-editor :is(h1, h2, h3, h4, h5, h6) { scroll-margin-top: 1rem; }
+.tiptap-editor code { color: var(--theme-text); }
