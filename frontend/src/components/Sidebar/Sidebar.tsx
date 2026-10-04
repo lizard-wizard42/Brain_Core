@@ -114,7 +114,8 @@ function loadOpenIds(): Set<string> {
 }
 
 function saveOpenIds(ids: Set<string>) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify([...ids]));
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...ids])); }
+  catch { /* Navigation still works when browser storage is unavailable. */ }
 }
 
 // ── Drag & Drop types ──────────────────────────────────────────────────────
@@ -165,7 +166,6 @@ function isDescendantOf(tree: TreePage[], nodeId: string, ancestorId: string): b
 interface PageNodeProps {
   page: TreePage;
   activePage: string | null;
-  activeAncestorIds: Set<string>;
   onRefresh: () => Promise<void>;
   openIds: Set<string>;
   onToggle: (id: string, force?: boolean) => void;
@@ -181,7 +181,7 @@ interface PageNodeProps {
 }
 
 function PageNodeComponent({
-  page, activePage, activeAncestorIds, onRefresh, openIds, onToggle, depth = 0,
+  page, activePage, onRefresh, openIds, onToggle, depth = 0,
   drag, onDragStart, onDragOver, onDrop, onDragEnd, tree,
   onPageClick,
 }: PageNodeProps) {
@@ -197,13 +197,6 @@ function PageNodeComponent({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [iconAnchorRect, setIconAnchorRect] = useState<DOMRect | null>(null);
   const renameInputRef = useRef<HTMLInputElement | null>(null);
-
-  // Auto-open when active page is a descendant
-  useEffect(() => {
-    if (isActive || activeAncestorIds.has(page.id)) {
-      onToggle(page.id, true);
-    }
-  }, [activeAncestorIds, isActive, onToggle, page.id]);
 
   useEffect(() => {
     setTitle(page.title);
@@ -518,7 +511,6 @@ function PageNodeComponent({
               key={child.id}
               page={child}
               activePage={activePage}
-              activeAncestorIds={activeAncestorIds}
               onRefresh={onRefresh}
               openIds={openIds}
               onToggle={onToggle}
@@ -634,16 +626,37 @@ export const Sidebar = memo(function Sidebar({
     return map;
   }, [tree]);
 
-  const activeAncestorIds = useMemo(() => {
-    const ancestors = new Set<string>();
-    if (!activePage) return ancestors;
-    let cursor = parentById.get(activePage) ?? null;
-    while (cursor) {
-      ancestors.add(cursor);
+  const activePath = useMemo(() => {
+    const ids = new Set<string>();
+    let cursor = activePage;
+    while (cursor && parentById.has(cursor) && !ids.has(cursor)) {
+      ids.add(cursor);
       cursor = parentById.get(cursor) ?? null;
     }
-    return ancestors;
+    return JSON.stringify([...ids]);
   }, [activePage, parentById]);
+
+  // Adjust only for a changed selection/path, never for manual expansion changes.
+  const [revealedPath, setRevealedPath] = useState('');
+  if (revealedPath !== activePath) {
+    setRevealedPath(activePath);
+    const path: string[] = JSON.parse(activePath);
+    if (path.length) setOpenIds(previous => new Set([...previous, ...path]));
+  }
+
+  const branchIds = useMemo(() => {
+    const ids = new Set<string>();
+    const visit = (nodes: TreePage[]) => nodes.forEach(node => {
+      if (node.children.length) { ids.add(node.id); visit(node.children); }
+    });
+    visit(tree);
+    return ids;
+  }, [tree]);
+  const allExpanded = branchIds.size > 0 && [...branchIds].every(id => openIds.has(id));
+  const toggleAll = () => {
+    const next = allExpanded ? new Set<string>() : new Set(branchIds);
+    setOpenIds(next);
+  };
 
   const visibleOpenIds = useMemo(() => {
     const validIds = new Set<string>();
@@ -656,10 +669,8 @@ export const Sidebar = memo(function Sidebar({
   }, [openIds, tree]);
 
   useEffect(() => {
-    if (visibleOpenIds.size !== openIds.size) {
-      saveOpenIds(visibleOpenIds);
-    }
-  }, [openIds, visibleOpenIds]);
+    saveOpenIds(visibleOpenIds);
+  }, [visibleOpenIds]);
 
   const handleToggle = useCallback((id: string, force?: boolean) => {
     setOpenIds(prev => {
@@ -670,7 +681,6 @@ export const Sidebar = memo(function Sidebar({
         if (next.has(id)) next.delete(id);
         else next.add(id);
       }
-      saveOpenIds(next);
       return next;
     });
   }, []);
@@ -824,14 +834,31 @@ export const Sidebar = memo(function Sidebar({
           <a href="braincore://capture" onClick={() => onClose?.()} className="flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[13px] text-gray-300 hover:bg-white/[0.04]">🎙 Gravar neste celular</a>
         )}
         <button type="button" onClick={() => { navigate('/notes'); onClose?.(); }} className="flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[13px] text-gray-300 hover:bg-white/[0.04]">📝 Notas</button>
-        <button type="button" onClick={() => { navigate('/knowledge'); onClose?.(); }} className="w-full px-2 pt-4 pb-1 text-left text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">Conhecimento</button>
+        <div className="flex items-center gap-1 pt-2">
+          <button type="button" onClick={() => { navigate('/knowledge'); onClose?.(); }} className="min-h-10 min-w-0 flex-1 px-2 text-left text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">Conhecimento</button>
+          <button type="button" onClick={() => { navigate('/knowledge'); onClose?.(); }}
+            aria-label="Abrir visão geral de Conhecimento" title="Visão geral de Conhecimento"
+            className="flex min-h-10 min-w-10 items-center justify-center rounded text-[var(--theme-muted)] hover:bg-[var(--theme-hover)] hover:text-[var(--theme-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]">
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+              <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
+            </svg>
+          </button>
+          <button type="button" onClick={toggleAll} disabled={!branchIds.size}
+            aria-label={allExpanded ? 'Recolher toda a árvore de Conhecimento' : 'Expandir toda a árvore de Conhecimento'}
+            title={allExpanded ? 'Recolher tudo' : 'Expandir tudo'}
+            className="flex min-h-10 min-w-10 items-center justify-center rounded text-[var(--theme-muted)] hover:bg-[var(--theme-hover)] hover:text-[var(--theme-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] disabled:opacity-30">
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+              <path d={allExpanded ? 'm7 4 5 5 5-5M7 20l5-5 5 5' : 'm7 9 5-5 5 5M7 15l5 5 5-5'} />
+            </svg>
+          </button>
+        </div>
         <div className="mx-2 my-1 border-t border-[#1f1f1f]" />
         {tree.map(page => (
           <PageNode
             key={page.id}
             page={page}
             activePage={activePage}
-            activeAncestorIds={activeAncestorIds}
             onRefresh={onRefresh}
             openIds={visibleOpenIds}
             onToggle={handleToggle}

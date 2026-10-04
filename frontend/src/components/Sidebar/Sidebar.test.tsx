@@ -39,6 +39,7 @@ describe('Sidebar', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
   });
 
   afterEach(() => {
@@ -52,6 +53,51 @@ describe('Sidebar', () => {
     for (let index = 1; index < nodes.length; index++) {
       expect(nodes[index - 1].compareDocumentPosition(nodes[index]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     }
+  });
+
+  it('expands every depth, collapses an active path, and only reveals it again after navigation', () => {
+    const node = (id: string, children: TreePage[] = []): TreePage => ({ ...baseTree[0], id, title: id, children });
+    const tree = [node('Projeto fictício', [node('Capítulo', [node('Detalhe'), node('Outro detalhe')])]), node('Estudos fictícios', [node('Referência fictícia')])];
+    const view = render(<Sidebar tree={tree} activePage="Detalhe" onRefresh={onRefresh} />);
+    expect(screen.getByText('Detalhe')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Expandir toda a árvore de Conhecimento' }));
+    expect(screen.getByText('Referência fictícia')).toBeVisible();
+    expect(screen.getByText('Detalhe')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Recolher toda a árvore de Conhecimento' }));
+    expect(screen.queryByText('Capítulo')).not.toBeInTheDocument();
+    expect(screen.queryByText('Referência fictícia')).not.toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem('brain-core:sidebar-open')!)).toEqual([]);
+    view.rerender(<Sidebar tree={structuredClone(tree)} activePage="Detalhe" onRefresh={onRefresh} />);
+    expect(screen.queryByText('Capítulo')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Expandir Projeto fictício' }));
+    expect(screen.getByText('Capítulo')).toBeVisible();
+    expect(screen.queryByText('Detalhe')).not.toBeInTheDocument();
+    view.rerender(<Sidebar tree={tree} activePage="Outro detalhe" onRefresh={onRefresh} />);
+    expect(screen.getByText('Outro detalhe')).toBeVisible();
+    expect(navigateSpy).not.toHaveBeenCalled();
+    expect(api.patchPage).not.toHaveBeenCalled();
+  }, 10000);
+
+  it('restores expanded branches after remount and disables bulk action for a flat tree', () => {
+    const tree = [{ ...baseTree[0], id: 'root', children: [{ ...baseTree[0], id: 'child', title: 'Filho fictício' }] }];
+    const view = render(<Sidebar tree={tree} activePage={null} onRefresh={onRefresh} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Expandir toda a árvore de Conhecimento' }));
+    view.unmount();
+    render(<Sidebar tree={tree} activePage={null} onRefresh={onRefresh} />);
+    expect(screen.getByText('Filho fictício')).toBeVisible();
+    cleanup();
+    render(<Sidebar tree={baseTree} activePage={null} onRefresh={onRefresh} />);
+    expect(screen.getByRole('button', { name: 'Expandir toda a árvore de Conhecimento' })).toBeDisabled();
+  });
+
+  it('opens the overview from the grid without changing expansion', () => {
+    const onClose = vi.fn();
+    const tree = [{ ...baseTree[0], children: [{ ...baseTree[0], id: 'child', title: 'Filho fictício' }] }];
+    render(<Sidebar tree={tree} activePage={null} onRefresh={onRefresh} onClose={onClose} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir visão geral de Conhecimento' }));
+    expect(navigateSpy).toHaveBeenCalledWith('/knowledge');
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(screen.queryByText('Filho fictício')).not.toBeInTheDocument();
   });
 
   it('abre o Dashboard pelo cabeçalho e fecha a árvore', () => {

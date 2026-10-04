@@ -25,13 +25,17 @@ Node.js · Express · Socket.IO · PostgreSQL · Docker
 
 | Area | What you can do |
 | --- | --- |
-| Rich pages | Write and format content in Tiptap; organize pages and subpages in a tree; add tags, status, and due dates. |
+| Rich pages | Write and format content in Tiptap; organize pages and subpages in a tree with uncluttered title cards; add tags, status, and due dates. |
+| Search and navigation | Search pages and quick notes by title or text, with snippets, filters and pagination. Navigate breadcrumbs, a live heading outline and incoming page references. Use the grid button beside Knowledge to open the overview, and the adjacent control to expand or collapse every level of the sidebar tree. |
+| Note templates | Start with Study, Meeting or Project, or save your own text/structure snapshot per account. Create independent root pages or subpages. Open templates with the lightning button beside Attach file in the single-row editor toolbar. |
 | Quick notes | Capture short notes and reminders on a compact board and search them. Telegram reminders are optional and require your own bot configuration. |
 | Visual pages | Sketch and arrange ideas on an infinite tldraw canvas. |
 | History and recovery | Review page versions, restore retained note revisions through MCP, and restore pages from trash. Trash is cleaned up after 30 days by default. |
 | Attachments | Upload supported images and documents with server-side type and content checks. Read an attached PDF inside the page; download other supported documents. |
 | Sharing | Add another registered user as a contact, then share a page or folder with viewer or editor permission. There are no public share links. |
 | Live work | See page updates across browser tabs through Socket.IO. Use app tabs, themes, and a mobile-friendly layout. |
+
+See the [editor and navigation guide](docs/EDITOR_E_PAINEL.md) for search, templates, toolbar controls and the Knowledge tree. Custom templates omit images, attachment blocks and subpage cards, reset checked tasks, and preserve text links. Renaming and deleting templates are not available yet.
 
 Authentication uses session cookies, login throttling, optional TOTP
 two-factor authentication, and trusted-device support. The first account is
@@ -69,7 +73,7 @@ transcript is included in the repository or APK.
 
 Open **Settings → MCP e acesso da IA** to enable MCP for your account, create a credential, choose read/write permissions for pages and quick notes, and set its expiry. Credentials can be revoked individually or together; switching MCP off suspends all access for that account. The panel also shows recent AI writes and produces a client configuration containing paths rather than the secret.
 
-The local stdio adapter exposes 12 note tools with ownership, revision checks, history and idempotent writes. It opens no extra listener and connects only to an HTTP loopback origin. A credential stays bound to its account when you switch browser logins. Shared pages owned by other accounts, canvas, audio, transcript and terminal tools are outside this API. The AI client receives the note content it requests and may use its configured cloud provider.
+The local stdio adapter exposes 12 note tools with ownership, revision checks, history and idempotent writes. It can create subpages and list direct children using `parent_page_id`. The optional `brain-core-notes` skill guides note editing and preservation. A private tunnel is the documented route for ChatGPT access; desktop clients can use local STDIO. It opens no extra listener and connects only to an HTTP loopback origin. A credential stays bound to its account when you switch browser logins. Shared pages owned by other accounts, canvas, audio, transcript and terminal tools are outside this API. The AI client receives the note content it requests and may use its configured cloud provider.
 
 Follow [the MCP guide](docs/NOTES_MCP.md) for private credential files, native/Docker paths, scopes and validation. See the [changelog](CHANGELOG.md) for the latest functionality and limits.
 

@@ -167,7 +167,7 @@ export function SubPageBlockView({ node, updateAttributes, deleteNode, onRefresh
             onAuxClick={e => { if (e.button === 1) { e.preventDefault(); handleOpenPage(true); } }}
           >
             <span className="block truncate">{title || 'Sem título'}</span>
-            <span className="block text-xs text-[var(--theme-muted)]">{isReference ? 'Referência' : 'Subpágina'}</span>
+            {isReference && <span className="block text-xs text-[var(--theme-muted)]">Referência</span>}
           </button>
         )}
         <div className="flex shrink-0 items-center gap-1">
