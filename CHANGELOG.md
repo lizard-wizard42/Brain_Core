@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-04 — Busca de referências no editor
+
+- O seletor `@` explica quando não há resultados ou páginas disponíveis; Escape fecha também nesses estados.
+- Busca ignora diferenças de acentos e espaços externos, e resultados mostram a página pai para distinguir títulos iguais.
+- O menu permanece dentro da tela, usa as cores do tema e indica quando há mais de oito resultados.
+- Enter e setas preservam o comportamento do editor quando não há resultados; composição de texto e atalhos com modificadores não são interceptados.
+
 ## 2026-10-04 — Ações de páginas e estados do painel
 
 - Remover uma referência retira apenas o bloco do editor; mover uma subpágina para a lixeira exige confirmação e permite restauração posterior.

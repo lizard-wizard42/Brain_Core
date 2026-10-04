@@ -10,6 +10,12 @@ Subpáginas e referências possuem rótulos distintos no editor. Uma referência
 
 As ações ficam visíveis para toque e são acessíveis por teclado. O diálogo começa com foco em Cancelar, mantém Tab dentro dele e devolve o foco ao botão de origem quando fechado.
 
+## Busca com `@`
+
+Digite `@` e parte do título para referenciar uma página. A busca ignora acentos e espaços no início/fim; o nome da página pai ajuda a distinguir resultados com o mesmo título. Até oito resultados aparecem por vez. Quando houver mais, continue digitando para filtrar.
+
+Use ↑/↓ para escolher, Enter para inserir e Esc para fechar. Uma busca sem resultados permanece visível com uma explicação, sem interceptar Enter ou as setas do editor. O menu se reposiciona para permanecer dentro da tela e acompanha mudanças de tamanho da janela.
+
 ## Painel inicial
 
 **Continue daqui** abre a página mais recentemente editada. Os painéis de páginas e gravações distinguem carregamento, erro e lista vazia. **Tentar novamente** repete apenas a consulta que falhou; falha de consulta não significa ausência de conteúdo.
