@@ -36,6 +36,7 @@ import { NewSubPageModal, TypeSelectorModal } from './EditorModals';
 import { CoverImage } from './EditorCover';
 import { AtPicker } from './AtPicker';
 import { PageHeader } from './PageHeader';
+import { PageNavigation } from './PageNavigation';
 import { type SavedSel, TableControls } from './ToolbarControls';
 import { BottomToolbar } from './BottomToolbar';
 
@@ -792,6 +793,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
 
         {/* Page content */}
         <div className="max-w-[720px] mx-auto px-4 sm:px-12 pt-6 sm:pt-8 pb-4">
+          <PageNavigation key={page.id} pageId={page.id} title={title} editor={editor} onNavigate={onNavigatePage} />
           <PageHeader
             pageId={page.id}
             icon={icon}

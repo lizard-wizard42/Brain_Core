@@ -1,4 +1,5 @@
 import { search } from '../controllers/searchController';
+import { ownedPagePaths } from '../services/noteSearch';
 import { Router, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { coverImageFilter } from '../services/uploadSafety';
@@ -141,6 +142,12 @@ router.delete('/:id/grants/:userId', async (req: AuthRequest, res) => {
 router.post('/:id/restore', restorePage);
 router.delete('/:id/permanent', permanentDeletePage);
 
+router.get('/:id/path', async (req: AuthRequest, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    res.json((await ownedPagePaths(req.userId!, [id])).get(id) ?? []);
+  } catch { res.status(503).json({ error: 'Não foi possível carregar o caminho da página' }); }
+});
 router.get('/:id/subpages', getSubPages);
 router.get('/:id/references', getReferences);
 router.get('/:id/versions', getPageVersions);

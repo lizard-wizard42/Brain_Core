@@ -384,3 +384,22 @@ test('unified search reads note text, handles accents, paths and pagination with
   const second=(await search({q:'paginationfixture',offset:'20'})).data;assert.equal(second.items.length,5);assert.equal(second.next_offset,null);
   assert.equal(new Set([...first.items,...second.items].map(p=>p.id)).size,25);
 });
+
+test('page navigation paths and incoming references respect ownership, sharing and trash', async () => {
+  const parent = randomUUID(), page = randomUUID(), source = randomUUID(), foreign = randomUUID(), deleted = randomUUID();
+  for (const [id, user, parentId, trashed] of [[parent,owner,null,null],[page,owner,parent,null],[source,owner,null,null],[foreign,other,null,null],[deleted,owner,null,new Date()]]) {
+    const content = {type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'Link fictício',marks:[{type:'link',attrs:{href:`/page/${page}`}}]}]}]};
+    await query(`INSERT INTO pages(id,owner_user_id,title,slug,content,parent_page_id,deleted_at) VALUES ($1,$2,'Página fictícia',$1::uuid::text,$3,$4,$5)`,[id,user,JSON.stringify(content),parentId,trashed]);
+  }
+  const get=async(id,route,user=owner)=>{const response=await fetch(`${origin}/api/pages/${id}/${route}`,{headers:{authorization:`Bearer ${jwt.sign({sub:user,sv:1,type:'access'},process.env.JWT_SECRET)}`}});return {status:response.status,data:await response.json()}};
+  assert.deepEqual((await get(page,'path')).data.map(p=>p.id),[parent,page]);
+  assert.equal((await get(foreign,'path')).status,404);
+  assert.equal((await get(deleted,'path')).status,404);
+  assert.deepEqual(new Set((await get(page,'references')).data.incoming.map(p=>p.id)),new Set([parent,source]));
+  await query(`INSERT INTO page_grants(page_id,user_id,role) VALUES ($1,$2,'viewer')`,[page,other]);
+  assert.deepEqual((await get(page,'path',other)).data,[]);
+  assert.deepEqual((await get(page,'references',other)).data,{incoming:[],outgoing:[]});
+  // Old malformed hierarchies must not make breadcrumb queries recurse forever.
+  await query('UPDATE pages SET parent_page_id=$1 WHERE id=$2',[page,parent]);
+  assert.equal((await get(page,'path')).data.length,2);
+});
