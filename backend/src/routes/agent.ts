@@ -18,7 +18,7 @@ const tokenSql = `SELECT t.id, t.user_id, t.scopes FROM integration_tokens t
   WHERE t.token_hash = $1 AND t.revoked_at IS NULL
   AND t.expires_at > NOW() AND t.session_version = u.session_version`;
 const fields = {
-  pages: 'id, title, content, revision, created_at, updated_at',
+  pages: 'id, parent_page_id, title, content, revision, created_at, updated_at',
   notes: 'id, title, body, revision, created_at, updated_at',
 };
 const tables = { pages: 'pages', notes: 'remember_notes' };
@@ -117,8 +117,8 @@ router.post('/:kind/:action', async (req: AgentRequest, res) => {
     const body = req.body;
     if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AgentError(400, 'Object required');
     const allowed: Record<string, string[]> = {
-      list: ['query', 'limit', 'offset'], get: ['id'], versions: ['id', 'limit', 'offset'],
-      create: ['operation_id', 'title', kind === 'pages' ? 'content' : 'body'],
+      list: ['query', 'limit', 'offset', ...(kind === 'pages' ? ['parent_page_id'] : [])], get: ['id'], versions: ['id', 'limit', 'offset'],
+      create: ['operation_id', 'title', kind === 'pages' ? 'content' : 'body', ...(kind === 'pages' ? ['parent_page_id'] : [])],
       update: ['id', 'operation_id', 'expected_revision', 'title', kind === 'pages' ? 'content' : 'body'],
       restore: ['id', 'operation_id', 'expected_revision', 'saved_revision'],
     };
@@ -136,11 +136,15 @@ router.post('/:kind/:action', async (req: AgentRequest, res) => {
       if (action === 'list') {
         const search = body.query ?? '';
         if (typeof search !== 'string' || search.length > 200) throw new AgentError(400, 'Invalid search');
+        const filterParent = kind === 'pages' && Object.prototype.hasOwnProperty.call(body, 'parent_page_id');
+        const parentId = filterParent && body.parent_page_id !== null ? validId(body.parent_page_id) : null;
+        if (parentId) await getOwned(client, 'pages', token.user_id, parentId);
         const textField = kind === 'pages' ? 'content::text' : 'body';
         // Lists expose titles and revisions; full content requires get.
-        const rows = (await client.query(`SELECT id, title, revision, updated_at FROM ${tables[kind]}
+        const rows = (await client.query(`SELECT id, title, revision, updated_at${kind === 'pages' ? ', parent_page_id' : ''} FROM ${tables[kind]}
           WHERE ${owned[kind]} AND (strpos(lower(title),lower($2)) > 0 OR strpos(lower(${textField}),lower($2)) > 0)
-          ORDER BY updated_at DESC, id LIMIT $3 OFFSET $4`, [token.user_id, search, limit, offset])).rows;
+          ${filterParent ? 'AND parent_page_id IS NOT DISTINCT FROM $5::uuid' : ''}
+          ORDER BY updated_at DESC, id LIMIT $3 OFFSET $4`, [token.user_id, search, limit, offset, ...(filterParent ? [parentId] : [])])).rows;
         await client.query('COMMIT'); transaction = false;
         res.json({ items: rows, next_offset: rows.length === limit ? offset + limit : null }); return;
       }
@@ -187,9 +191,12 @@ router.post('/:kind/:action', async (req: AgentRequest, res) => {
     if (action === 'create') {
       if (kind === 'pages') {
         if (!changes.title) throw new AgentError(400, 'Title required');
-        updated = (await client.query(`INSERT INTO pages (id, owner_user_id, title, slug, type, content)
-          VALUES ($1,$2,$3,$4,'note',$5) RETURNING *`, [id, token.user_id, changes.title, id,
-          JSON.stringify(changes.content ?? { type: 'doc', content: [] })])).rows[0];
+        const parentId = body.parent_page_id == null ? null : validId(body.parent_page_id);
+        // Serialize with parent deletion/moves without modifying its body or revision.
+        if (parentId) await getOwned(client, 'pages', token.user_id, parentId, true);
+        updated = (await client.query(`INSERT INTO pages (id, owner_user_id, title, slug, type, content, parent_page_id)
+          VALUES ($1,$2,$3,$4,'note',$5,$6) RETURNING *`, [id, token.user_id, changes.title, id,
+          JSON.stringify(changes.content ?? { type: 'doc', content: [] }), parentId])).rows[0];
         await client.query(`INSERT INTO page_versions (page_id,title,content,reason,content_hash,author_user_id,page_revision)
           VALUES ($1,$2,$3,'agent-create',$4,$5,$6)`, [id, updated.title, JSON.stringify(updated.content),
           hash(JSON.stringify([updated.title, updated.content])), token.user_id, updated.revision]);

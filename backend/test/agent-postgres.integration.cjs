@@ -79,7 +79,7 @@ test('ownership applies to all operations; sections/canvas and internal paths st
     assert.equal((await call('pages', 'get', { id })).status, 404);
   }
   const page = await call('pages', 'create', { ...operation(), title: 'Visible' });
-  assert.deepEqual(Object.keys(page.data).sort(), ['id','title','content','revision','created_at','updated_at'].sort());
+  assert.deepEqual(Object.keys(page.data).sort(), ['id','parent_page_id','title','content','revision','created_at','updated_at'].sort());
   assert.equal((await call('pages', 'update', { ...operation(), id: page.data.id, expected_revision: 0, working_directory: '/arbitrary' })).status, 400);
 });
 
@@ -192,7 +192,16 @@ test('MCP stdio performs all 12 tools against the real API and PostgreSQL', asyn
       const restored = await invoke(kind, 'restore', { ...operation(), id: created.id, expected_revision: 1, saved_revision: 0 });
       assert.equal(restored.revision, 2);
       assert.equal(restored.title, created.title);
-      if (kind === 'pages') assert.deepEqual(restored.content, doc);
+      if (kind === 'pages') {
+        assert.deepEqual(restored.content, doc);
+        const childInput = { ...operation(), title: 'MCP child', parent_page_id: created.id };
+        const child = await invoke('pages', 'create', childInput);
+        assert.equal(child.parent_page_id, created.id);
+        assert.deepEqual(await invoke('pages', 'create', childInput), child);
+        const children = await invoke('pages', 'list', { parent_page_id: created.id });
+        assert.deepEqual(children.items.map(p => p.id), [child.id]);
+        assert.equal((await invoke('pages', 'get', { id: created.id })).revision, 2);
+      }
       else assert.equal(restored.body, 'Original');
     }
   } finally {
@@ -402,4 +411,31 @@ test('page navigation paths and incoming references respect ownership, sharing a
   // Old malformed hierarchies must not make breadcrumb queries recurse forever.
   await query('UPDATE pages SET parent_page_id=$1 WHERE id=$2',[page,parent]);
   assert.equal((await get(page,'path')).data.length,2);
+});
+
+test('MCP subpages validate parents, preserve hierarchy on restore and remain idempotent', async () => {
+  const parent = (await call('pages','create',{...operation(),title:'Parent fictício'})).data;
+  const input = {...operation(),title:'Child fictício',parent_page_id:parent.id};
+  const child = await call('pages','create',input);
+  assert.equal(child.status,200); assert.equal(child.data.parent_page_id,parent.id);
+  assert.deepEqual((await call('pages','create',input)).data,child.data);
+  assert.equal((await call('pages','create',{...input,parent_page_id:null})).status,409);
+  const edit = await call('pages','update',{...operation(),id:child.data.id,expected_revision:0,title:'Editado'});
+  assert.equal(edit.status,200);
+  const restored = await call('pages','restore',{...operation(),id:child.data.id,expected_revision:1,saved_revision:0});
+  assert.equal(restored.data.parent_page_id,parent.id);
+  assert.equal((await call('pages','get',{id:parent.id})).data.revision,0);
+  const roots = (await call('pages','list',{query:'fictício',parent_page_id:null,limit:50})).data.items;
+  assert.ok(roots.some(p=>p.id===parent.id)); assert.ok(!roots.some(p=>p.id===child.data.id));
+  for(const [user,type,section,deleted] of [[other,'note',false,null],[owner,'infinite',false,null],[owner,'note',true,null],[owner,'note',false,new Date()]]) {
+    const id = randomUUID();
+    await query(`INSERT INTO pages(id,owner_user_id,title,slug,type,is_section,deleted_at) VALUES ($1,$2,'Invalid destination',$1::uuid::text,$3,$4,$5)`,[id,user,type,section,deleted]);
+    const attempt={...operation(),title:'Must not exist',parent_page_id:id};
+    assert.equal((await call('pages','create',attempt)).status,404);
+    assert.equal((await call('pages','list',{parent_page_id:id})).status,404);
+    assert.equal((await query('SELECT operation_id FROM integration_operations WHERE operation_id=$1',[attempt.operation_id])).length,0);
+  }
+  assert.equal((await call('pages','create',{...operation(),title:'Invalid',parent_page_id:'nope'})).status,400);
+  assert.equal((await call('notes','create',{...operation(),title:'Invalid',parent_page_id:parent.id})).status,400);
+  assert.equal((await call('pages','update',{...operation(),id:child.data.id,expected_revision:2,parent_page_id:null})).status,400);
 });

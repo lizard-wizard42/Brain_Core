@@ -90,7 +90,9 @@ Para cada coleção (`pages` e `notes`), existem seis ferramentas: `brain_<cole�
 {"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Texto da nota"}]}]}
 ```
 
-`notes` recebe título e corpo em texto simples. Atualizações parciais preservam os campos omitidos. Checklist, etiquetas e lembretes permanecem intactos; `restore` recupera somente título e corpo/conteúdo. A criação de uma página produz uma nota na raiz, sem mover a hierarquia.
+`notes` recebe título e corpo em texto simples. Atualizações parciais preservam os campos omitidos. Checklist, etiquetas e lembretes permanecem intactos; `restore` recupera somente título e corpo/conteúdo. A criação de uma página aceita `parent_page_id`: omitir ou enviar `null` cria na raiz; um UUID cria uma subpágina de uma nota da própria conta, fora da lixeira. Seções, canvases e páginas de outras contas não são destinos válidos. A operação não altera o corpo ou a revisão do pai; o editor sincroniza o cartão da subpágina ao reabrir a nota.
+
+As respostas de páginas incluem `parent_page_id`. Em `brain_pages_list`, esse campo filtra filhos diretos; `null` lista somente raízes; omitido pesquisa toda a coleção. Atualização e restauração preservam a hierarquia. Reinicie a conexão MCP após atualizar o adaptador para o cliente descobrir o novo argumento.
 
 As páginas usam o histórico existente. Notas rápidas passam a ter revisão e histórico de título/corpo também para alterações pelo app. A auditoria das escritas registra credencial, conta, operação e ID, sem copiar conteúdo para logs. Os históricos e resultados de repetição ficam no banco privado e entram no backup.
 

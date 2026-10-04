@@ -46,7 +46,7 @@ test('official client negotiates stdio, lists 12 tools, forwards exact writes an
   try {
     await client.connect(transport);
     assert.match(client.getInstructions(), /expected_revision/);
-    assert.match(client.getInstructions(), /cannot create subpages/);
+    assert.match(client.getInstructions(), /Create subpages with parent_page_id/);
     const { tools } = await client.listTools(); assert.equal(tools.length, 12);
     assert.ok(tools.every(t => !/terminal|memory|audio|delete/.test(t.name)));
     const listing = await client.callTool({ name: 'brain_pages_list', arguments: { query: 'Synthetic', limit: 5 } });
@@ -56,7 +56,14 @@ test('official client negotiates stdio, lists 12 tools, forwards exact writes an
     const conflict = await client.callTool({ name: 'brain_notes_update', arguments: input });
     assert.equal(conflict.isError, true); assert.deepEqual(received[1].body, input);
     assert.match(conflict.content[0].text, /Revision conflict/);
+    const childInput = { operation_id: randomUUID(), parent_page_id: randomUUID(), title: 'Synthetic child' };
+    assert.equal((await client.callTool({ name: 'brain_pages_create', arguments: childInput })).isError, false);
+    assert.deepEqual(received.at(-1).body, childInput);
+    assert.equal((await client.callTool({ name: 'brain_pages_list', arguments: { parent_page_id: null } })).isError, false);
+    assert.deepEqual(received.at(-1).body, { parent_page_id: null });
     const count = received.length;
+    assert.equal((await client.callTool({ name: 'brain_notes_create', arguments: childInput })).isError, true);
+    assert.equal(received.length, count);
     const invalid = await client.callTool({ name: 'brain_notes_update', arguments: { ...input, expected_revision: -1 } });
     assert.equal(invalid.isError, true); assert.equal(received.length, count);
   } finally {
