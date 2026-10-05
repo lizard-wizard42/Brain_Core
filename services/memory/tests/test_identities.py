@@ -34,7 +34,7 @@ def test_reuses_name_within_account_but_not_across_accounts():
     first = identities.create_identity("account-a", "Ana")
     assert identities.create_identity("account-a", "ana")["id"] == first["id"]
     assert identities.create_identity("account-b", "Ana")["id"] != first["id"]
-    assert identities.list_identities("account-a") == [first]
+    assert identities.list_identities("account-a") == [{**first, "is_owner": False}]
 
 
 def test_schema_upgrade_is_additive_and_idempotent():

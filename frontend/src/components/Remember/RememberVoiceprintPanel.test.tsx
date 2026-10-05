@@ -40,7 +40,7 @@ describe('RememberVoiceprintPanel', () => {
     try {
       render(<RememberVoiceprintPanel onRelabelChange={onRelabelChange} />);
       await waitFor(() => expect(rememberService.getVoiceprint).toHaveBeenCalledOnce());
-      fireEvent.click(screen.getByRole('button', { name: /Minha voz/ }));
+      fireEvent.click(screen.getByRole('button', { name: /Perfil de voz/ }));
       await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Atualizando 1 bloco'));
       const poll = interval.mock.calls.find((call) => call[1] === 5000)?.[0] as (() => void) | undefined;
       expect(poll).toBeDefined();
@@ -61,8 +61,8 @@ describe('RememberVoiceprintPanel', () => {
     Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia } });
     try {
       render(<RememberVoiceprintPanel />);
-      await waitFor(() => expect(screen.getByText('não configurada')).toBeInTheDocument());
-      fireEvent.click(screen.getByRole('button', { name: /Minha voz/ }));
+      await waitFor(() => expect(screen.getByText('não configurado')).toBeInTheDocument());
+      fireEvent.click(screen.getByRole('button', { name: /Perfil de voz/ }));
       fireEvent.click(screen.getByRole('button', { name: 'Gravar minha voz' }));
       await waitFor(() => expect(nativeBridge.startNativeVoiceSample).toHaveBeenCalledOnce());
       expect(getUserMedia).not.toHaveBeenCalled();
@@ -72,11 +72,11 @@ describe('RememberVoiceprintPanel', () => {
       Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: oldMediaDevices });
     }
   });
-  it('mostra "não configurada" e o botão de gravar quando não há voiceprint', async () => {
+  it('mostra "não configurado" e o botão de gravar quando não há voiceprint', async () => {
     vi.mocked(rememberService.getVoiceprint).mockResolvedValue({ enrolled: false, updated_at: null, sample_seconds: null, model: null });
     render(<RememberVoiceprintPanel />);
-    await waitFor(() => expect(screen.getByText('não configurada')).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: /Minha voz/ }));
+    await waitFor(() => expect(screen.getByText('não configurado')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /Perfil de voz/ }));
     expect(screen.getByRole('button', { name: 'Gravar minha voz' })).toBeInTheDocument();
   });
 
@@ -86,11 +86,11 @@ describe('RememberVoiceprintPanel', () => {
       .mockResolvedValueOnce({ enrolled: false, updated_at: null, sample_seconds: null, model: null });
     vi.mocked(rememberService.deleteVoiceprint).mockResolvedValue({ enrolled: false });
     render(<RememberVoiceprintPanel />);
-    await waitFor(() => expect(screen.getByText('configurada')).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: /Minha voz/ }));
+    await waitFor(() => expect(screen.getByText('configurado')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /Perfil de voz/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Remover' }));
     await waitFor(() => expect(rememberService.deleteVoiceprint).toHaveBeenCalled());
-    await waitFor(() => expect(screen.getByText('não configurada')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('não configurado')).toBeInTheDocument());
   });
 
   it('avisa quando o navegador não permite gravar', async () => {
@@ -98,8 +98,8 @@ describe('RememberVoiceprintPanel', () => {
     const original = navigator.mediaDevices;
     Object.defineProperty(navigator, 'mediaDevices', { value: undefined, configurable: true });
     render(<RememberVoiceprintPanel />);
-    await waitFor(() => expect(screen.getByText('não configurada')).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: /Minha voz/ }));
+    await waitFor(() => expect(screen.getByText('não configurado')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /Perfil de voz/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Gravar minha voz' }));
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/não permite gravar/i));
     Object.defineProperty(navigator, 'mediaDevices', { value: original, configurable: true });
@@ -117,8 +117,8 @@ describe('RememberVoiceprintPanel', () => {
     window.MediaRecorder = class {} as unknown as typeof MediaRecorder;
 
     render(<RememberVoiceprintPanel />);
-    await waitFor(() => expect(screen.getByText('não configurada')).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: /Minha voz/ }));
+    await waitFor(() => expect(screen.getByText('não configurado')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /Perfil de voz/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Gravar minha voz' }));
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/Permissão de microfone negada/i));
     expect(screen.getByRole('alert')).toHaveTextContent(/Enviar arquivo de áudio/i);
@@ -132,8 +132,8 @@ describe('RememberVoiceprintPanel', () => {
     const state = vi.spyOn(browserRecording, 'getState').mockReturnValue({ phase: 'recording', startedAt: null, message: null, pending: 0, unassigned: 0 });
     try {
       render(<RememberVoiceprintPanel />);
-      await waitFor(() => expect(screen.getByText('não configurada')).toBeInTheDocument());
-      fireEvent.click(screen.getByRole('button', { name: /Minha voz/ }));
+      await waitFor(() => expect(screen.getByText('não configurado')).toBeInTheDocument());
+      fireEvent.click(screen.getByRole('button', { name: /Perfil de voz/ }));
       fireEvent.click(screen.getByRole('button', { name: 'Gravar minha voz' }));
       expect(screen.getByRole('alert')).toHaveTextContent('O Brain Core já está gravando nesta página');
     } finally {
@@ -151,8 +151,8 @@ describe('RememberVoiceprintPanel', () => {
     window.MediaRecorder = class {} as unknown as typeof MediaRecorder;
     try {
       render(<RememberVoiceprintPanel />);
-      await waitFor(() => expect(screen.getByText('não configurada')).toBeInTheDocument());
-      fireEvent.click(screen.getByRole('button', { name: /Minha voz/ }));
+      await waitFor(() => expect(screen.getByText('não configurado')).toBeInTheDocument());
+      fireEvent.click(screen.getByRole('button', { name: /Perfil de voz/ }));
       fireEvent.click(screen.getByRole('button', { name: 'Gravar minha voz' }));
       await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('O microfone não pôde ser iniciado'));
       expect(screen.getByRole('alert')).toHaveTextContent('outra gravação ou chamada ativa');
@@ -166,8 +166,8 @@ describe('RememberVoiceprintPanel', () => {
     vi.mocked(rememberService.getVoiceprint).mockResolvedValue({ enrolled: false, updated_at: null, sample_seconds: null, model: null });
     vi.mocked(rememberService.enrollVoiceprint).mockResolvedValue({ enrolled: true, sample_seconds: 15, model: 'campplus' });
     render(<RememberVoiceprintPanel />);
-    await waitFor(() => expect(screen.getByText('não configurada')).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: /Minha voz/ }));
+    await waitFor(() => expect(screen.getByText('não configurado')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /Perfil de voz/ }));
 
     const fileInput = screen.getByLabelText('Upload de amostra de voz');
     const audioBlob = new File(['dummy audio content'], 'minha-voz.wav', { type: 'audio/wav' });
@@ -199,8 +199,8 @@ describe('RememberVoiceprintPanel', () => {
     window.MediaRecorder = Recorder as unknown as typeof MediaRecorder;
     try {
       render(<RememberVoiceprintPanel />);
-      await waitFor(() => expect(screen.getByText('não configurada')).toBeInTheDocument());
-      fireEvent.click(screen.getByRole('button', { name: /Minha voz/ }));
+      await waitFor(() => expect(screen.getByText('não configurado')).toBeInTheDocument());
+      fireEvent.click(screen.getByRole('button', { name: /Perfil de voz/ }));
       vi.useFakeTimers();
       await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Gravar minha voz' })); });
       await act(async () => { vi.advanceTimersByTime(30_000); });
@@ -224,8 +224,8 @@ describe('RememberVoiceprintPanel', () => {
     window.MediaRecorder = construct as unknown as typeof MediaRecorder;
     try {
       const panel = render(<RememberVoiceprintPanel />);
-      await waitFor(() => expect(screen.getByText('não configurada')).toBeInTheDocument());
-      fireEvent.click(screen.getByRole('button', { name: /Minha voz/ }));
+      await waitFor(() => expect(screen.getByText('não configurado')).toBeInTheDocument());
+      fireEvent.click(screen.getByRole('button', { name: /Perfil de voz/ }));
       fireEvent.click(screen.getByRole('button', { name: 'Gravar minha voz' }));
       expect(getUserMedia).toHaveBeenCalledOnce();
       panel.unmount();
@@ -246,8 +246,8 @@ describe('RememberVoiceprintPanel', () => {
     let resolveStart!: (value: { success: boolean }) => void;
     vi.mocked(nativeBridge.startNativeVoiceSample).mockImplementation(() => new Promise(resolve => { resolveStart = resolve; }));
     render(<RememberVoiceprintPanel />);
-    await waitFor(() => expect(screen.getByText('não configurada')).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: /Minha voz/ }));
+    await waitFor(() => expect(screen.getByText('não configurado')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /Perfil de voz/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Gravar minha voz' }));
     await waitFor(() => expect(nativeBridge.startNativeVoiceSample).toHaveBeenCalledOnce());
     await act(async () => {

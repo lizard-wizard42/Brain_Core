@@ -97,3 +97,24 @@ filter. The server supplies `is_owner` by identity ID, so naming another partici
 “Minha voz” does not classify them as the account owner. Undo returns to the
 previous transcript/local label. Segment controls remain available after confirmation.
 This display fix does not change speaker thresholds or make suggestions automatic.
+
+
+### Conversation layout
+
+The web timeline shows the account owner as **Eu**, with outgoing bubbles on the
+right and other speakers on the left. **Identificar fala** / **Alterar participante**
+expands the segment review controls; saved decisions still load while collapsed.
+The voice setup section is named **Perfil de voz**. These labels do not rename
+stored identities or change recognition thresholds.
+
+**Criar nota** opens a draft. **Copiar conversa** copies Markdown to the clipboard;
+it does not send data to an AI service. **Mais ações** contains Markdown download,
+a reminder draft, and voice-reference setup. Copy/download include the whole
+session even when the only-me filter is active, using the currently displayed
+speaker labels and without a duplicate plain-text transcript. Clipboard failure
+shows an error and leaves download as an explicit choice.
+
+Voice-reference setup explains that it replaces the enrolled sample and requires
+an 8–60 second recording with only the account owner speaking. Opening the setup
+does not enroll audio; the explicit **Usar esta gravação** action does. Segment
+confirmation remains separate from voice enrollment.

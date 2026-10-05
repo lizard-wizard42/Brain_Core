@@ -278,12 +278,12 @@ export function RememberVoiceprintPanel({ onRelabelChange, refreshToken = 0 }: {
   const enrolled = voiceprint?.enrolled ?? false;
 
   return (
-    <section aria-label="Minha voz" className="mt-6 rounded-[26px] border p-5" style={{ backgroundColor: 'var(--theme-surface)', borderColor: 'var(--theme-border)' }}>
-      <button type="button" onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between text-left">
+    <section aria-label="Perfil de voz" className="mt-6 rounded-[26px] border p-5" style={{ backgroundColor: 'var(--theme-surface)', borderColor: 'var(--theme-border)' }}>
+      <button type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between text-left">
         <span className="text-sm font-medium" style={{ color: 'var(--theme-text)' }}>
-          Minha voz {enrolled
-            ? <span className="ml-2 text-xs text-emerald-300">configurada</span>
-            : <span className="ml-2 text-xs text-gray-400">não configurada</span>}
+          Perfil de voz {enrolled
+            ? <span className="ml-2 text-xs text-emerald-300">configurado</span>
+            : <span className="ml-2 text-xs text-gray-400">não configurado</span>}
           {relabelRemaining > 0 && <span className="ml-2 text-xs text-blue-300">atualizando {relabelRemaining}</span>}
         </span>
         <span aria-hidden="true" className="text-gray-500">{open ? '▾' : '▸'}</span>

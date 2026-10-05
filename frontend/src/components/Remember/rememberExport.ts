@@ -12,22 +12,22 @@ function fmtRange(session: RememberSession): string {
 }
 
 /** Markdown dump of one session — meant to be pasted into an AI chat. */
-export function sessionToMarkdown(session: RememberSession): string {
+export function sessionToMarkdown(session: RememberSession, labels: Record<number, string> = {}): string {
   const lines: string[] = [
     `# Memória — ${fmtRange(session)}`,
     '',
     '> Transcrição automática de áudio — pode conter erros.',
-    '> Os falantes são inferidos por comparação de voz e podem estar trocados.',
+    '> Identificações podem ter sido revisadas manualmente. Confira o conteúdo antes de compartilhar.',
     '',
   ];
 
   const turns = (session.turns ?? []).filter((turn) => turn.text.trim());
-  const hasSpeakers = turns.some((turn) => turn.speaker);
+  const hasSpeakers = turns.some((turn, index) => labels[index] || turn.speaker);
 
   if (hasSpeakers) {
-    for (const turn of turns) {
-      const speaker = turn.speaker === 'me' || turn.speaker === 'other' ? turn.speaker : 'unknown';
-      lines.push(`**${speakerLabel(session.id, speaker)}:** ${turn.text.trim()}`);
+    for (const [index, turn] of turns.entries()) {
+      const speaker = turn.speaker || 'unknown';
+      lines.push(`**${labels[index] || (speaker === 'me' ? 'Eu' : speakerLabel(session.id, speaker))}:** ${turn.text.trim()}`);
     }
   } else if (turns.length) {
     for (const turn of turns) lines.push(turn.text.trim());
@@ -37,15 +37,11 @@ export function sessionToMarkdown(session: RememberSession): string {
     lines.push('_(sem transcrição)_');
   }
 
-  if (hasSpeakers && session.text) {
-    lines.push('', '---', '', '## Texto corrido (sem separação de falantes)', '', session.text.trim());
-  }
-
   return lines.join('\n') + '\n';
 }
 
-export async function copySessionMarkdown(session: RememberSession): Promise<boolean> {
-  const md = sessionToMarkdown(session);
+export async function copySessionMarkdown(session: RememberSession, labels: Record<number, string> = {}): Promise<boolean> {
+  const md = sessionToMarkdown(session, labels);
   try {
     await navigator.clipboard.writeText(md);
     return true;
@@ -54,8 +50,8 @@ export async function copySessionMarkdown(session: RememberSession): Promise<boo
   }
 }
 
-export function downloadSessionMarkdown(session: RememberSession): void {
-  const md = sessionToMarkdown(session);
+export function downloadSessionMarkdown(session: RememberSession, labels: Record<number, string> = {}): void {
+  const md = sessionToMarkdown(session, labels);
   const blob = new Blob([md], { type: 'text/markdown' });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');

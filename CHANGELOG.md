@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-05 — Memória em formato de conversa
+
+- Balões compactos, identificação do titular como “Eu” e controles de participante recolhidos, com suporte a teclado, celular e temas.
+- Ações organizadas em Criar nota, Copiar conversa e Mais ações (Markdown, lembrete e referência de voz com explicação da substituição).
+- A exportação acompanha os nomes exibidos, evita repetir a transcrição e informa falhas de cópia corretamente. Sessões curtas exibem “menos de 1 min”.
+
 ## 2026-10-05 — Abas e identificação de voz
 
 - Ícones SVG embutidos são renderizados como imagens nas abas, sem vazar o texto da URL sobre o título.

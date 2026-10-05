@@ -12,7 +12,7 @@ const base: RememberSession = {
 };
 
 describe('sessionToMarkdown', () => {
-  it('formata turnos com rótulo de falante e anexa o texto corrido', () => {
+  it('formata a conversa sem duplicar a transcrição', () => {
     const md = sessionToMarkdown({
       ...base,
       turns: [
@@ -21,16 +21,16 @@ describe('sessionToMarkdown', () => {
       ],
     });
     expect(md).toContain('# Memória —');
-    expect(md).toContain('**Você:** oi tudo bem');
+    expect(md).toContain('**Eu:** oi tudo bem');
     expect(md).toContain('**Participante:** então');
-    expect(md).toContain('## Texto corrido');
-    expect(md).toContain('oi tudo bem então');
+    expect(md).not.toContain('## Texto corrido');
+    expect(md.match(/oi tudo bem/g)).toHaveLength(1);
   });
 
   it('cai para o texto plano quando não há falantes rotulados', () => {
     const md = sessionToMarkdown({ ...base, turns: [{ speaker: null, text: 'oi tudo bem então' }] });
     expect(md).toContain('oi tudo bem então');
-    expect(md).not.toContain('**Você:**');
+    expect(md).not.toContain('**Eu:**');
     expect(md).not.toContain('## Texto corrido');
   });
 
@@ -45,4 +45,10 @@ describe('sessionToMarkdown', () => {
     expect(md).toContain('**Professor:** vamos começar');
     localStorage.removeItem('brain-core:speaker-aliases:s1');
   });
+  it('exports the reviewed labels shown in the conversation', () => {
+    const md = sessionToMarkdown({ ...base, turns: [{id: 7, speaker: 'unknown', text: 'Trecho fictício'}] }, {0: 'Eu'});
+    expect(md).toContain('**Eu:** Trecho fictício');
+    expect(md).not.toContain('Não identificado');
+  });
+
 });

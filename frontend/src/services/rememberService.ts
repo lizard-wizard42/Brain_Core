@@ -3,7 +3,7 @@ import { activeBrowserUserId } from '../api/browserSession';
 import type { RememberDay, RememberSearchResponse, RememberSession, RememberSpeaker, RememberStatus, RememberTranscript, RememberVoiceprint } from '../types';
 
 const ROOT = '/api/remember/memory';
-export interface ParticipantIdentity { id: string; display_name: string }
+export interface ParticipantIdentity { is_owner?: boolean; id: string; display_name: string }
 export interface ParticipantDecision { is_owner?: boolean; identity_id: string | null; display_name?: string | null; action: 'confirm' | 'correct' | 'ignore' | 'undo'; created_at: string }
 export interface ParticipantSuggestion { identity_id: string; display_name: string; similarity: number }
 export interface SegmentParticipants { decision: ParticipantDecision | null; suggestions: ParticipantSuggestion[]; suggestions_status?: 'ready' | 'busy' | 'unavailable' }

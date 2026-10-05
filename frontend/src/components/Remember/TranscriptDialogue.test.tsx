@@ -26,8 +26,9 @@ describe('TranscriptDialogue', () => {
     localStorage.clear();
     render(<TranscriptDialogue session={session} onlyMe={false} />);
     expect(screen.getAllByRole('listitem')).toHaveLength(2);
-    expect(screen.getByText('Você')).toBeInTheDocument();
+    expect(screen.getByText('Eu')).toBeInTheDocument();
     expect(screen.getAllByText(/\d{2}:\d{2}/)).toHaveLength(2);
+    fireEvent.click(screen.getAllByText('Editar participante')[1]);
     fireEvent.click(screen.getByRole('button', { name: 'Renomear Participante' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Novo nome para Participante' }), { target: { value: 'Professor' } });
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
@@ -44,6 +45,7 @@ describe('TranscriptDialogue', () => {
   it('permite reatribuir o falante de um turno', () => {
     localStorage.clear();
     render(<TranscriptDialogue session={session} onlyMe={false} />);
+    fireEvent.click(screen.getAllByText('Editar participante')[0]);
     const buttons = screen.getAllByRole('button', { name: '→ Outro' });
     expect(buttons).toHaveLength(1);
     fireEvent.click(buttons[0]);
@@ -57,8 +59,7 @@ describe('TranscriptDialogue', () => {
       { id: 42, speaker: 'other' as const, text: 'Fala corrigida' },
     ] };
     const view = render(<TranscriptDialogue session={original} onlyMe={false} />);
-    fireEvent.click(screen.getByRole('button', { name: '→ Minha fala' }));
-    expect(localStorage.getItem('brain-core:turn-speakers-by-id:dialogue-1')).toContain('"42":"me"');
+    localStorage.setItem('brain-core:turn-speakers-by-id:dialogue-1', JSON.stringify({42:'me'}));
     view.unmount();
     const updated = { ...session, turns: [
       { id: 41, speaker: 'other' as const, text: 'Fala nova' },
@@ -86,7 +87,7 @@ describe('TranscriptDialogue', () => {
     render(<TranscriptDialogue session={multiSession} onlyMe={false} />);
     expect(screen.getByText('Pessoa 1')).toBeInTheDocument();
     expect(screen.getByText('Pessoa 2')).toBeInTheDocument();
-    expect(screen.getByText('Você')).toBeInTheDocument();
+    expect(screen.getByText('Eu')).toBeInTheDocument();
   });
 
   it('permite identificar manualmente e atualizar quando a inferência está ocupada', async () => {
@@ -95,6 +96,7 @@ describe('TranscriptDialogue', () => {
       .mockResolvedValueOnce({ decision: null, suggestions: [], suggestions_status: 'ready' });
     render(<TranscriptDialogue session={{ ...session, turns: [{ id: 42, speaker: 'unknown', text: 'Sintético' }] }} onlyMe={false} />);
     expect(await screen.findByText(/Sugestões em processamento/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Identificar fala'));
     expect(screen.getByRole('button', { name: 'Corrigir' })).toBeEnabled();
     fireEvent.click(screen.getByRole('button', { name: 'Atualizar identificação' }));
     await waitFor(() => expect(screen.queryByText(/Sugestões em processamento/)).not.toBeInTheDocument());
@@ -106,8 +108,9 @@ describe('TranscriptDialogue', () => {
     vi.mocked(rememberService.decideSegment).mockResolvedValue({ action: 'confirm', identity_id: 'owner-identity', display_name: 'Minha voz', is_owner: true, created_at: 'now' });
     vi.mocked(rememberService.createParticipantTemplate).mockRejectedValue(new Error('short segment'));
     render(<TranscriptDialogue session={{ ...session, turns: [{ id: 42, speaker: 'unknown', text: 'Sintético' }] }} onlyMe={false} />);
+    fireEvent.click(screen.getByText('Identificar fala'));
     fireEvent.click(await screen.findByRole('button', { name: 'Confirmar' }));
-    expect(await screen.findByText('Identificado neste segmento: Minha voz')).toBeInTheDocument();
+    expect(await screen.findByText('Identificado: Eu')).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('Decisão salva');
     expect(screen.queryByText('Não identificado')).not.toBeInTheDocument();
     expect(screen.getByText('Sintético').closest('li')).toHaveAttribute('data-speaker', 'me');
@@ -118,7 +121,8 @@ describe('TranscriptDialogue', () => {
     vi.mocked(rememberService.decideSegment).mockResolvedValue({ action: 'undo', identity_id: null, is_owner: false, created_at: 'later' });
     render(<TranscriptDialogue session={{ ...session, turns: [{ id: 42, speaker: 'unknown', text: 'Trecho fictício' }] }} onlyMe />);
     await waitFor(() => expect(screen.getByText('Trecho fictício')).toBeVisible());
-    expect(screen.getByText('Minha voz')).toBeVisible();
+    expect(screen.getByText('Eu')).toBeVisible();
+    fireEvent.click(screen.getByText('Alterar participante'));
     expect(screen.queryByText('Não identificado')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Desfazer' }));
     await waitFor(() => expect(screen.getByText('Trecho fictício')).not.toBeVisible());

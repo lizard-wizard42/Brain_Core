@@ -206,3 +206,12 @@ Brain Core is available under the [MIT License](LICENSE). You may use,
 modify, and redistribute the code, including commercially, while preserving
 the license notice. The project name and visual identity do not imply
 endorsement or affiliation.
+
+
+### Memória como conversa
+
+A linha do tempo apresenta balões com **Eu** e os demais participantes, horários
+discretos e identificação editável sob demanda. Use **Criar nota** ou **Copiar
+conversa**; em **Mais ações**, baixe Markdown, prepare um lembrete ou configure a
+referência de voz. Copiar não envia conteúdo para serviços de IA. Veja os detalhes
+no [guia da Memória](docs/REMEMBER_TIMELINE.md).
