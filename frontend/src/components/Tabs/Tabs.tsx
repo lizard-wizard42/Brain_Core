@@ -13,7 +13,7 @@ interface TabsProps {
 }
 
 function isCustomIconUrl(icon: string | null | undefined): boolean {
-  return typeof icon === 'string' && /^\/|^https?:\/\//.test(icon);
+  return typeof icon === 'string' && /^(?:\/|https?:\/\/|data:image\/(?:svg\+xml|png|jpeg|gif|webp)[;,])/i.test(icon);
 }
 
 function renderPageIcon(icon: string | null | undefined, fallback = '📄') {
@@ -52,7 +52,7 @@ export function Tabs({ tabs, activeTabId, onTabClick, onTabClose, onCloseAllTabs
                 : 'text-gray-500 hover:bg-white/5 hover:text-gray-300'}
             `}
           >
-            <span className="shrink-0 flex items-center justify-center w-4 h-4 mt-0.5">
+            <span className="shrink-0 flex items-center justify-center w-4 h-4 mt-0.5 overflow-hidden">
               {renderPageIcon(tab.icon)}
             </span>
             <span className="max-w-[116px] md:max-w-[156px] whitespace-normal break-words leading-[1.15]">

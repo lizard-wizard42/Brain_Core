@@ -106,6 +106,6 @@ describe('RememberMemoryPanel', () => {
 
     fireEvent.click(screen.getByLabelText('Só minhas falas'));
     expect(screen.getByText('oi')).toBeInTheDocument();
-    expect(screen.queryByText('tudo bem')).not.toBeInTheDocument();
+    expect(screen.getByText('tudo bem')).not.toBeVisible();
   });
 });

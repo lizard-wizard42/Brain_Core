@@ -256,3 +256,16 @@ def test_manual_reference_undone_during_comparison_is_discarded(samples):
             identities.decide_segment("a", samples["sa"], None, "undo")
             return super().embed(pcm)
     assert voice_templates.suggest_segment("a", samples["sb"], ChangedEncoder()) == []
+
+
+def test_owner_flag_uses_identity_not_display_name_and_follows_undo(samples):
+    database.set_voiceprint(np.ones(3, dtype=np.float32).tobytes(), 3, 30, "synthetic-v1", "a")
+    named_like_owner = identities.create_identity("a", "Minha voz")
+    other = identities.decide_segment("a", samples["sa"], named_like_owner["id"], "correct")
+    assert other["is_owner"] is False
+    assert identities.get_segment_decision("a", samples["sa"])["is_owner"] is False
+    own = identities.decide_segment("a", samples["sa"], identities.owner_identity_id("a"), "confirm")
+    assert own["is_owner"] is True
+    assert identities.get_segment_decision("a", samples["sa"])["is_owner"] is True
+    assert identities.decide_segment("a", samples["sa"], None, "undo")["is_owner"] is False
+    assert identities.get_segment_decision("a", samples["sa"])["is_owner"] is False

@@ -137,7 +137,8 @@ def decide_segment(owner_user_id: str, segment_id: int,
         )
         conn.commit()
         return {"segment_id": segment_id, "identity_id": identity_id,
-                "action": action, "created_at": now}
+                "action": action, "created_at": now,
+                "is_owner": action in ("confirm", "correct") and identity_id == owner_identity_id(owner_user_id)}
     finally:
         conn.close()
 
@@ -160,6 +161,7 @@ def get_segment_decision(owner_user_id: str, segment_id: int) -> dict | None:
         if result["identity_id"] is not None and result["display_name"] is None:
             result["identity_id"] = None
             result["action"] = "undo"
+        result["is_owner"] = result["action"] in ("confirm", "correct") and result["identity_id"] == owner_identity_id(owner_user_id)
         return result
     finally:
         conn.close()

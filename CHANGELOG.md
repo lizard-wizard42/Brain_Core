@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-05 — Abas e identificação de voz
+
+- Ícones SVG embutidos são renderizados como imagens nas abas, sem vazar o texto da URL sobre o título.
+- Confirmações de participante passam a atualizar o cabeçalho do segmento e o filtro “Só minhas falas”, inclusive após reabrir a sessão; desfazer restaura a classificação anterior.
+- O servidor informa quando a identidade confirmada é a do titular, sem deduzir isso pelo nome. Sugestões continuam distintas de confirmações.
+
 ## 2026-10-04 — Árvore de Conhecimento e cartões discretos
 
 - Cartões de subpáginas deixam de repetir o rótulo “Subpágina”; referências preservam sua identificação.

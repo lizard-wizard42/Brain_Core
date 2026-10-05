@@ -38,7 +38,7 @@ describe('TranscriptDialogue', () => {
   it('filtra apenas a fala identificada como minha', () => {
     render(<TranscriptDialogue session={session} onlyMe />);
     expect(screen.getByText('Oi.')).toBeInTheDocument();
-    expect(screen.queryByText('Olá.')).not.toBeInTheDocument();
+    expect(screen.getByText('Olá.')).not.toBeVisible();
   });
 
   it('permite reatribuir o falante de um turno', () => {
@@ -103,12 +103,36 @@ describe('TranscriptDialogue', () => {
 
   it('confirma a sugestão da própria voz sem perder a decisão quando o template falha', async () => {
     vi.mocked(rememberService.getSegmentParticipants).mockResolvedValue({ decision: null, suggestions: [{ identity_id: 'owner-identity', display_name: 'Minha voz', similarity: 0.8 }] });
-    vi.mocked(rememberService.decideSegment).mockResolvedValue({ action: 'confirm', identity_id: 'owner-identity', display_name: 'Minha voz', created_at: 'now' });
+    vi.mocked(rememberService.decideSegment).mockResolvedValue({ action: 'confirm', identity_id: 'owner-identity', display_name: 'Minha voz', is_owner: true, created_at: 'now' });
     vi.mocked(rememberService.createParticipantTemplate).mockRejectedValue(new Error('short segment'));
     render(<TranscriptDialogue session={{ ...session, turns: [{ id: 42, speaker: 'unknown', text: 'Sintético' }] }} onlyMe={false} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Confirmar' }));
     expect(await screen.findByText('Identificado neste segmento: Minha voz')).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('Decisão salva');
+    expect(screen.queryByText('Não identificado')).not.toBeInTheDocument();
+    expect(screen.getByText('Sintético').closest('li')).toHaveAttribute('data-speaker', 'me');
     expect(rememberService.decideSegment).toHaveBeenCalledWith('dialogue-1', 42, 'confirm', 'owner-identity');
   });
+  it('uses a persisted owner decision in the heading and only-me filter, and supports undo', async () => {
+    vi.mocked(rememberService.getSegmentParticipants).mockResolvedValue({ decision: { action: 'confirm', identity_id: 'owner', display_name: 'Minha voz', is_owner: true, created_at: 'now' }, suggestions: [] });
+    vi.mocked(rememberService.decideSegment).mockResolvedValue({ action: 'undo', identity_id: null, is_owner: false, created_at: 'later' });
+    render(<TranscriptDialogue session={{ ...session, turns: [{ id: 42, speaker: 'unknown', text: 'Trecho fictício' }] }} onlyMe />);
+    await waitFor(() => expect(screen.getByText('Trecho fictício')).toBeVisible());
+    expect(screen.getByText('Minha voz')).toBeVisible();
+    expect(screen.queryByText('Não identificado')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Desfazer' }));
+    await waitFor(() => expect(screen.getByText('Trecho fictício')).not.toBeVisible());
+    expect(screen.getByText('Nenhuma fala sua nesta sessão.')).toBeVisible();
+  });
+
+  it('does not infer account ownership from a participant name or an unconfirmed suggestion', async () => {
+    vi.mocked(rememberService.getSegmentParticipants).mockResolvedValue({ decision: { action: 'correct', identity_id: 'another', display_name: 'Minha voz', is_owner: false, created_at: 'now' }, suggestions: [] });
+    const view = render(<TranscriptDialogue session={{ ...session, turns: [{ id: 42, speaker: 'me', text: 'Outro participante' }] }} onlyMe />);
+    await waitFor(() => expect(screen.getByText('Outro participante')).not.toBeVisible());
+    vi.mocked(rememberService.getSegmentParticipants).mockResolvedValue({ decision: null, suggestions: [{ identity_id: 'owner', display_name: 'Minha voz', similarity: 0.9 }] });
+    view.rerender(<TranscriptDialogue session={{ ...session, id: 'different-session', turns: [{ id: 42, speaker: 'unknown', text: 'Outra sessão' }] }} onlyMe />);
+    await waitFor(() => expect(screen.getByText('Nenhuma fala sua nesta sessão.')).toBeVisible());
+    expect(screen.getByText('Outra sessão')).not.toBeVisible();
+  });
+
 });
