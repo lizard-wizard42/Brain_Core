@@ -36,7 +36,7 @@ function toSlug(name: string): string {
 }
 
 function isCustomIconUrl(icon: string | null | undefined): boolean {
-  return typeof icon === 'string' && /^\/|^https?:\/\//.test(icon);
+  return typeof icon === 'string' && /^(?:\/|https?:\/\/|data:image\/(?:svg\+xml|png|jpeg|gif|webp)[;,])/i.test(icon);
 }
 
 function renderPageIcon(icon: string | null | undefined, fallback = '📄') {

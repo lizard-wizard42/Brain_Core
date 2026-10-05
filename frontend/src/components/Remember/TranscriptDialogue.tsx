@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { RememberSession, RememberTurn } from '../../types';
 import { rememberService, type ParticipantIdentity, type SegmentParticipants, type ParticipantDecision } from '../../services/rememberService';
 import {
@@ -73,7 +73,7 @@ function SpeakerTag({
   );
 }
 
-function ParticipantChoice({ sessionId, segmentId }: { sessionId: string; segmentId: number }) {
+function ParticipantChoice({ sessionId, segmentId, onDecision }: { sessionId: string; segmentId: number; onDecision: (id: number, decision: ParticipantDecision | null) => void }) {
   const [data, setData] = useState<SegmentParticipants | null>(null);
   const [identities, setIdentities] = useState<ParticipantIdentity[]>([]);
   const [name, setName] = useState('');
@@ -86,14 +86,16 @@ function ParticipantChoice({ sessionId, segmentId }: { sessionId: string; segmen
     let active = true;
     setData(null); setError(''); setOffline(false);
     Promise.all([rememberService.getSegmentParticipants(sessionId, segmentId), rememberService.getParticipantIdentities(sessionId)])
-      .then(([result, names]) => { if (active) { setData(result); setIdentities(names); setSelected(names[0]?.id || ''); } })
-      .catch(() => { if (active) { setOffline(true); setError('Identificação indisponível. Sem dados em cache para este segmento.'); } });
+      .then(([result, names]) => { if (active) { setData(result); setIdentities(names); setSelected(result.decision?.identity_id || names[0]?.id || ''); onDecision(segmentId, result.decision); } })
+      .catch(() => { if (active) { setOffline(true); onDecision(segmentId, null); setError('Identificação indisponível. Sem dados em cache para este segmento.'); } });
     return () => { active = false; };
-  }, [sessionId, segmentId, refresh]);
+  }, [sessionId, segmentId, refresh, onDecision]);
   const decide = async (action: ParticipantDecision['action'], identityId: string | null = null) => {
     setBusy(true); setError('');
     try {
-      const decision = await rememberService.decideSegment(sessionId, segmentId, action, identityId);
+      const saved = await rememberService.decideSegment(sessionId, segmentId, action, identityId);
+      const decision = { ...saved, display_name: saved.display_name || identities.find(item => item.id === saved.identity_id)?.display_name };
+      onDecision(segmentId, decision);
       setData((previous) => ({ decision, suggestions: action === 'undo' ? previous?.suggestions || [] : [] }));
       if ((action === 'confirm' || action === 'correct') && identityId) {
         try { await rememberService.createParticipantTemplate(sessionId, segmentId); }
@@ -151,6 +153,9 @@ function TranscriptItem({
   onSave,
   onCancel,
   onToggleRole,
+  onDecision,
+  confirmed,
+  hidden,
 }: {
   sessionId: string;
   turn: RememberTurn;
@@ -161,6 +166,9 @@ function TranscriptItem({
   onSave: (value: string) => void;
   onCancel: () => void;
   onToggleRole: () => void;
+  onDecision: (id: number, decision: ParticipantDecision | null) => void;
+  confirmed: boolean;
+  hidden: boolean;
 }) {
   const isMe = speakerKey === 'me';
   const toneInfo = speakerTone(speakerKey);
@@ -169,7 +177,8 @@ function TranscriptItem({
 
   return (
     <li
-      className="speaker-turn min-w-0 flex"
+      hidden={hidden}
+      className={`speaker-turn min-w-0 ${hidden ? 'hidden' : 'flex'}`}
       data-speaker={dataSpeaker}
       style={{ ['--speaker-tone' as string]: toneInfo.tone }}
     >
@@ -194,22 +203,26 @@ function TranscriptItem({
             <button type="submit" className="min-h-10 rounded-lg bg-blue-700 px-3 text-xs font-semibold text-white">Salvar</button>
           </form>
         ) : (
-          <SpeakerTag label={label} onRename={onRename} isMe={isMe} onToggleRole={onToggleRole} />
+          confirmed ? <div className="flex items-center gap-2"><span aria-hidden="true" className="speaker-avatar flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ring-1">{label.charAt(0).toUpperCase()}</span><span className="speaker-label text-xs font-semibold">{label}</span></div> : <SpeakerTag label={label} onRename={onRename} isMe={isMe} onToggleRole={onToggleRole} />
         )}
         <p className="mt-3 min-w-0 whitespace-pre-wrap break-words text-sm leading-6" style={{ color: 'var(--theme-text)' }}>{turn.text}</p>
-        {turn.id != null && speakerKey !== 'me' && <ParticipantChoice sessionId={sessionId} segmentId={turn.id} />}
+        {turn.id != null && <ParticipantChoice sessionId={sessionId} segmentId={turn.id} onDecision={onDecision} />}
         {time && <time dateTime={turn.start_at ?? undefined} className="mt-1 block text-right text-[11px] opacity-60">{time}</time>}
       </div>
     </li>
   );
 }
 
-export function TranscriptDialogue({ session, onlyMe }: { session: RememberSession; onlyMe: boolean }) {
+function DialogueSession({ session, onlyMe }: { session: RememberSession; onlyMe: boolean }) {
   const [aliases, setAliases] = useState<SpeakerAliases>(() => loadSpeakerAliases(session.id));
   const [overrides, setOverrides] = useState<Record<number, string>>(() => loadTurnSpeakerOverrides(session.id));
   const [stableOverrides, setStableOverrides] = useState<Record<number, string>>(() => loadStableTurnSpeakerOverrides(session.id));
   const [editing, setEditing] = useState<number | null>(null);
 
+  const [decisions, setDecisions] = useState<Record<number, ParticipantDecision | null>>({});
+  const onDecision = useCallback((id: number, decision: ParticipantDecision | null) => {
+    setDecisions(previous => ({ ...previous, [id]: decision }));
+  }, []);
   const rawTurns = useMemo(() => extractTurns(session), [session]);
   const turns = useMemo(() => rawTurns.filter((turn) => turn.text.trim()), [rawTurns]);
 
@@ -219,14 +232,17 @@ export function TranscriptDialogue({ session, onlyMe }: { session: RememberSessi
   }
 
   const items = turns.map((turn, index) => {
-    const speakerKey = turn.id != null ? stableOverrides[turn.id] || turn.speaker || 'unknown' : overrides[index] || turn.speaker || 'unknown';
+    const decision = turn.id != null ? decisions[turn.id] : null;
+    const confirmed = !!decision?.identity_id && (decision.action === 'confirm' || decision.action === 'correct');
+    const fallbackSpeaker = turn.id != null ? stableOverrides[turn.id] || turn.speaker || 'unknown' : overrides[index] || turn.speaker || 'unknown';
+    const speakerKey = confirmed ? (decision.is_owner ? 'me' : `identity:${decision.identity_id}`) : fallbackSpeaker;
     const isMe = speakerKey === 'me';
-    const label = aliases[speakerKey] || defaultLabelForSpeaker(speakerKey);
-    return { turn, index, speakerKey, isMe, label };
+    const label = confirmed ? decision.display_name || 'Participante' : aliases[speakerKey] || defaultLabelForSpeaker(speakerKey);
+    return { turn, index, speakerKey, isMe, label, confirmed };
   });
 
   const shown = onlyMe ? items.filter((item) => item.isMe) : items;
-  if (!shown.length) return <p className="mt-4 text-sm italic text-gray-500">Nenhuma fala sua nesta sessão.</p>;
+  const pending = items.some(item => item.turn.id != null && decisions[item.turn.id] === undefined);
 
   const saveAlias = (speakerKey: string, value: string) => {
     const label = value.trim().slice(0, 40);
@@ -249,11 +265,16 @@ export function TranscriptDialogue({ session, onlyMe }: { session: RememberSessi
   };
 
   return (
+    <>
+    {onlyMe && !shown.length && <p role="status" className="mt-4 text-sm italic text-gray-500">{pending ? 'Consultando identificação das falas…' : 'Nenhuma fala sua nesta sessão.'}</p>}
     <ol aria-label="Diálogo transcrito" className="mt-4 space-y-2">
-      {shown.map((item) => (
+      {items.map((item) => (
         <TranscriptItem
           sessionId={session.id}
-          key={item.index}
+          onDecision={onDecision}
+          confirmed={item.confirmed}
+          hidden={onlyMe && !item.isMe}
+          key={item.turn.id ?? item.index}
           turn={item.turn}
           label={item.label}
           speakerKey={item.speakerKey}
@@ -265,5 +286,10 @@ export function TranscriptDialogue({ session, onlyMe }: { session: RememberSessi
         />
       ))}
     </ol>
+    </>
   );
+}
+
+export function TranscriptDialogue(props: { session: RememberSession; onlyMe: boolean }) {
+  return <DialogueSession key={props.session.id} {...props} />;
 }

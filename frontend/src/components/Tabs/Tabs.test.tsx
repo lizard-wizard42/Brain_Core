@@ -3,6 +3,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { Tabs } from './Tabs';
 
 describe('Tabs', () => {
+  it('renders bundled inline SVG icons as images instead of spilling URL text', () => {
+    const icon = "data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%3e%3c/svg%3e";
+    const { container, unmount } = render(<Tabs tabs={[{ id: 'remember', title: 'Memória', path: '/remember', icon }]} activeTabId="remember" onTabClick={vi.fn()} onTabClose={vi.fn()} onCloseAllTabs={vi.fn()} onNewTab={vi.fn()} onGoBack={vi.fn()} onGoHome={vi.fn()} />);
+    expect(container.querySelector('img')).toHaveAttribute('src', icon);
+    expect(container).not.toHaveTextContent('data:image');
+    unmount();
+  });
+
   it('renders tabs and triggers click/close callbacks', () => {
     const onTabClick = vi.fn();
     const onTabClose = vi.fn();
