@@ -14,7 +14,7 @@ These screenshots use fictional content.
 
 ![Brain Core dashboard with fictional notes and pages](docs/images/dashboard-demo.png)
 
-![Brain Core Memory conversation with fictional transcripts and compact chat bubbles](docs/images/timeline-memory-demo.jpg)
+![Brain Core Memory conversation preview in English with fictional transcripts and compact chat bubbles](docs/images/timeline-memory-demo.jpg)
 
 **Built with:** React 19 · TypeScript · Vite · Tailwind CSS · Tiptap · tldraw ·
 Node.js · Express · Socket.IO · PostgreSQL · Docker
