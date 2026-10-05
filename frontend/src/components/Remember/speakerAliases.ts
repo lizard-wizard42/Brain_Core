@@ -2,7 +2,7 @@ export type Speaker = string;
 export type SpeakerAliases = Record<string, string>;
 
 export const defaultSpeakerLabels: Record<string, string> = {
-  me: 'Você',
+  me: 'Eu',
   other: 'Participante',
   unknown: 'Não identificado',
 };

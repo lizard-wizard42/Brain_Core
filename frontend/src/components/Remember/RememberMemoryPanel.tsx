@@ -5,19 +5,19 @@ import { rememberService } from '../../services/rememberService';
 import { RememberRecorderControl } from './RememberRecorderControl';
 import { RememberSearchResults } from './RememberSearchResults';
 import { RememberVoiceprintPanel } from './RememberVoiceprintPanel';
-import { TranscriptDialogue } from './TranscriptDialogue';
-import { copySessionMarkdown, downloadSessionMarkdown } from './rememberExport';
+import { RememberConversation } from './RememberConversation';
 import { onRememberStatus, REMEMBER_PENDING_STATES } from './rememberEvents';
 import { emptyDraft, type NoteDraft } from '../Notas/notasModel';
 
 function noteSeedFromSession(session: RememberSession, kind: 'note' | 'reminder'): NoteDraft {
   const when = new Date(session.started_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
-  const body = (session.text ?? '').slice(0, 400);
+  const transcript = session.text?.trim() || (session.turns ?? []).map(turn => turn.text).join('\n');
+  const body = transcript.slice(0, 400);
   return {
     ...emptyDraft(),
     color: kind === 'reminder' ? 'amber' : 'slate',
     title: `Gravação ${when}`,
-    body: body ? (session.text && session.text.length > 400 ? `${body}…` : body) : '',
+    body: body ? (transcript.length > 400 ? `${body}…` : body) : '',
     reminderEnabled: kind === 'reminder',
     reminderDate: kind === 'reminder' ? todayIso() : '',
   };
@@ -34,7 +34,7 @@ function formatTime(value: string | null): string {
 function formatSeconds(seconds: number): string {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
-  return hours ? `${hours}h${String(minutes).padStart(2, '0')}` : `${minutes} min`;
+  return hours ? `${hours}h${String(minutes).padStart(2, '0')}` : minutes ? `${minutes} min` : seconds > 0 ? 'menos de 1 min' : '0 min';
 }
 
 function sessionDuration(startedAt: string, endedAt: string | null): string {
@@ -101,28 +101,12 @@ export function RememberMemoryPanel({ onCreateNote }: { onCreateNote?: (draft: N
 
   useEffect(() => { void loadDay(); }, [loadDay]);
 
-  const [copiedSession, setCopiedSession] = useState<string | null>(null);
-  const handleCopySession = useCallback(async (session: RememberSession) => {
-    const ok = await copySessionMarkdown(session);
-    setCopiedSession(session.id);
-    window.setTimeout(() => setCopiedSession(null), 2000);
-    if (!ok) downloadSessionMarkdown(session);
-  }, []);
-
-  const [voiceRefSession, setVoiceRefSession] = useState<string | null>(null);
   const [voiceprintRefreshToken, setVoiceprintRefreshToken] = useState(0);
   const refreshAfterRelabel = useCallback(() => { void loadDay({ silent: true }); }, [loadDay]);
   const handleUseSessionAsVoice = useCallback(async (sessionId: string) => {
-    setVoiceRefSession(sessionId);
-    try {
-      await rememberService.enrollVoiceprintFromSession(sessionId);
-      setVoiceprintRefreshToken((value) => value + 1);
-      void loadDay({ silent: true });
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Não foi possível usar esta sessão como referência');
-    } finally {
-      window.setTimeout(() => setVoiceRefSession(null), 4000);
-    }
+    await rememberService.enrollVoiceprintFromSession(sessionId);
+    setVoiceprintRefreshToken(value => value + 1);
+    void loadDay({ silent: true });
   }, [loadDay]);
 
   // Gap 1: reload the timeline whenever capture status changes (start/stop, sync → ready…).
@@ -179,7 +163,7 @@ export function RememberMemoryPanel({ onCreateNote }: { onCreateNote?: (draft: N
       </div>
       <RememberRecorderControl />
       <RememberVoiceprintPanel onRelabelChange={refreshAfterRelabel} refreshToken={voiceprintRefreshToken} />
-      <section className="mt-6 rounded-[26px] border p-5" style={{ backgroundColor: 'var(--theme-surface)', borderColor: 'var(--theme-border)' }} aria-label="Timeline do dia">
+      <section className="memory-timeline mt-6 rounded-2xl border p-3 sm:p-5" style={{ backgroundColor: 'var(--theme-surface)', borderColor: 'var(--theme-border)' }} aria-label="Timeline do dia">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-xl font-semibold" style={{ color: 'var(--theme-text)' }}>{new Date(`${selectedDate}T12:00:00`).toLocaleDateString('pt-BR', { dateStyle: 'long' })}</h2>
           {day && <span className="text-xs text-gray-400">{formatSeconds(day.total_seconds)} · {day.session_count} sessão(ões)</span>}
@@ -191,7 +175,7 @@ export function RememberMemoryPanel({ onCreateNote }: { onCreateNote?: (draft: N
           </label>
           {onlyMe && (
             <span className="text-[11px] text-blue-300/80">
-              💡 Mostrando apenas falas marcadas como suas. Para incluir falas não identificadas, use “→ Minha fala” no bloco.
+              Mostrando suas falas. Desative o filtro para identificar outros trechos.
             </span>
           )}
         </div>
@@ -202,7 +186,7 @@ export function RememberMemoryPanel({ onCreateNote }: { onCreateNote?: (draft: N
           : day?.history_available === false ? <div role="status" className="mt-5 rounded-2xl border border-amber-700/30 bg-amber-950/15 p-4"><p className="text-sm font-medium text-amber-200">Histórico ainda não disponível</p><p className="mt-1 text-sm leading-6 text-gray-400">{day.message}</p></div>
           : !day?.sessions.length ? <p className="mt-5 text-sm text-gray-500">Este dia está disponível, mas ainda não possui sessões registradas.</p>
           : <ol className="mt-5 space-y-4">{[...day.sessions].sort((a, b) => b.started_at.localeCompare(a.started_at)).map((session) => (
-            <li key={session.id} id={`remember-session-${session.id}`} className={`rounded-2xl border p-4 transition-colors ${highlightSessionId === session.id ? 'border-blue-400/60 bg-blue-400/10' : ''}`} style={highlightSessionId === session.id ? undefined : { backgroundColor: 'var(--theme-card)', borderColor: 'var(--theme-border)' }}>
+            <li key={session.id} id={`remember-session-${session.id}`} className={`memory-session rounded-2xl border p-3 sm:p-5 transition-colors ${highlightSessionId === session.id ? 'border-blue-400/60 bg-blue-400/10' : ''}`} style={highlightSessionId === session.id ? undefined : { backgroundColor: 'var(--theme-background)', borderColor: 'var(--theme-border)' }}>
               <div className="flex flex-wrap items-center justify-between gap-2"><div><strong className="text-sm" style={{ color: 'var(--theme-text)' }}>{formatTime(session.started_at)} — {formatTime(session.ended_at)}</strong><span className="ml-2 text-xs text-gray-500">{sessionDuration(session.started_at, session.ended_at)}</span></div><span className="text-xs text-gray-400">{sessionLabels[session.status]}</span></div>
               {session.progress && session.progress.total > 0 && session.status !== 'ready' && <div className="mt-3">
                 <div className="mb-1 flex justify-between text-xs text-gray-400"><span>Transcrição no PC</span><span>{session.progress.done}/{session.progress.total} blocos · {session.progress.percent}%</span></div>
@@ -210,39 +194,14 @@ export function RememberMemoryPanel({ onCreateNote }: { onCreateNote?: (draft: N
                   className="h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-blue-400 transition-[width]" style={{ width: `${session.progress.percent}%` }} /></div>
               </div>}
               {session.progress?.models && session.progress.models.length > 0 && (
-                <p className="mt-2 text-[11px]" style={{ color: 'var(--theme-muted)' }}>
-                  Transcrito no PC com {session.progress.models.join(' + ')}
-                </p>
+                <details className="mt-2 text-xs" style={{ color: 'var(--theme-muted)' }}>
+                  <summary className="conversation-disclosure">Detalhes da transcrição</summary>
+                  <p className="mt-2">Transcrito no PC com {session.progress.models.join(' + ')}</p>
+                </details>
               )}
-              <TranscriptDialogue session={session} onlyMe={onlyMe} />
-              {session.status === 'ready' && (
-                <div aria-label="Ações da sessão" className="mt-4 flex flex-wrap gap-x-4 gap-y-3 border-t pt-4 text-xs" style={{ borderColor: 'var(--theme-border)' }}>
-                  <button type="button" onClick={() => void handleCopySession(session)} className="text-blue-300 underline">
-                    {copiedSession === session.id ? 'Copiado ✓' : 'Exportar para IA'}
-                  </button>
-                  <button type="button" onClick={() => downloadSessionMarkdown(session)} className="text-blue-300 underline">
-                    Baixar .md
-                  </button>
-                  {onCreateNote && (
-                    <>
-                      <button type="button" onClick={() => onCreateNote(noteSeedFromSession(session, 'note'))} className="text-gray-300 underline hover:text-white">
-                        ＋ Nota
-                      </button>
-                      <button type="button" onClick={() => onCreateNote(noteSeedFromSession(session, 'reminder'))} className="text-gray-300 underline hover:text-white">
-                        🔔 Lembrete
-                      </button>
-                    </>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => void handleUseSessionAsVoice(session.id)}
-                    disabled={voiceRefSession === session.id}
-                    className="text-blue-300 underline disabled:opacity-50"
-                  >
-                    {voiceRefSession === session.id ? 'Definindo referência…' : 'Usar minha voz desta sessão'}
-                  </button>
-                </div>
-              )}
+              <RememberConversation session={session} onlyMe={onlyMe}
+                onCreateNote={onCreateNote ? kind => onCreateNote(noteSeedFromSession(session, kind)) : undefined}
+                onUseVoice={() => handleUseSessionAsVoice(session.id)} />
             </li>
           ))}</ol>}
       </section>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import type { RememberSession, RememberTurn } from '../../types';
 import { rememberService, type ParticipantIdentity, type SegmentParticipants, type ParticipantDecision } from '../../services/rememberService';
 import {
@@ -47,29 +47,13 @@ function SpeakerTag({
   onToggleRole: () => void;
 }) {
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-2">
-      <span aria-hidden="true" className="speaker-avatar flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ring-1">
-        {label.trim().charAt(0).toUpperCase() || '?'}
-      </span>
-      <span className="speaker-label min-w-0 truncate text-xs font-semibold">{label}</span>
-      <button
-        type="button"
-        onClick={onRename}
-        className="shrink-0 rounded px-1.5 py-1 text-[11px] text-gray-500 hover:bg-white/10 hover:text-white"
-        aria-label={`Renomear ${label}`}
-        title={`Renomear ${label}`}
-      >
-        ✎
-      </button>
-      <button
-        type="button"
-        onClick={onToggleRole}
-        className="shrink-0 rounded bg-white/5 px-2 py-0.5 text-[10px] text-gray-400 hover:bg-white/15 hover:text-white"
-        title={isMe ? 'Atribuir a participante' : 'Atribuir como minha fala'}
-      >
-        {isMe ? '→ Outro' : '→ Minha fala'}
-      </button>
-    </div>
+    <details className="conversation-identity">
+      <summary className="conversation-disclosure">Editar participante</summary>
+      <div className="conversation-identity-body flex flex-wrap gap-2">
+        {!isMe && <button type="button" onClick={onRename} className="conversation-button" aria-label={`Renomear ${label}`}>Renomear</button>}
+        <button type="button" onClick={onToggleRole} className="conversation-button">{isMe ? '→ Outro' : '→ Minha fala'}</button>
+      </div>
+    </details>
   );
 }
 
@@ -90,11 +74,11 @@ function ParticipantChoice({ sessionId, segmentId, onDecision }: { sessionId: st
       .catch(() => { if (active) { setOffline(true); onDecision(segmentId, null); setError('Identificação indisponível. Sem dados em cache para este segmento.'); } });
     return () => { active = false; };
   }, [sessionId, segmentId, refresh, onDecision]);
-  const decide = async (action: ParticipantDecision['action'], identityId: string | null = null) => {
+  const decide = async (action: ParticipantDecision['action'], identityId: string | null = null, displayName?: string) => {
     setBusy(true); setError('');
     try {
       const saved = await rememberService.decideSegment(sessionId, segmentId, action, identityId);
-      const decision = { ...saved, display_name: saved.display_name || identities.find(item => item.id === saved.identity_id)?.display_name };
+      const decision = { ...saved, display_name: saved.display_name || displayName || identities.find(item => item.id === saved.identity_id)?.display_name };
       onDecision(segmentId, decision);
       setData((previous) => ({ decision, suggestions: action === 'undo' ? previous?.suggestions || [] : [] }));
       if ((action === 'confirm' || action === 'correct') && identityId) {
@@ -115,32 +99,43 @@ function ParticipantChoice({ sessionId, segmentId, onDecision }: { sessionId: st
         setName('');
       } catch { setError('Não foi possível criar o participante.'); setBusy(false); return; }
     }
-    if (id) await decide('correct', id);
+    if (id) { setSelected(id); await decide('correct', id, name.trim() || undefined); }
     else setError('Escolha ou crie um participante.');
     setBusy(false);
   };
   const decision = data?.decision;
   const suggestion = !decision || decision.action === 'undo' ? data?.suggestions[0] : null;
-  return <div className="mt-2 space-y-2 text-xs" aria-label="Identificação do segmento">
-    {offline ? <p className="text-amber-400">{error}</p> : <p className="text-gray-500">{data ? 'Dados atuais do servidor' : 'Consultando identificação…'}</p>}
-    {decision && decision.action !== 'undo' && <p className="text-emerald-400">{decision.action === 'ignore' ? 'Sugestão ignorada neste segmento' : `Identificado neste segmento: ${decision.display_name || identities.find((item) => item.id === decision.identity_id)?.display_name || 'Participante'}`}</p>}
-    {suggestion && <p>Parece ser {suggestion.display_name} <span className="text-gray-500">(sugestão, sem confirmação)</span></p>}
-    {data?.suggestions_status && data.suggestions_status !== 'ready' && <p className="text-amber-400">
-      {data.suggestions_status === 'busy' ? 'Sugestões em processamento. Você pode identificar manualmente.' : 'Sugestões indisponíveis. Você pode identificar manualmente.'}
-    </p>}
-    {(offline || (data?.suggestions_status && data.suggestions_status !== 'ready')) && <button type="button" disabled={busy} onClick={() => setRefresh((value) => value + 1)} className="rounded bg-white/10 px-2 py-1">Atualizar identificação</button>}
-    {!offline && data && <div className="flex flex-wrap items-center gap-1">
-      {suggestion && <button type="button" disabled={busy} onClick={() => decide('confirm', suggestion.identity_id)} className="rounded bg-blue-700 px-2 py-1 text-white">Confirmar</button>}
-      {suggestion && <button type="button" disabled={busy} onClick={() => decide('ignore')} className="rounded bg-white/10 px-2 py-1">Ignorar</button>}
-      {decision && decision.action !== 'undo' && <button type="button" disabled={busy} onClick={() => decide('undo')} className="rounded bg-white/10 px-2 py-1">Desfazer</button>}
-      <select aria-label="Corrigir participante" value={selected} onChange={(event) => setSelected(event.target.value)} className="rounded bg-black/30 p-1" disabled={busy}>
-        <option value="">Escolha participante</option>{identities.map((item) => <option key={item.id} value={item.id}>{item.display_name}</option>)}
-      </select>
-      <input aria-label="Novo participante" value={name} maxLength={40} onChange={(event) => setName(event.target.value)} placeholder="Novo nome" className="w-24 rounded bg-black/30 p-1" disabled={busy} />
-      <button type="button" disabled={busy} onClick={correction} className="rounded bg-white/10 px-2 py-1">Corrigir</button>
-    </div>}
-    {error && !offline && <p role="alert" className="text-amber-400">{error}</p>}
-  </div>;
+  const confirmed = decision?.action === 'confirm' || decision?.action === 'correct';
+  const identityLabel = (id: string | null | undefined, fallback?: string | null) =>
+    identities.find(item => item.id === id)?.is_owner || (id === decision?.identity_id && decision?.is_owner)
+      ? 'Eu' : fallback || identities.find(item => item.id === id)?.display_name || 'Participante';
+  return <details className="conversation-identity">
+    <summary className="conversation-disclosure">
+      {confirmed ? 'Alterar participante' : 'Identificar fala'}
+      {suggestion && <span className="conversation-suggestion-dot" title="Sugestão disponível" />}
+    </summary>
+    <div className="conversation-identity-body space-y-3" aria-label="Identificação do segmento">
+      {!data && !offline && <p role="status">Consultando identificação…</p>}
+      {decision && decision.action !== 'undo' && <p>{decision.action === 'ignore' ? 'Sugestão ignorada neste segmento' : `Identificado: ${identityLabel(decision.identity_id, decision.display_name)}`}</p>}
+      {suggestion && <div className="space-y-2"><p>Sugestão: <strong>{identityLabel(suggestion.identity_id, suggestion.display_name)}</strong></p><div className="flex flex-wrap gap-2">
+        <button type="button" disabled={busy} onClick={() => decide('confirm', suggestion.identity_id)} className="conversation-button conversation-button-primary">Confirmar</button>
+        <button type="button" disabled={busy} onClick={() => decide('ignore')} className="conversation-button">Ignorar</button>
+      </div></div>}
+      {data?.suggestions_status && data.suggestions_status !== 'ready' && <p>
+        {data.suggestions_status === 'busy' ? 'Sugestões em processamento. Você pode identificar manualmente.' : 'Sugestões indisponíveis. Você pode identificar manualmente.'}
+      </p>}
+      {(offline || (data?.suggestions_status && data.suggestions_status !== 'ready')) && <button type="button" disabled={busy} onClick={() => setRefresh(value => value + 1)} className="conversation-button">Atualizar identificação</button>}
+      {!offline && data && <form className="flex flex-wrap items-center gap-2" onSubmit={event => { event.preventDefault(); void correction(); }}>
+        <select aria-label="Corrigir participante" value={selected} onChange={event => setSelected(event.target.value)} className="conversation-input" disabled={busy}>
+          <option value="">Escolha participante</option>{identities.map(item => <option key={item.id} value={item.id}>{identityLabel(item.id, item.display_name)}</option>)}
+        </select>
+        <input aria-label="Novo participante" value={name} maxLength={40} onChange={event => setName(event.target.value)} placeholder="Ou novo nome" className="conversation-input w-36" disabled={busy} />
+        <button type="submit" disabled={busy} className="conversation-button">Corrigir</button>
+        {decision && decision.action !== 'undo' && <button type="button" disabled={busy} onClick={() => decide('undo')} className="conversation-button">Desfazer</button>}
+      </form>}
+      {error && <p role="alert">{error}</p>}
+    </div>
+  </details>;
 }
 
 function TranscriptItem({
@@ -173,7 +168,7 @@ function TranscriptItem({
   const isMe = speakerKey === 'me';
   const toneInfo = speakerTone(speakerKey);
   const time = spokenTime(turn.start_at);
-  const dataSpeaker = isMe ? 'me' : speakerKey === 'other' ? 'other' : 'unknown';
+  const dataSpeaker = isMe ? 'me' : speakerKey !== 'unknown' ? 'other' : 'unknown';
 
   return (
     <li
@@ -182,7 +177,10 @@ function TranscriptItem({
       data-speaker={dataSpeaker}
       style={{ ['--speaker-tone' as string]: toneInfo.tone }}
     >
-      <div className="speaker-card min-w-0 max-w-[92%] rounded-2xl border p-3 sm:max-w-[85%] sm:p-4">
+      <div className="speaker-card conversation-bubble">
+        <div className="conversation-message-heading"><span className="speaker-label">{label}</span></div>
+        <p className="conversation-message-text">{turn.text}</p>
+        {time && <time dateTime={turn.start_at ?? undefined} className="conversation-time">{time}</time>}
         {editing ? (
           <form
             className="flex items-center gap-2"
@@ -198,22 +196,22 @@ function TranscriptItem({
               defaultValue={label}
               maxLength={40}
               onKeyDown={(event) => { if (event.key === 'Escape') onCancel(); }}
-              className="min-w-0 flex-1 rounded-lg border border-white/20 bg-black/20 px-2 py-2 text-sm text-white"
+              className="conversation-input min-w-0 flex-1"
             />
             <button type="submit" className="min-h-10 rounded-lg bg-blue-700 px-3 text-xs font-semibold text-white">Salvar</button>
           </form>
         ) : (
-          confirmed ? <div className="flex items-center gap-2"><span aria-hidden="true" className="speaker-avatar flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ring-1">{label.charAt(0).toUpperCase()}</span><span className="speaker-label text-xs font-semibold">{label}</span></div> : <SpeakerTag label={label} onRename={onRename} isMe={isMe} onToggleRole={onToggleRole} />
+          !confirmed && turn.id == null && <SpeakerTag label={label} onRename={onRename} isMe={isMe} onToggleRole={onToggleRole} />
         )}
-        <p className="mt-3 min-w-0 whitespace-pre-wrap break-words text-sm leading-6" style={{ color: 'var(--theme-text)' }}>{turn.text}</p>
-        {turn.id != null && <ParticipantChoice sessionId={sessionId} segmentId={turn.id} onDecision={onDecision} />}
-        {time && <time dateTime={turn.start_at ?? undefined} className="mt-1 block text-right text-[11px] opacity-60">{time}</time>}
+        {turn.id != null && <ParticipantChoice sessionId={sessionId} segmentId={turn.id} onDecision={onDecision} /> }
       </div>
     </li>
   );
 }
 
-function DialogueSession({ session, onlyMe }: { session: RememberSession; onlyMe: boolean }) {
+interface DialogueProps { session: RememberSession; onlyMe: boolean; onLabelsChange?: (labels: Record<number, string>) => void }
+
+function DialogueSession({ session, onlyMe, onLabelsChange }: DialogueProps) {
   const [aliases, setAliases] = useState<SpeakerAliases>(() => loadSpeakerAliases(session.id));
   const [overrides, setOverrides] = useState<Record<number, string>>(() => loadTurnSpeakerOverrides(session.id));
   const [stableOverrides, setStableOverrides] = useState<Record<number, string>>(() => loadStableTurnSpeakerOverrides(session.id));
@@ -226,20 +224,24 @@ function DialogueSession({ session, onlyMe }: { session: RememberSession; onlyMe
   const rawTurns = useMemo(() => extractTurns(session), [session]);
   const turns = useMemo(() => rawTurns.filter((turn) => turn.text.trim()), [rawTurns]);
 
-  if (!turns.length) {
-    if (session.text) return <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-6 text-gray-300">{session.text}</p>;
-    return <p className="mt-4 text-sm italic text-gray-500">{session.status === 'ready' ? 'Sem fala detectada.' : 'Aguardando transcrição…'}</p>;
-  }
-
-  const items = turns.map((turn, index) => {
+  const items = useMemo(() => turns.map((turn, index) => {
     const decision = turn.id != null ? decisions[turn.id] : null;
     const confirmed = !!decision?.identity_id && (decision.action === 'confirm' || decision.action === 'correct');
     const fallbackSpeaker = turn.id != null ? stableOverrides[turn.id] || turn.speaker || 'unknown' : overrides[index] || turn.speaker || 'unknown';
     const speakerKey = confirmed ? (decision.is_owner ? 'me' : `identity:${decision.identity_id}`) : fallbackSpeaker;
     const isMe = speakerKey === 'me';
-    const label = confirmed ? decision.display_name || 'Participante' : aliases[speakerKey] || defaultLabelForSpeaker(speakerKey);
+    const label = isMe ? 'Eu' : confirmed ? decision.display_name || 'Participante' : aliases[speakerKey] || defaultLabelForSpeaker(speakerKey);
     return { turn, index, speakerKey, isMe, label, confirmed };
-  });
+  }), [turns, decisions, stableOverrides, overrides, aliases]);
+
+  useLayoutEffect(() => {
+    onLabelsChange?.(Object.fromEntries(items.map(item => [item.index, item.label])));
+  }, [items, onLabelsChange]);
+
+  if (!turns.length) {
+    if (session.text) return <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-6 text-gray-300">{session.text}</p>;
+    return <p className="mt-4 text-sm italic text-gray-500">{session.status === 'ready' ? 'Sem fala detectada.' : 'Aguardando transcrição…'}</p>;
+  }
 
   const shown = onlyMe ? items.filter((item) => item.isMe) : items;
   const pending = items.some(item => item.turn.id != null && decisions[item.turn.id] === undefined);
@@ -267,7 +269,7 @@ function DialogueSession({ session, onlyMe }: { session: RememberSession; onlyMe
   return (
     <>
     {onlyMe && !shown.length && <p role="status" className="mt-4 text-sm italic text-gray-500">{pending ? 'Consultando identificação das falas…' : 'Nenhuma fala sua nesta sessão.'}</p>}
-    <ol aria-label="Diálogo transcrito" className="mt-4 space-y-2">
+    <ol aria-label="Diálogo transcrito" className="conversation-messages">
       {items.map((item) => (
         <TranscriptItem
           sessionId={session.id}
@@ -290,6 +292,6 @@ function DialogueSession({ session, onlyMe }: { session: RememberSession; onlyMe
   );
 }
 
-export function TranscriptDialogue(props: { session: RememberSession; onlyMe: boolean }) {
+export function TranscriptDialogue(props: DialogueProps) {
   return <DialogueSession key={props.session.id} {...props} />;
 }

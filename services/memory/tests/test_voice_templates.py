@@ -188,7 +188,7 @@ def test_enrolled_voice_suggests_only_own_identity_and_requires_confirmation(sam
     vector = encoder.embed((0.3 * np.sin(2 * np.pi * 180 * t)).astype(np.float32))
     database.set_voiceprint(vector.tobytes(), vector.size, 30, encoder.name, "a")
     own = identities.list_identities("a")[0]
-    assert own == {"id": identities.owner_identity_id("a"), "display_name": "Minha voz"}
+    assert own == {"id": identities.owner_identity_id("a"), "display_name": "Minha voz", "is_owner": True}
     assert identities.list_identities("b") == []
     suggestion = voice_templates.suggest_segment("a", samples["sa"], encoder)[0]
     assert suggestion["identity_id"] == own["id"]
@@ -269,3 +269,12 @@ def test_owner_flag_uses_identity_not_display_name_and_follows_undo(samples):
     assert identities.get_segment_decision("a", samples["sa"])["is_owner"] is True
     assert identities.decide_segment("a", samples["sa"], None, "undo")["is_owner"] is False
     assert identities.get_segment_decision("a", samples["sa"])["is_owner"] is False
+
+
+def test_identity_list_marks_owner_without_renaming_other_participants(samples):
+    database.set_voiceprint(np.ones(3, dtype=np.float32).tobytes(), 3, 30, "synthetic-v1", "a")
+    other = identities.create_identity("a", "Minha voz")
+    listed = {item["id"]: item for item in identities.list_identities("a")}
+    assert listed[identities.owner_identity_id("a")]["is_owner"] is True
+    assert listed[other["id"]]["is_owner"] is False
+    assert listed[other["id"]]["display_name"] == "Minha voz"

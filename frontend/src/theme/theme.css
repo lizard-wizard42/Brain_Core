@@ -176,3 +176,36 @@ html, body, #root { background-color: var(--theme-background); color: var(--them
 :root:not([data-theme='dark']) .tl-container { background-color: var(--theme-background) !important; }
 :root:not([data-theme='dark']) [class~='placeholder-[#444]']::placeholder,
 :root:not([data-theme='dark']) [class~='placeholder-[#333]']::placeholder { color: var(--theme-muted); }
+
+/* Memory conversation: readable bubbles and secondary controls disclosed on demand. */
+.memory-timeline { max-width: 1080px; margin-inline: auto; }
+.conversation-messages { display: grid; gap: .55rem; margin-block: 1.25rem; padding: .25rem 0; }
+.conversation-bubble { min-width: 0; max-width: min(88%, 38rem); padding: .7rem .9rem .45rem; border: 1px solid var(--theme-border); border-radius: 1rem 1rem 1rem .3rem; background: var(--theme-surface); box-shadow: 0 1px 2px #00000008; }
+.speaker-turn[data-speaker='me'] .conversation-bubble { border-radius: 1rem 1rem .3rem 1rem; background: color-mix(in srgb, #10b981 12%, var(--theme-background)); border-color: color-mix(in srgb, #10b981 20%, var(--theme-border)); }
+.conversation-message-heading { font-size: .75rem; font-weight: 600; margin-bottom: .35rem; }
+.conversation-message-heading .speaker-label { color: var(--theme-muted); }
+.speaker-turn[data-speaker='me'] .conversation-message-heading .speaker-label { color: var(--theme-text); }
+.conversation-message-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; font-size: .875rem; color: var(--theme-text); }
+.conversation-time { display: block; text-align: right; margin-top: .25rem; font-size: .65rem; color: var(--theme-muted); }
+.conversation-disclosure { cursor: pointer; font-size: .7rem; color: var(--theme-muted); padding-block: .45rem; border-radius: .35rem; }
+.conversation-identity { margin-top: .15rem; }
+.conversation-identity-body { border-top: 1px solid var(--theme-border); padding-top: .75rem; margin-top: .25rem; font-size: .75rem; color: var(--theme-text); }
+.conversation-suggestion-dot { display: inline-block; width: .4rem; height: .4rem; border-radius: 50%; background: var(--theme-primary); margin-left: .5rem; }
+.conversation-input { min-height: 2.25rem; max-width: 100%; padding: .35rem .55rem; background: var(--theme-input); color: var(--theme-text); border: 1px solid var(--theme-border); border-radius: .5rem; }
+.conversation-button { display: inline-flex; align-items: center; justify-content: center; gap: .35rem; cursor: pointer; min-height: 2.25rem; padding: .45rem .7rem; border: 1px solid var(--theme-border); border-radius: .6rem; font-size: .75rem; font-weight: 500; color: var(--theme-text); background: var(--theme-surface); }
+.conversation-button:hover { background: var(--theme-hover); }
+.conversation-button:disabled { opacity: .5; cursor: not-allowed; }
+.conversation-button-primary { background: var(--theme-text); color: var(--theme-background); border-color: transparent; }
+.conversation-button-primary:hover { background: color-mix(in srgb, var(--theme-text) 85%, var(--theme-background)); }
+.conversation-button:focus-visible, .conversation-disclosure:focus-visible, .conversation-input:focus-visible { outline: 2px solid var(--theme-primary); outline-offset: 3px; }
+.conversation-actions { border-top: 1px solid var(--theme-border); padding-top: 1rem; margin-top: 1rem; }
+.conversation-more { position: relative; }
+.conversation-more > summary { list-style: none; }
+.conversation-more > summary::-webkit-details-marker { display: none; }
+.conversation-more-items { display: grid; gap: .4rem; margin-top: .5rem; }
+.conversation-more-items .conversation-button { justify-content: flex-start; }
+.conversation-caption { margin-top: .6rem; color: var(--theme-muted); font-size: .7rem; line-height: 1.5; }
+.conversation-voice-setup { max-width: 34rem; margin-top: .75rem; padding: 1rem; border: 1px solid var(--theme-border); border-radius: .75rem; background: var(--theme-surface); font-size: .8rem; line-height: 1.6; }
+.conversation-voice-setup p { margin-block: .5rem .75rem; color: var(--theme-muted); }
+.conversation-error { margin-top: .6rem; font-size: .75rem; color: var(--theme-text); }
+@media (max-width: 640px) { .conversation-bubble { max-width: 94%; padding-inline: .7rem; } .conversation-button, .conversation-input { min-height: 2.75rem; } .conversation-disclosure { padding-block: .65rem; } }

@@ -81,6 +81,8 @@ def list_identities(owner_user_id: str) -> list[dict]:
         if conn.execute("SELECT 1 FROM account_voiceprints WHERE owner_user_id=?", (owner_user_id,)).fetchone():
             result = [item for item in result if item["id"] != own_id]
             result.insert(0, {"id": own_id, "display_name": "Minha voz"})
+        for item in result:
+            item["is_owner"] = item["id"] == own_id
         return result
     finally:
         conn.close()

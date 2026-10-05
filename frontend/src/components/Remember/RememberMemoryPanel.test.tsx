@@ -100,7 +100,7 @@ describe('RememberMemoryPanel', () => {
     });
     renderPanel('/remember?date=2026-08-20');
     await waitFor(() => expect(screen.getByText('oi')).toBeInTheDocument());
-    expect(screen.getByText('Você')).toBeInTheDocument();
+    expect(screen.getByText('Eu')).toBeInTheDocument();
     expect(screen.getByText('Participante')).toBeInTheDocument();
     expect(screen.getByText('Transcrito no PC com large-v3-turbo')).toBeInTheDocument();
 
