@@ -54,8 +54,12 @@ remain tied to the linked account.
 
 The optional Memory service can transcribe recordings locally, group sessions
 by date, search transcripts, show speaker turns, and let you review or correct
-participant suggestions. You can turn transcript content into a Brain Core
-note or reminder. Participant suggestions use the current account’s enrolled voice ("Minha voz") and manually confirmed segments; they never assign a person automatically. Voice enrollment accepts 8–60 seconds and up to 25 MiB. Each account can choose automatic, scheduled or manual transcription, pause new jobs, and configure audio retention. The standard installation keeps
+participant suggestions. Sessions are presented as a compact conversation:
+your own turns appear as **Eu**, other speakers keep editable labels, and
+**Criar nota**, **Copiar conversa** and **Mais ações** (Markdown export,
+reminder, voice reference) work from the same view. Copying never sends content
+to an AI service. See the [Memory guide](docs/REMEMBER_TIMELINE.md) for details.
+You can turn transcript content into a Brain Core note or reminder. Participant suggestions use the current account’s enrolled voice ("Minha voz") and manually confirmed segments; they never assign a person automatically. Voice enrollment accepts 8–60 seconds and up to 25 MiB. Each account can choose automatic, scheduled or manual transcription, pause new jobs, and configure audio retention. The standard installation keeps
 Memory **offline**. Phone recording and local playback work without it, but
 server upload and transcription require the private Memory API and worker.
 
@@ -83,7 +87,9 @@ Download the signed [Android APK](https://github.com/lizard-wizard42/Brain_Core/
 and compare its SHA-256 with the [latest release notes](https://github.com/lizard-wizard42/Brain_Core/releases/latest).
 The app requires Android 7.0 or newer and uses the package
 `com.example.braincore`. It has a local recorder and Timeline, plus a **PC** tab
-that opens your own Brain Core web interface. The APK contains no server
+that opens your own Brain Core web interface. Version 1.1.1 adds native
+participant review: create the first participant, or correct a segment and
+build a reusable voice reference from it. The APK contains no server
 address, account, recording, or service token. Local Android notes are not
 synchronized with web notes in this version.
 
@@ -207,11 +213,3 @@ modify, and redistribute the code, including commercially, while preserving
 the license notice. The project name and visual identity do not imply
 endorsement or affiliation.
 
-
-### Memória como conversa
-
-A linha do tempo apresenta balões com **Eu** e os demais participantes, horários
-discretos e identificação editável sob demanda. Use **Criar nota** ou **Copiar
-conversa**; em **Mais ações**, baixe Markdown, prepare um lembrete ou configure a
-referência de voz. Copiar não envia conteúdo para serviços de IA. Veja os detalhes
-no [guia da Memória](docs/REMEMBER_TIMELINE.md).

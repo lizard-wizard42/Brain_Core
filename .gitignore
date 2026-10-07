@@ -57,3 +57,6 @@ private-data/
 
 # Private host service definitions (generic templates live in deploy/systemd).
 ops/systemd-user/*.service
+
+# Local assistant settings
+.claude/
