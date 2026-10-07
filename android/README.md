@@ -17,4 +17,4 @@ cd android
 ./gradlew :app:testDebugUnitTest :app:assembleDebug
 ```
 
-The debug package has the `.dev` suffix and can be installed beside the signed release. Build outputs, local SDK settings, signing properties, and the signing key stay outside Git. See `scripts/build-release.sh` for the signed release build and verification flow.
+The debug package has the `.dev` suffix and can be installed beside the signed release. Build outputs, local SDK settings, signing properties, and the signing key stay outside Git. To produce the signed release, provide your signing properties file (path in `BRAINCORE_ANDROID_SIGNING_PROPS`, default `~/.config/braincore/android-signing.properties`) and run `./gradlew :app:assembleRelease`; then verify it with `apksigner verify --print-certs`.
