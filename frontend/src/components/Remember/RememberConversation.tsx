@@ -23,7 +23,7 @@ export function RememberConversation({ session, onlyMe, onCreateNote, onUseVoice
     setError(''); setFeedback('');
     const ok = await copySessionMarkdown(session, labels.current);
     if (ok) setFeedback('Conversa copiada. Cole onde quiser.');
-    else setError('Não foi possível copiar. Use “Baixar conversa (.md)” em Mais ações.');
+    else setError('Não foi possível copiar. Use “Baixar conversa (.md)”.');
   };
   const handleUseVoice = async () => {
     setBusy(true); setError(''); setFeedback('');
@@ -33,14 +33,14 @@ export function RememberConversation({ session, onlyMe, onCreateNote, onUseVoice
   };
   return <>
     <TranscriptDialogue session={session} onlyMe={onlyMe} onLabelsChange={updateLabels} />
-    {session.status === 'ready' && <footer className="conversation-actions" aria-label="Ações da sessão">
+    {(session.status === 'ready' || hasText) && <footer className="conversation-actions" aria-label="Ações da sessão">
       <div className="flex flex-wrap items-center gap-2">
         {onCreateNote && <button type="button" disabled={!hasText} className="conversation-button conversation-button-primary" onClick={() => onCreateNote('note')}><span aria-hidden="true">＋</span> Criar nota</button>}
         <button type="button" disabled={!hasText} className="conversation-button" onClick={() => void copy()}>Copiar conversa</button>
+        <button type="button" disabled={!hasText} className="conversation-button" onClick={() => { downloadSessionMarkdown(session, labels.current); setFeedback('Download da conversa iniciado.'); }}>Baixar conversa (.md)</button>
         <details className="conversation-more">
           <summary className="conversation-button">Mais ações <span aria-hidden="true">⌄</span></summary>
           <div className="conversation-more-items">
-            <button type="button" disabled={!hasText} className="conversation-button" onClick={() => { downloadSessionMarkdown(session, labels.current); setFeedback('Download da conversa iniciado.'); }}>Baixar conversa (.md)</button>
             {onCreateNote && <button type="button" disabled={!hasText} className="conversation-button" onClick={() => onCreateNote('reminder')}>Criar lembrete</button>}
             <button type="button" className="conversation-button" aria-expanded={voiceSetup} onClick={() => setVoiceSetup(value => !value)}>Usar como referência de voz</button>
           </div>

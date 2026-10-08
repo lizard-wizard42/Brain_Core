@@ -51,4 +51,9 @@ describe('RememberConversation', () => {
     await waitFor(()=>expect(onUseVoice).toHaveBeenCalledOnce());
     await screen.findByText('Referência de voz atualizada.');
   });
+  it('offers the Markdown download without opening the menu, even before the session is marked ready', () => {
+    render(<RememberConversation session={{...session, status:'transcribing'}} onlyMe={false} onUseVoice={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button',{name:'Baixar conversa (.md)'}));
+    expect(downloadSessionMarkdown).toHaveBeenCalledOnce();
+  });
 });

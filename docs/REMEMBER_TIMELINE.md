@@ -108,8 +108,8 @@ The voice setup section is named **Perfil de voz**. These labels do not rename
 stored identities or change recognition thresholds.
 
 **Criar nota** opens a draft. **Copiar conversa** copies Markdown to the clipboard;
-it does not send data to an AI service. **Mais ações** contains Markdown download,
-a reminder draft, and voice-reference setup. Copy/download include the whole
+it does not send data to an AI service. **Baixar conversa (.md)** downloads the same
+Markdown as a file. **Mais ações** contains a reminder draft and voice-reference setup. Copy/download include the whole
 session even when the only-me filter is active, using the currently displayed
 speaker labels and without a duplicate plain-text transcript. Clipboard failure
 shows an error and leaves download as an explicit choice.
