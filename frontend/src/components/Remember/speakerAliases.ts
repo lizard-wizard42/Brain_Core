@@ -3,6 +3,7 @@ export type SpeakerAliases = Record<string, string>;
 
 export const defaultSpeakerLabels: Record<string, string> = {
   me: 'Eu',
+  me_probable: 'Eu (provável)',
   other: 'Participante',
   unknown: 'Não identificado',
 };
@@ -12,6 +13,7 @@ const PALETTE = ['#a78bfa', '#34d399', '#fbbf24', '#f472b6', '#38bdf8', '#fb923c
 export function defaultLabelForSpeaker(speaker?: string | null): string {
   if (!speaker || speaker === 'unknown') return defaultSpeakerLabels.unknown;
   if (speaker === 'me') return defaultSpeakerLabels.me;
+  if (speaker === 'me_probable') return defaultSpeakerLabels.me_probable;
   if (speaker === 'other') return defaultSpeakerLabels.other;
   const match = speaker.match(/^(?:speaker|pessoa)[_-]?(\d+)$/i);
   if (match) return `Pessoa ${Number(match[1]) + 1}`;
@@ -20,6 +22,7 @@ export function defaultLabelForSpeaker(speaker?: string | null): string {
 
 export function speakerTone(speaker?: string | null): { tone: string; isMe: boolean } {
   if (speaker === 'me') return { tone: 'var(--theme-primary)', isMe: true };
+  if (speaker === 'me_probable') return { tone: 'var(--theme-primary)', isMe: true };
   if (!speaker || speaker === 'unknown') return { tone: 'var(--theme-muted, #9ca3af)', isMe: false };
   if (speaker === 'other') return { tone: '#a78bfa', isMe: false };
   const match = speaker.match(/^(?:speaker|pessoa)[_-]?(\d+)$/i);

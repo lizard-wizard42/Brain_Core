@@ -303,6 +303,14 @@ def init_db() -> None:
 
         # Fase 7 — speaker labelling (schema_version 6). Additive.
         _add_column_if_missing(conn, "transcript_segments", "speaker", "TEXT")
+        # Session-local voice clusters (who-spoke grouping). Additive; never an identity.
+        _add_column_if_missing(conn, "transcript_segments", "voice_idx", "INTEGER")
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS session_voices ("
+            "session_id TEXT NOT NULL, voice_idx INTEGER NOT NULL, centroid BLOB NOT NULL, "
+            "dim INTEGER NOT NULL, model TEXT NOT NULL, n INTEGER NOT NULL, updated_at TEXT NOT NULL, "
+            "PRIMARY KEY (session_id, voice_idx), FOREIGN KEY (session_id) REFERENCES sessions(id))"
+        )
         # GPU worker / queue support. Additive.
         _add_column_if_missing(conn, "jobs", "worker", "TEXT")
         _add_column_if_missing(conn, "chunks", "denoised_path", "TEXT")
@@ -859,7 +867,7 @@ def get_segments_for_chunk(session_id: str, chunk_num: int) -> list[dict]:
     conn = get_connection()
     try:
         cur = conn.execute(
-            "SELECT id, start_ms, end_ms, text, speaker FROM transcript_segments "
+            "SELECT id, start_ms, end_ms, text, speaker, voice_idx FROM transcript_segments "
             "WHERE session_id = ? AND chunk_num = ? ORDER BY start_ms",
             (session_id, chunk_num),
         )
@@ -1140,7 +1148,7 @@ def compute_turns(session_id: str) -> list[dict]:
     conn = get_connection()
     try:
         rows = conn.execute(
-            "SELECT ts.id, ts.chunk_num, ts.start_ms, ts.end_ms, ts.text, ts.speaker, "
+            "SELECT ts.id, ts.chunk_num, ts.start_ms, ts.end_ms, ts.text, ts.speaker, ts.voice_idx, "
             "c.started_at AS chunk_started_at, s.started_at AS session_started_at "
             "FROM transcript_segments ts "
             "JOIN sessions s ON s.id = ts.session_id "
@@ -1149,6 +1157,14 @@ def compute_turns(session_id: str) -> list[dict]:
         ).fetchall()
     finally:
         conn.close()
+    from services.memory.worker.voices import active_voices, me_probable_voice
+
+    try:
+        probable = me_probable_voice(session_id)
+        active = {idx for model in {m for m in _voice_models(session_id)}
+                  for idx in active_voices(session_id, model)}
+    except Exception:  # grouping is advisory; never break the transcript
+        probable, active = None, set()
     turns: list[dict] = []
     for seg in rows:
         speaker = seg["speaker"]
@@ -1162,9 +1178,77 @@ def compute_turns(session_id: str) -> list[dict]:
             end_at = (base + timedelta(milliseconds=seg["end_ms"])).isoformat() if seg["chunk_started_at"] else None
         except (TypeError, ValueError, OverflowError):
             start_at = end_at = None
-        turns.append({"id": seg["id"], "speaker": speaker, "text": text, "start_at": start_at,
-                      "end_at": end_at})
+        turn = {"id": seg["id"], "speaker": speaker, "text": text, "start_at": start_at,
+                "end_at": end_at}
+        if seg["voice_idx"] is not None and seg["voice_idx"] in active:
+            turn["voice"] = f"speaker_{seg['voice_idx']}"
+            turn["voice_is_me_probable"] = seg["voice_idx"] == probable
+        turns.append(turn)
     return turns
+
+
+def _voice_models(session_id: str) -> list[str]:
+    conn = get_connection()
+    try:
+        return [r["model"] for r in conn.execute(
+            "SELECT DISTINCT model FROM session_voices WHERE session_id = ?", (session_id,))]
+    finally:
+        conn.close()
+
+
+def get_session_voices(session_id: str, model: str) -> dict[int, dict]:
+    import numpy as np
+
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT voice_idx, centroid, dim, n FROM session_voices WHERE session_id = ? AND model = ?",
+            (session_id, model),
+        ).fetchall()
+    finally:
+        conn.close()
+    return {r["voice_idx"]: {"centroid": np.frombuffer(r["centroid"], dtype=np.float32).copy(), "n": r["n"]}
+            for r in rows}
+
+
+def save_chunk_voices(session_id: str, chunk_num: int, model: str, voices: dict[int, dict],
+                      assignments: dict[int, int]) -> None:
+    """Persist centroids and segment groups together; never overwrites an existing group."""
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        now = _now_iso()
+        for idx, v in voices.items():
+            conn.execute(
+                "INSERT INTO session_voices (session_id, voice_idx, centroid, dim, model, n, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(session_id, voice_idx) DO UPDATE SET "
+                "centroid=excluded.centroid, dim=excluded.dim, model=excluded.model, n=excluded.n, "
+                "updated_at=excluded.updated_at",
+                (session_id, idx, v["centroid"].astype("float32").tobytes(), int(v["centroid"].size),
+                 model, int(v["n"]), now),
+            )
+        conn.executemany(
+            "UPDATE transcript_segments SET voice_idx = ? WHERE id = ? AND session_id = ? "
+            "AND chunk_num = ? AND voice_idx IS NULL",
+            [(idx, seg_id, session_id, chunk_num) for seg_id, idx in assignments.items()],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def list_sessions_without_voices(limit: int | None = None) -> list[str]:
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT s.id FROM sessions s WHERE EXISTS (SELECT 1 FROM transcript_segments ts "
+            "WHERE ts.session_id = s.id) AND NOT EXISTS (SELECT 1 FROM transcript_segments ts "
+            "WHERE ts.session_id = s.id AND ts.voice_idx IS NOT NULL) "
+            "ORDER BY s.started_at LIMIT ?", (limit if limit is not None else -1,),
+        ).fetchall()
+        return [r["id"] for r in rows]
+    finally:
+        conn.close()
 
 
 def get_chunks_for_session(session_id: str, *, limit: int | None = None) -> list[dict]:

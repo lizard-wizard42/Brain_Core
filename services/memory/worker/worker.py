@@ -6,6 +6,7 @@ from services.memory.storage import database
 from services.memory.api.transcription_policy import claim_allowed_owners
 from services.memory.storage.database import init_db
 from services.memory.worker.diarizer import label_chunk
+from services.memory.worker.voices import assign_voices
 from services.memory.worker.transcriber import tidy_segments, transcribe_chunk
 
 POLL_SECONDS = float(os.environ.get("CELTWO_MEMORY_WORKER_POLL_SECONDS", "5"))
@@ -42,6 +43,12 @@ def process_one_job() -> bool:
             "labelling %s chunk %s failed", job["session_id"], job["chunk_num"]
         )
         database.enqueue_relabel(job["session_id"], job["chunk_num"])
+    try:
+        assign_voices(job["session_id"], job["chunk_num"])
+    except Exception:
+        logging.exception(
+            "voice grouping %s chunk %s failed", job["session_id"], job["chunk_num"]
+        )
     return True
 
 

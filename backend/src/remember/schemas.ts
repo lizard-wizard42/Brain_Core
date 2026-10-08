@@ -41,6 +41,9 @@ export type RememberSpeaker = 'me' | 'other' | 'unknown';
 export interface RememberTurn {
   id?: number;
   speaker: RememberSpeaker | null;
+  /** Session-local voice group (e.g. speaker_0); a reading aid, not an identity. */
+  voice?: string | null;
+  voice_is_me_probable?: boolean;
   text: string;
   start_at?: string | null;
   end_at?: string | null;

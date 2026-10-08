@@ -168,4 +168,9 @@ def post_job_segments(
     except Exception:
         logging.exception("label_chunk %s/%s falhou", job["session_id"], job["chunk_num"])
         database.enqueue_relabel(job["session_id"], job["chunk_num"])
+    try:
+        from services.memory.worker.voices import assign_voices
+        assign_voices(job["session_id"], job["chunk_num"])
+    except Exception:
+        logging.exception("voice grouping %s/%s falhou", job["session_id"], job["chunk_num"])
     return {"status": "done", "segments": len(segs)}

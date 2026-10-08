@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-08 — Agrupamento de vozes por sessão
+
+- Cada sessão passa a separar as falas por voz (Pessoa 1, Pessoa 2…), usando embeddings locais. Nenhuma identidade é gravada: é só apoio de leitura.
+- A voz que combina com a sua referência cadastrada aparece como “Eu (provável)” e entra em “Só minhas falas”. Confirmações e correções manuais continuam valendo mais.
+- Grupos minúsculos são tratados como ruído e ficam como “Não identificado”. Sessões antigas podem ser agrupadas com `python -m services.memory.worker.voices`.
+
 ## 2026-10-08 — Segmentação de fala mais natural
 
 - Novas transcrições unem fragmentos curtos da mesma fala e anexam pontuação solta ao trecho anterior, sem descartar texto. Pausas longas e fim de frase continuam abrindo um novo trecho.
