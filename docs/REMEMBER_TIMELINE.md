@@ -71,6 +71,8 @@ Settings offers automatic, scheduled and manual transcription, **run now** and *
 
 Audio retention supports 30, 90, 180 or 365 days. Automatic deletion is opt-in; manual cleanup previews eligible completed/transcribed chunks. Purging removes raw audio while keeping transcript text and session metadata. It does not remove copies already held in backups. Android also has a device-local retention policy.
 
+Transcripts are tidied after Whisper runs: fragments of one utterance are merged when the pause is short (`CELTWO_MEMORY_MERGE_GAP_MS`, default 600 ms) and the previous text did not end a sentence, or when either part is shorter than `CELTWO_MEMORY_MERGE_SHORT_MS` (1500 ms); a segment never exceeds `CELTWO_MEMORY_MERGE_MAX_MS` (20 s). Punctuation-only fragments are attached to the previous segment. Existing sessions are not rewritten.
+
 Voice enrollment accepts 8–60 seconds and up to 25 MiB. The session-based endpoint shares that byte/sample budget across at most 128 chunks; oversized sessions are rejected, not silently truncated. One enrollment runs per Memory process, off the API event loop.
 
 Participant templates require a manually confirmed, nonoverlapping segment of 3–60 seconds and a locally available embedding model. Participant processing accepts chunks up to 300 seconds of decoded audio and allows one inference operation per process. Oversized or busy requests are refused; existing templates and transcription remain available. Expensive processing happens outside the shared SQLite write lock, with source and manual decision rechecked before saving. Similarity scores are suggestions, not calibrated identity probabilities.

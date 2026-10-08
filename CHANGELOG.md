@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-08 — Segmentação de fala mais natural
+
+- Novas transcrições unem fragmentos curtos da mesma fala e anexam pontuação solta ao trecho anterior, sem descartar texto. Pausas longas e fim de frase continuam abrindo um novo trecho.
+- Ajustável por `CELTWO_MEMORY_MERGE_GAP_MS` (600), `CELTWO_MEMORY_MERGE_SHORT_MS` (1500) e `CELTWO_MEMORY_MERGE_MAX_MS` (20000). Vale para o worker de CPU e para o da GPU; sessões já transcritas não são alteradas.
+- Em uma base real de teste, a mesma regra reduziu os trechos pela metade e dobrou a fatia com 3 s ou mais, que é o mínimo para sugerir quem falou.
+
 ## 2026-10-05 — Memória em formato de conversa
 
 - Balões compactos, identificação do titular como “Eu” e controles de participante recolhidos, com suporte a teclado, celular e temas.

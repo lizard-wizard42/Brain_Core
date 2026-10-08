@@ -1,4 +1,5 @@
 import os
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -49,6 +50,60 @@ def collapse_repeats(
         else:
             out.extend(segments[i:j + 1])
         i = j + 1
+    return out
+
+_TERMINAL = re.compile(r"[.!?…]\s*$")
+_WORDS = re.compile(r"[^\W_]", re.UNICODE)
+
+
+def _env_ms(name: str, default: int) -> int:
+    try:
+        return max(0, int(os.environ.get(name, default)))
+    except ValueError:
+        return default
+
+
+def tidy_segments(
+    segments: list[TranscribedSegment],
+    *,
+    gap_ms: int | None = None,
+    short_ms: int | None = None,
+    max_ms: int | None = None,
+) -> list[TranscribedSegment]:
+    """Reduz a fragmentação do Whisper sem perder texto de fala.
+
+    - Pontuação solta (sem letras/dígitos) é anexada ao trecho anterior; no
+      início do chunk é descartada.
+    - Trechos vizinhos são unidos quando o intervalo é curto e o anterior não
+      terminou uma frase, ou quando qualquer um dos dois é curto demais para
+      ser um turno de fala. Nunca ultrapassa ``max_ms`` por trecho.
+    A união é conservadora (intervalo pequeno): turnos de pessoas diferentes
+    costumam ter pausa maior, e a separação por voz acontece depois.
+    """
+    gap_ms = _env_ms("CELTWO_MEMORY_MERGE_GAP_MS", 600) if gap_ms is None else gap_ms
+    short_ms = _env_ms("CELTWO_MEMORY_MERGE_SHORT_MS", 1500) if short_ms is None else short_ms
+    max_ms = _env_ms("CELTWO_MEMORY_MERGE_MAX_MS", 20000) if max_ms is None else max_ms
+
+    out: list[TranscribedSegment] = []
+    for seg in segments:
+        text = (seg.text or "").strip()
+        if not text:
+            continue
+        if not _WORDS.search(text):
+            if out:
+                out[-1] = TranscribedSegment(out[-1].start_ms, max(out[-1].end_ms, seg.end_ms),
+                                             out[-1].text + text)
+            continue
+        prev = out[-1] if out else None
+        if prev is not None:
+            gap = seg.start_ms - prev.end_ms
+            joined = seg.end_ms - prev.start_ms
+            fragment = (prev.end_ms - prev.start_ms) < short_ms or (seg.end_ms - seg.start_ms) < short_ms
+            if gap <= gap_ms and joined <= max_ms and (fragment or not _TERMINAL.search(prev.text)):
+                out[-1] = TranscribedSegment(prev.start_ms, max(prev.end_ms, seg.end_ms),
+                                             f"{prev.text} {text}")
+                continue
+        out.append(TranscribedSegment(seg.start_ms, seg.end_ms, text))
     return out
 
 

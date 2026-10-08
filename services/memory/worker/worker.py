@@ -6,7 +6,7 @@ from services.memory.storage import database
 from services.memory.api.transcription_policy import claim_allowed_owners
 from services.memory.storage.database import init_db
 from services.memory.worker.diarizer import label_chunk
-from services.memory.worker.transcriber import transcribe_chunk
+from services.memory.worker.transcriber import tidy_segments, transcribe_chunk
 
 POLL_SECONDS = float(os.environ.get("CELTWO_MEMORY_WORKER_POLL_SECONDS", "5"))
 MAX_ATTEMPTS = int(os.environ.get("CELTWO_MEMORY_WORKER_MAX_ATTEMPTS", "3"))
@@ -20,7 +20,7 @@ def process_one_job() -> bool:
 
     try:
         chunk = database.get_chunk(job["session_id"], job["chunk_num"])
-        segments = transcribe_chunk(chunk["path"])
+        segments = tidy_segments(transcribe_chunk(chunk["path"]))
         database.insert_segments(job["session_id"], job["chunk_num"], segments)
         database.mark_job_done(job["id"])
         logging.info(
