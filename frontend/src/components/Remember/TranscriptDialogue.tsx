@@ -165,7 +165,7 @@ function TranscriptItem({
   confirmed: boolean;
   hidden: boolean;
 }) {
-  const isMe = speakerKey === 'me';
+  const isMe = speakerKey === 'me' || speakerKey === 'me_probable';
   const toneInfo = speakerTone(speakerKey);
   const time = spokenTime(turn.start_at);
   const dataSpeaker = isMe ? 'me' : speakerKey !== 'unknown' ? 'other' : 'unknown';
@@ -227,10 +227,11 @@ function DialogueSession({ session, onlyMe, onLabelsChange }: DialogueProps) {
   const items = useMemo(() => turns.map((turn, index) => {
     const decision = turn.id != null ? decisions[turn.id] : null;
     const confirmed = !!decision?.identity_id && (decision.action === 'confirm' || decision.action === 'correct');
-    const fallbackSpeaker = turn.id != null ? stableOverrides[turn.id] || turn.speaker || 'unknown' : overrides[index] || turn.speaker || 'unknown';
+    const grouped = turn.speaker && turn.speaker !== 'unknown' ? turn.speaker : turn.voice_is_me_probable ? 'me_probable' : turn.voice || 'unknown';
+    const fallbackSpeaker = turn.id != null ? stableOverrides[turn.id] || grouped : overrides[index] || grouped;
     const speakerKey = confirmed ? (decision.is_owner ? 'me' : `identity:${decision.identity_id}`) : fallbackSpeaker;
-    const isMe = speakerKey === 'me';
-    const label = isMe ? 'Eu' : confirmed ? decision.display_name || 'Participante' : aliases[speakerKey] || defaultLabelForSpeaker(speakerKey);
+    const isMe = speakerKey === 'me' || speakerKey === 'me_probable';
+    const label = speakerKey === 'me' ? 'Eu' : confirmed ? decision.display_name || 'Participante' : aliases[speakerKey] || defaultLabelForSpeaker(speakerKey);
     return { turn, index, speakerKey, isMe, label, confirmed };
   }), [turns, decisions, stableOverrides, overrides, aliases]);
 

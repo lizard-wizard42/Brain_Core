@@ -54,8 +54,9 @@ remain tied to the linked account.
 
 The optional Memory service can transcribe recordings locally, group sessions
 by date, search transcripts, show speaker turns, and let you review or correct
-participant suggestions. Sessions are presented as a compact conversation:
-your own turns appear as **Eu**, other speakers keep editable labels, and
+participant suggestions. Sessions are presented as a compact conversation. Voices are grouped
+automatically per session; the group matching your enrolled voice is shown as
+**Eu (provável)** until you confirm it, other groups appear as **Pessoa N**, and
 **Criar nota**, **Copiar conversa**, **Baixar conversa (.md)** and **Mais ações**
 (reminder, voice reference) work from the same view. Copying never sends content
 to an AI service. See the [Memory guide](docs/REMEMBER_TIMELINE.md) for details.

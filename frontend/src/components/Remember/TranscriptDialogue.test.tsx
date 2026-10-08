@@ -90,6 +90,26 @@ describe('TranscriptDialogue', () => {
     expect(screen.getByText('Eu')).toBeInTheDocument();
   });
 
+  it('separa vozes agrupadas e marca a voz provável como Eu (provável), incluída em Só minhas falas', () => {
+    const grouped = {
+      id: 'dialogue-voices', started_at: '2026-09-24T08:00:00Z', ended_at: '2026-09-24T08:05:00Z',
+      device_id: null, status: 'ready' as const, text: null,
+      turns: [
+        { speaker: 'unknown' as const, voice: 'speaker_0', voice_is_me_probable: true, text: 'Minha primeira' },
+        { speaker: null, voice: 'speaker_1', voice_is_me_probable: false, text: 'Fala da outra pessoa' },
+        { speaker: 'unknown' as const, text: 'Sem grupo' },
+      ],
+    };
+    const { rerender } = render(<TranscriptDialogue session={grouped} onlyMe={false} />);
+    expect(screen.getByText('Eu (provável)')).toBeInTheDocument();
+    expect(screen.getByText('Pessoa 2')).toBeInTheDocument();
+    expect(screen.getByText('Não identificado')).toBeInTheDocument();
+    expect(screen.getByText('Minha primeira').closest('li')).toHaveAttribute('data-speaker', 'me');
+    rerender(<TranscriptDialogue session={grouped} onlyMe />);
+    expect(screen.getByText('Fala da outra pessoa').closest('li')).toHaveAttribute('hidden');
+    expect(screen.getByText('Minha primeira').closest('li')).not.toHaveAttribute('hidden');
+  });
+
   it('permite identificar manualmente e atualizar quando a inferência está ocupada', async () => {
     vi.mocked(rememberService.getSegmentParticipants)
       .mockResolvedValueOnce({ decision: null, suggestions: [], suggestions_status: 'busy' })

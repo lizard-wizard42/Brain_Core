@@ -73,6 +73,12 @@ Audio retention supports 30, 90, 180 or 365 days. Automatic deletion is opt-in; 
 
 Transcripts are tidied after Whisper runs: fragments of one utterance are merged when the pause is short (`CELTWO_MEMORY_MERGE_GAP_MS`, default 600 ms) and the previous text did not end a sentence, or when either part is shorter than `CELTWO_MEMORY_MERGE_SHORT_MS` (1500 ms); a segment never exceeds `CELTWO_MEMORY_MERGE_MAX_MS` (20 s). Punctuation-only fragments are attached to the previous segment. Existing sessions are not rewritten.
 
+### Voice grouping
+
+After transcription, each segment of at least 2 seconds is embedded locally and assigned to a session voice (`speaker_0`, `speaker_1`, ...) by similarity to running centroids; very short segments inherit a voice only when both neighbours agree. Groups are a reading aid: they are shown as **Pessoa N**, and nothing is stored as an identity. When one group clearly matches the account's enrolled voice (similarity of at least 0.5 and a margin of 0.1 over the next group) it is labelled **Eu (provável)** and included in **Só minhas falas**. A manual confirmation or correction always takes precedence. Groups with fewer than 3 segments (or under 2% of the session) are treated as noise and left unidentified.
+
+Settings (environment): `CELTWO_MEMORY_VOICE_GROUPING` (1; set 0 to disable), `CELTWO_MEMORY_VOICE_ASSIGN_THRESHOLD` (0.55), `CELTWO_MEMORY_VOICE_MAX` (6), `CELTWO_MEMORY_VOICE_MIN_MS` (2000), `CELTWO_MEMORY_VOICE_MIN_SEGMENTS` (3), `CELTWO_MEMORY_VOICE_ME_THRESHOLD` (0.5), `CELTWO_MEMORY_VOICE_ME_MARGIN` (0.1). Existing sessions can be grouped with `python -m services.memory.worker.voices [max_sessions]`; the command only adds groups and never changes transcripts or decisions.
+
 Voice enrollment accepts 8–60 seconds and up to 25 MiB. The session-based endpoint shares that byte/sample budget across at most 128 chunks; oversized sessions are rejected, not silently truncated. One enrollment runs per Memory process, off the API event loop.
 
 Participant templates require a manually confirmed, nonoverlapping segment of 3–60 seconds and a locally available embedding model. Participant processing accepts chunks up to 300 seconds of decoded audio and allows one inference operation per process. Oversized or busy requests are refused; existing templates and transcription remain available. Expensive processing happens outside the shared SQLite write lock, with source and manual decision rechecked before saving. Similarity scores are suggestions, not calibrated identity probabilities.
