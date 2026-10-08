@@ -57,8 +57,8 @@ by date, search transcripts, show speaker turns, and let you review or correct
 participant suggestions. Sessions are presented as a compact conversation. Voices are grouped
 automatically per session; the group matching your enrolled voice is shown as
 **Eu (provável)** until you confirm it, other groups appear as **Pessoa N**, and
-**Criar nota**, **Copiar conversa** and **Mais ações** (Markdown export,
-reminder, voice reference) work from the same view. Copying never sends content
+**Criar nota**, **Copiar conversa**, **Baixar conversa (.md)** and **Mais ações**
+(reminder, voice reference) work from the same view. Copying never sends content
 to an AI service. See the [Memory guide](docs/REMEMBER_TIMELINE.md) for details.
 You can turn transcript content into a Brain Core note or reminder. Participant suggestions use the current account’s enrolled voice ("Minha voz") and manually confirmed segments; they never assign a person automatically. Voice enrollment accepts 8–60 seconds and up to 25 MiB. Each account can choose automatic, scheduled or manual transcription, pause new jobs, and configure audio retention. The standard installation keeps
 Memory **offline**. Phone recording and local playback work without it, but

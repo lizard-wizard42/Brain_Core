@@ -198,7 +198,7 @@ html, body, #root { background-color: var(--theme-background); color: var(--them
 .conversation-button-primary { background: var(--theme-text); color: var(--theme-background); border-color: transparent; }
 .conversation-button-primary:hover { background: color-mix(in srgb, var(--theme-text) 85%, var(--theme-background)); }
 .conversation-button:focus-visible, .conversation-disclosure:focus-visible, .conversation-input:focus-visible { outline: 2px solid var(--theme-primary); outline-offset: 3px; }
-.conversation-actions { border-top: 1px solid var(--theme-border); padding-top: 1rem; margin-top: 1rem; }
+.conversation-actions { border-bottom: 1px solid var(--theme-border); padding-bottom: .75rem; margin: .75rem 0 1rem; }
 .conversation-more { position: relative; }
 .conversation-more > summary { list-style: none; }
 .conversation-more > summary::-webkit-details-marker { display: none; }
