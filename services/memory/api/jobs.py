@@ -9,7 +9,7 @@ from services.memory.api.chunks import require_token
 from services.memory.storage import database
 from services.memory.api.transcription_policy import claim_allowed_owners
 from services.memory.worker.transcriber import (
-    TranscribedSegment, _looks_silent, build_initial_prompt, collapse_repeats,
+    TranscribedSegment, _looks_silent, build_initial_prompt, collapse_repeats, tidy_segments,
 )
 
 router = APIRouter()
@@ -160,7 +160,7 @@ def post_job_segments(
             new_status = database.mark_job_retry_or_failed(job_id, job["attempts"], max_attempts)
             return {"status": new_status}
 
-    database.insert_segments(job["session_id"], job["chunk_num"], segs)
+    database.insert_segments(job["session_id"], job["chunk_num"], tidy_segments(segs))
     database.mark_job_done(job_id, body.model)
     try:
         from services.memory.worker.diarizer import label_chunk
