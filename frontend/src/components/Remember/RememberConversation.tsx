@@ -32,8 +32,7 @@ export function RememberConversation({ session, onlyMe, onCreateNote, onUseVoice
     finally { setBusy(false); }
   };
   return <>
-    <TranscriptDialogue session={session} onlyMe={onlyMe} onLabelsChange={updateLabels} />
-    {(session.status === 'ready' || hasText) && <footer className="conversation-actions" aria-label="Ações da sessão">
+    {(session.status === 'ready' || hasText) && <header className="conversation-actions" aria-label="Ações da sessão">
       <div className="flex flex-wrap items-center gap-2">
         {onCreateNote && <button type="button" disabled={!hasText} className="conversation-button conversation-button-primary" onClick={() => onCreateNote('note')}><span aria-hidden="true">＋</span> Criar nota</button>}
         <button type="button" disabled={!hasText} className="conversation-button" onClick={() => void copy()}>Copiar conversa</button>
@@ -54,6 +53,7 @@ export function RememberConversation({ session, onlyMe, onCreateNote, onUseVoice
       </div>}
       {feedback && <p role="status" className="conversation-caption">{feedback}</p>}
       {error && <p role="alert" className="conversation-error">{error}</p>}
-    </footer>}
+    </header>}
+    <TranscriptDialogue session={session} onlyMe={onlyMe} onLabelsChange={updateLabels} />
   </>;
 }
