@@ -14,6 +14,10 @@ class IdentityInput(BaseModel):
     display_name: str
 
 
+class VoiceLabelInput(BaseModel):
+    identity_id: str | None = None
+
+
 class DecisionInput(BaseModel):
     action: str
     identity_id: str | None = None
@@ -55,6 +59,15 @@ def list_identities(owner_user_id: str, authorization: str | None = Header(defau
 def create_identity(body: IdentityInput, owner_user_id: str, authorization: str | None = Header(default=None)):
     require_token(authorization)
     return _call(identities.create_identity, owner_user_id, body.display_name)
+
+
+@router.put("/sessions/{session_id}/voices/{voice_idx}")
+def set_voice_label(session_id: str, voice_idx: int, body: VoiceLabelInput, owner_user_id: str,
+                    authorization: str | None = Header(default=None)):
+    require_token(authorization)
+    if not database.session_owned_by(session_id, owner_user_id):
+        raise HTTPException(status_code=404, detail="session not found")
+    return _call(identities.set_voice_label, owner_user_id, session_id, voice_idx, body.identity_id)
 
 
 @router.get("/segments/{segment_id}/decision")

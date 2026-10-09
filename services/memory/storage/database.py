@@ -311,6 +311,14 @@ def init_db() -> None:
             "dim INTEGER NOT NULL, model TEXT NOT NULL, n INTEGER NOT NULL, updated_at TEXT NOT NULL, "
             "PRIMARY KEY (session_id, voice_idx), FOREIGN KEY (session_id) REFERENCES sessions(id))"
         )
+        # A user's name for a whole session voice group; segment decisions still win.
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS session_voice_labels ("
+            "session_id TEXT NOT NULL, voice_idx INTEGER NOT NULL, owner_user_id TEXT NOT NULL, "
+            "identity_id TEXT NOT NULL, updated_at TEXT NOT NULL, "
+            "PRIMARY KEY (session_id, voice_idx), "
+            "FOREIGN KEY (owner_user_id, identity_id) REFERENCES voice_identities(owner_user_id, id))"
+        )
         # GPU worker / queue support. Additive.
         _add_column_if_missing(conn, "jobs", "worker", "TEXT")
         _add_column_if_missing(conn, "chunks", "denoised_path", "TEXT")
@@ -1165,6 +1173,12 @@ def compute_turns(session_id: str) -> list[dict]:
                   for idx in active_voices(session_id, model)}
     except Exception:  # grouping is advisory; never break the transcript
         probable, active = None, set()
+    from services.memory.storage.identities import get_voice_labels
+
+    try:
+        labels = get_voice_labels(session_id)
+    except Exception:
+        labels = {}
     turns: list[dict] = []
     for seg in rows:
         speaker = seg["speaker"]
@@ -1183,6 +1197,8 @@ def compute_turns(session_id: str) -> list[dict]:
         if seg["voice_idx"] is not None and seg["voice_idx"] in active:
             turn["voice"] = f"speaker_{seg['voice_idx']}"
             turn["voice_is_me_probable"] = seg["voice_idx"] == probable
+            if seg["voice_idx"] in labels:
+                turn["voice_label"] = labels[seg["voice_idx"]]
         turns.append(turn)
     return turns
 

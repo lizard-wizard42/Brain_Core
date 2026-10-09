@@ -36,6 +36,7 @@ export const rememberService = {
   createParticipantIdentity: async (sessionId: string, displayName: string) => apiRequest<ParticipantIdentity>(`${participantRoot(sessionId)}/identities`, { method: 'POST', body: JSON.stringify({ display_name: displayName }) }),
   getSegmentParticipants: readParticipants,
   decideSegment: async (sessionId: string, segmentId: number, action: ParticipantDecision['action'], identityId: string | null = null) => apiRequest<ParticipantDecision>(`${participantRoot(sessionId)}/segments/${segmentId}/decision`, { method: 'POST', body: JSON.stringify({ action, identity_id: identityId }) }),
+  setVoiceLabel: async (sessionId: string, voiceIdx: number, identityId: string | null) => apiRequest<{ voice: string; identity_id: string | null; display_name?: string; is_owner?: boolean }>(`${participantRoot(sessionId)}/voices/${voiceIdx}`, { method: 'PUT', body: JSON.stringify({ identity_id: identityId }) }),
   createParticipantTemplate: async (sessionId: string, segmentId: number) => apiRequest<unknown>(`${participantRoot(sessionId)}/segments/${segmentId}/template`, { method: 'POST' }),
   search: async (q: string, limit?: number, speaker?: RememberSpeaker) => {
     const query = `q=${encodeURIComponent(q)}${limit ? `&limit=${limit}` : ''}${speaker ? `&speaker=${speaker}` : ''}`;

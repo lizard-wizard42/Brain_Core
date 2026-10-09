@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-08 — Nomear uma voz uma vez
+
+- Novo painel “Vozes da conversa” no topo da sessão: dê um nome (ou “Eu”) a cada voz e todas as falas dela passam a usá-lo. O nome fica salvo na sessão.
+- Uma identificação feita numa fala isolada continua valendo mais do que o nome da voz. Não é criada nenhuma decisão por fala nem referência de voz automaticamente.
+
 ## 2026-10-08 — Agrupamento de vozes por sessão
 
 - Cada sessão passa a separar as falas por voz (Pessoa 1, Pessoa 2…), usando embeddings locais. Nenhuma identidade é gravada: é só apoio de leitura.

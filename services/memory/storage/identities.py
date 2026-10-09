@@ -88,6 +88,25 @@ def list_identities(owner_user_id: str) -> list[dict]:
         conn.close()
 
 
+def _materialize_owner_identity(conn: sqlite3.Connection, owner_user_id: str, identity_id: str) -> None:
+    """Create the account's virtual "Minha voz" participant on first manual use."""
+    if identity_id == owner_identity_id(owner_user_id) and conn.execute(
+        "SELECT 1 FROM account_voiceprints WHERE owner_user_id=?", (owner_user_id,)
+    ).fetchone():
+        if not conn.execute("SELECT 1 FROM voice_identities WHERE id=? AND owner_user_id=?",
+                            (identity_id, owner_user_id)).fetchone():
+            name, suffix = "Minha voz", 1
+            while conn.execute("SELECT 1 FROM voice_identities WHERE owner_user_id=? "
+                               "AND lower(display_name)=lower(?) AND deleted_at IS NULL",
+                               (owner_user_id, name)).fetchone():
+                name = f"Minha voz (titular {suffix})"
+                suffix += 1
+            conn.execute(
+                "INSERT INTO voice_identities(id, owner_user_id, display_name, created_at) "
+                "VALUES (?, ?, ?, ?)", (identity_id, owner_user_id, name, _now_iso()),
+            )
+
+
 def decide_segment(owner_user_id: str, segment_id: int,
                    identity_id: str | None, action: str) -> dict:
     owner_user_id = _owner(owner_user_id)
@@ -102,21 +121,7 @@ def decide_segment(owner_user_id: str, segment_id: int,
         conn.execute("BEGIN IMMEDIATE")
         _segment(conn, owner_user_id, segment_id)
         if identity_id is not None:
-            if identity_id == owner_identity_id(owner_user_id) and conn.execute(
-                "SELECT 1 FROM account_voiceprints WHERE owner_user_id=?", (owner_user_id,)
-            ).fetchone():
-                if not conn.execute("SELECT 1 FROM voice_identities WHERE id=? AND owner_user_id=?",
-                                    (identity_id, owner_user_id)).fetchone():
-                    name, suffix = "Minha voz", 1
-                    while conn.execute("SELECT 1 FROM voice_identities WHERE owner_user_id=? "
-                                       "AND lower(display_name)=lower(?) AND deleted_at IS NULL",
-                                       (owner_user_id, name)).fetchone():
-                        name = f"Minha voz (titular {suffix})"
-                        suffix += 1
-                    conn.execute(
-                        "INSERT INTO voice_identities(id, owner_user_id, display_name, created_at) "
-                        "VALUES (?, ?, ?, ?)", (identity_id, owner_user_id, name, _now_iso()),
-                    )
+            _materialize_owner_identity(conn, owner_user_id, identity_id)
             found = conn.execute(
                 "SELECT 1 FROM voice_identities WHERE id = ? AND owner_user_id = ? "
                 "AND deleted_at IS NULL", (identity_id, owner_user_id),
@@ -189,5 +194,62 @@ def delete_identity(owner_user_id: str, identity_id: str) -> bool:
             )
         conn.commit()
         return bool(changed)
+    finally:
+        conn.close()
+
+
+def set_voice_label(owner_user_id: str, session_id: str, voice_idx: int, identity_id: str | None) -> dict:
+    """Name a whole session voice group (or clear the name with identity_id=None).
+
+    This is the user's explicit choice for the group; a manual decision on an
+    individual segment still takes precedence in clients.
+    """
+    owner_user_id = _owner(owner_user_id)
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        if not conn.execute(
+            "SELECT 1 FROM session_voices sv JOIN sessions s ON s.id = sv.session_id "
+            "WHERE sv.session_id = ? AND sv.voice_idx = ? AND s.owner_user_id = ?",
+            (session_id, voice_idx, owner_user_id),
+        ).fetchone():
+            raise ValueError("voice not found for account")
+        if identity_id is None:
+            conn.execute("DELETE FROM session_voice_labels WHERE session_id = ? AND voice_idx = ?",
+                         (session_id, voice_idx))
+            conn.commit()
+            return {"voice": f"speaker_{voice_idx}", "identity_id": None}
+        _materialize_owner_identity(conn, owner_user_id, identity_id)
+        found = conn.execute(
+            "SELECT display_name FROM voice_identities WHERE id = ? AND owner_user_id = ? "
+            "AND deleted_at IS NULL", (identity_id, owner_user_id),
+        ).fetchone()
+        if not found:
+            raise ValueError("identity not found for account")
+        conn.execute(
+            "INSERT INTO session_voice_labels (session_id, voice_idx, owner_user_id, identity_id, updated_at) "
+            "VALUES (?, ?, ?, ?, ?) ON CONFLICT(session_id, voice_idx) DO UPDATE SET "
+            "owner_user_id=excluded.owner_user_id, identity_id=excluded.identity_id, updated_at=excluded.updated_at",
+            (session_id, voice_idx, owner_user_id, identity_id, _now_iso()),
+        )
+        conn.commit()
+        return {"voice": f"speaker_{voice_idx}", "identity_id": identity_id,
+                "display_name": found["display_name"],
+                "is_owner": identity_id == owner_identity_id(owner_user_id)}
+    finally:
+        conn.close()
+
+
+def get_voice_labels(session_id: str) -> dict[int, dict]:
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT l.voice_idx, l.owner_user_id, l.identity_id, i.display_name FROM session_voice_labels l "
+            "JOIN voice_identities i ON i.id = l.identity_id AND i.owner_user_id = l.owner_user_id "
+            "AND i.deleted_at IS NULL WHERE l.session_id = ?", (session_id,),
+        ).fetchall()
+        return {r["voice_idx"]: {"identity_id": r["identity_id"], "display_name": r["display_name"],
+                                 "is_owner": r["identity_id"] == owner_identity_id(r["owner_user_id"])}
+                for r in rows}
     finally:
         conn.close()

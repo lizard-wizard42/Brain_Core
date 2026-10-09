@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import type { RememberSession, RememberTurn } from '../../types';
+import { VoiceNamingPanel, type VoiceGroup, type VoiceLabel } from './VoiceNamingPanel';
 import { rememberService, type ParticipantIdentity, type SegmentParticipants, type ParticipantDecision } from '../../services/rememberService';
 import {
   defaultLabelForSpeaker,
@@ -218,6 +219,7 @@ function DialogueSession({ session, onlyMe, onLabelsChange }: DialogueProps) {
   const [stableOverrides, setStableOverrides] = useState<Record<number, string>>(() => loadStableTurnSpeakerOverrides(session.id));
   const [editing, setEditing] = useState<number | null>(null);
 
+  const [voiceLabels, setVoiceLabels] = useState<Record<string, VoiceLabel | null>>({});
   const [decisions, setDecisions] = useState<Record<number, ParticipantDecision | null>>({});
   const onDecision = useCallback((id: number, decision: ParticipantDecision | null) => {
     setDecisions(previous => ({ ...previous, [id]: decision }));
@@ -229,12 +231,14 @@ function DialogueSession({ session, onlyMe, onLabelsChange }: DialogueProps) {
     const decision = turn.id != null ? decisions[turn.id] : null;
     const confirmed = !!decision?.identity_id && (decision.action === 'confirm' || decision.action === 'correct');
     const grouped = groupedSpeakerKey(turn);
-    const fallbackSpeaker = turn.id != null ? stableOverrides[turn.id] || grouped : overrides[index] || grouped;
+    const voiceLabel = turn.voice ? (turn.voice in voiceLabels ? voiceLabels[turn.voice] : turn.voice_label) : null;
+    const voiceKey = voiceLabel ? (voiceLabel.is_owner ? 'me' : `identity:${voiceLabel.identity_id}`) : grouped;
+    const fallbackSpeaker = turn.id != null ? stableOverrides[turn.id] || voiceKey : overrides[index] || voiceKey;
     const speakerKey = confirmed ? (decision.is_owner ? 'me' : `identity:${decision.identity_id}`) : fallbackSpeaker;
     const isMe = speakerKey === 'me' || speakerKey === 'me_probable';
-    const label = speakerKey === 'me' ? 'Eu' : confirmed ? decision.display_name || 'Participante' : aliases[speakerKey] || defaultLabelForSpeaker(speakerKey);
+    const label = speakerKey === 'me' ? 'Eu' : confirmed ? decision.display_name || 'Participante' : voiceLabel && speakerKey === voiceKey ? voiceLabel.display_name : aliases[speakerKey] || defaultLabelForSpeaker(speakerKey);
     return { turn, index, speakerKey, isMe, label, confirmed };
-  }), [turns, decisions, stableOverrides, overrides, aliases]);
+  }), [turns, decisions, stableOverrides, overrides, aliases, voiceLabels]);
 
   useLayoutEffect(() => {
     onLabelsChange?.(Object.fromEntries(items.map(item => [item.index, item.label])));
@@ -245,6 +249,19 @@ function DialogueSession({ session, onlyMe, onLabelsChange }: DialogueProps) {
     return <p className="mt-4 text-sm italic text-gray-500">{session.status === 'ready' ? 'Sem fala detectada.' : 'Aguardando transcrição…'}</p>;
   }
 
+  const voiceGroups: VoiceGroup[] = [];
+  for (const turn of turns) {
+    if (!turn.voice) continue;
+    let group = voiceGroups.find(item => item.voice === turn.voice);
+    if (!group) {
+      group = { voice: turn.voice, count: 0, sample: '', probableMe: false, label: null, defaultLabel: defaultLabelForSpeaker(turn.voice) };
+      voiceGroups.push(group);
+    }
+    group.count += 1;
+    if (!group.sample && turn.text.trim().length > 8) group.sample = turn.text.trim().slice(0, 80);
+    group.probableMe = group.probableMe || !!turn.voice_is_me_probable;
+    group.label = turn.voice in voiceLabels ? voiceLabels[turn.voice] : turn.voice_label ?? null;
+  }
   const shown = onlyMe ? items.filter((item) => item.isMe) : items;
   const pending = items.some(item => item.turn.id != null && decisions[item.turn.id] === undefined);
 
@@ -270,6 +287,8 @@ function DialogueSession({ session, onlyMe, onLabelsChange }: DialogueProps) {
 
   return (
     <>
+    {voiceGroups.length > 0 && <VoiceNamingPanel sessionId={session.id} groups={voiceGroups}
+      onChange={(voice, label) => setVoiceLabels(previous => ({ ...previous, [voice]: label }))} />}
     {onlyMe && !shown.length && <p role="status" className="mt-4 text-sm italic text-gray-500">{pending ? 'Consultando identificação das falas…' : 'Nenhuma fala sua nesta sessão.'}</p>}
     <ol aria-label="Diálogo transcrito" className="conversation-messages">
       {items.map((item) => (

@@ -202,5 +202,8 @@ export const participants = {
   decision: (userId: string, sessionId: string, segmentId: number) => participantRequest<ParticipantDecision | null>(segmentPath(userId, sessionId, segmentId, 'decision')),
   suggestions: (userId: string, sessionId: string, segmentId: number) => participantRequest<ParticipantSuggestion[]>(segmentPath(userId, sessionId, segmentId, 'suggestions')),
   decide: (userId: string, sessionId: string, segmentId: number, action: ParticipantDecision['action'], identityId: string | null) => participantRequest<ParticipantDecision>(segmentPath(userId, sessionId, segmentId, 'decision'), { method: 'POST', body: JSON.stringify({ action, identity_id: identityId }) }),
+  setVoiceLabel: (userId: string, sessionId: string, voiceIdx: number, identityId: string | null) => participantRequest<unknown>(
+    `/participants/sessions/${encodeURIComponent(sessionId)}/voices/${voiceIdx}?owner_user_id=${encodeURIComponent(userId)}`,
+    { method: 'PUT', body: JSON.stringify({ identity_id: identityId }) }),
   createTemplate: (userId: string, sessionId: string, segmentId: number) => participantRequest<unknown>(segmentPath(userId, sessionId, segmentId, 'template'), { method: 'POST' }),
 };

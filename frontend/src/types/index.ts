@@ -168,6 +168,8 @@ export interface RememberTurn {
   /** Session-local voice group (e.g. speaker_0); a reading aid, not an identity. */
   voice?: string | null;
   voice_is_me_probable?: boolean;
+  /** The user's name for this whole voice group in the session. */
+  voice_label?: { identity_id: string; display_name: string; is_owner: boolean } | null;
   text: string;
   start_at?: string | null;
   end_at?: string | null;
