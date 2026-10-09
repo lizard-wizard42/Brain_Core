@@ -189,6 +189,15 @@ router.post('/memory/sessions/:sessionId/participants/segments/:segmentId/decisi
   try { res.json(await participants.decide(req.userId!, String(req.params.sessionId), id, action, identityId)); }
   catch (error) { participantError(error, res); }
 });
+router.put('/memory/sessions/:sessionId/participants/voices/:voiceIdx', async (req: AuthRequest, res) => {
+  const voiceIdx = Number(req.params.voiceIdx);
+  const identityId = req.body?.identity_id ?? null;
+  if (!Number.isSafeInteger(voiceIdx) || voiceIdx < 0 || (identityId !== null && typeof identityId !== 'string')) {
+    res.status(400).json({ error: 'Voz inválida' }); return;
+  }
+  try { res.json(await participants.setVoiceLabel(req.userId!, String(req.params.sessionId), voiceIdx, identityId)); }
+  catch (error) { participantError(error, res); }
+});
 router.post('/memory/sessions/:sessionId/participants/segments/:segmentId/template', async (req: AuthRequest, res) => {
   const id = segmentId(String(req.params.segmentId));
   if (!id) { res.status(400).json({ error: 'Segmento inválido' }); return; }

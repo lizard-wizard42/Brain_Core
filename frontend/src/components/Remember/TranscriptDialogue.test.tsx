@@ -1,11 +1,11 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TranscriptDialogue } from './TranscriptDialogue';
 import { rememberService } from '../../services/rememberService';
 
 vi.mock('../../services/rememberService', () => ({ rememberService: {
   getSegmentParticipants: vi.fn(), getParticipantIdentities: vi.fn(),
-  decideSegment: vi.fn(), createParticipantTemplate: vi.fn(), createParticipantIdentity: vi.fn(),
+  decideSegment: vi.fn(), createParticipantTemplate: vi.fn(), createParticipantIdentity: vi.fn(), setVoiceLabel: vi.fn(),
 } }));
 
 const session = {
@@ -101,13 +101,49 @@ describe('TranscriptDialogue', () => {
       ],
     };
     const { rerender } = render(<TranscriptDialogue session={grouped} onlyMe={false} />);
-    expect(screen.getByText('Eu (provável)')).toBeInTheDocument();
-    expect(screen.getByText('Pessoa 2')).toBeInTheDocument();
-    expect(screen.getByText('Não identificado')).toBeInTheDocument();
+    const chat = within(screen.getByRole('list', { name: 'Diálogo transcrito' }));
+    expect(chat.getByText('Eu (provável)')).toBeInTheDocument();
+    expect(chat.getByText('Pessoa 2')).toBeInTheDocument();
+    expect(chat.getByText('Não identificado')).toBeInTheDocument();
     expect(screen.getByText('Minha primeira').closest('li')).toHaveAttribute('data-speaker', 'me');
     rerender(<TranscriptDialogue session={grouped} onlyMe />);
     expect(screen.getByText('Fala da outra pessoa').closest('li')).toHaveAttribute('hidden');
     expect(screen.getByText('Minha primeira').closest('li')).not.toHaveAttribute('hidden');
+  });
+
+  it('nomeia uma voz uma vez e todas as falas dela passam a usar o nome, sem sobrepor decisão individual', async () => {
+    const voices = {
+      id: 'dialogue-name', started_at: '2026-09-24T08:00:00Z', ended_at: '2026-09-24T08:05:00Z',
+      device_id: null, status: 'ready' as const, text: null,
+      turns: [
+        { id: 1, speaker: 'unknown' as const, voice: 'speaker_1', text: 'Primeira fala da Ana', start_at: '2026-09-24T08:00:01Z' },
+        { id: 2, speaker: 'unknown' as const, voice: 'speaker_0', text: 'Fala de outra voz', start_at: '2026-09-24T08:00:05Z' },
+        { id: 3, speaker: 'unknown' as const, voice: 'speaker_1', text: 'Segunda fala da Ana', start_at: '2026-09-24T08:00:10Z' },
+      ],
+    };
+    vi.mocked(rememberService.createParticipantIdentity).mockResolvedValue({ id: 'ana-id', display_name: 'Ana' });
+    vi.mocked(rememberService.setVoiceLabel).mockResolvedValue({ voice: 'speaker_1', identity_id: 'ana-id' });
+    render(<TranscriptDialogue session={voices} onlyMe={false} />);
+    const chat = within(screen.getByRole('list', { name: 'Diálogo transcrito' }));
+    expect(chat.getAllByText('Pessoa 2')).toHaveLength(2);
+    fireEvent.click(screen.getByText(/Vozes da conversa \(2\)/));
+    const card = screen.getByTestId('voice-speaker_1');
+    fireEvent.change(card.querySelector('input')!, { target: { value: 'Ana' } });
+    fireEvent.click(card.querySelector('button[type="submit"]')!);
+    await waitFor(() => expect(rememberService.setVoiceLabel).toHaveBeenCalledWith('dialogue-name', 1, 'ana-id'));
+    await waitFor(() => expect(chat.getAllByText('Ana')).toHaveLength(2));
+    expect(screen.getByText('Fala de outra voz').closest('li')).toHaveAttribute('data-speaker', 'other');
+  });
+
+  it('usa o nome da voz vindo do servidor e trata a voz do titular como Eu', () => {
+    const labelled = {
+      id: 'dialogue-owner', started_at: '2026-09-24T08:00:00Z', ended_at: '2026-09-24T08:05:00Z',
+      device_id: null, status: 'ready' as const, text: null,
+      turns: [{ id: 1, speaker: null, voice: 'speaker_0', voice_label: { identity_id: 'o', display_name: 'Minha voz', is_owner: true }, text: 'Falei eu', start_at: '2026-09-24T08:00:01Z' }],
+    };
+    render(<TranscriptDialogue session={labelled} onlyMe />);
+    expect(within(screen.getByRole('list', { name: 'Diálogo transcrito' })).getByText('Eu')).toBeInTheDocument();
+    expect(screen.getByText('Falei eu').closest('li')).toHaveAttribute('data-speaker', 'me');
   });
 
   it('permite identificar manualmente e atualizar quando a inferência está ocupada', async () => {
