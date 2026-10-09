@@ -55,6 +55,27 @@ describe('DashboardHome', () => {
     expect(screen.getByText('1', { selector: 'p' })).toBeInTheDocument();
   });
 
+  it('mostra as últimas falas como conversa, cada uma com seu horário e rótulo', async () => {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+    const startedAt = new Date(`${today}T12:00:00-03:00`).toISOString();
+    const at = (min: number) => new Date(Date.parse(startedAt) + min * 60000).toISOString();
+    const session = { id: 'chat', started_at: startedAt, ended_at: at(5), device_id: null, status: 'ready' as const, text: 'Texto corrido que não deve aparecer',
+      turns: [
+        { id: 1, speaker: 'unknown' as const, voice: 'speaker_0', voice_is_me_probable: true, text: 'Oi, tudo bem?', start_at: at(1) },
+        { id: 2, speaker: 'unknown' as const, voice: 'speaker_1', voice_is_me_probable: false, text: 'Tudo ótimo.', start_at: at(2) },
+      ] };
+    vi.mocked(rememberService.getDay).mockImplementation(async (date) => ({ date, total_seconds: 0, session_count: 1, sessions: [session] }));
+
+    render(<DashboardHome onOpenPage={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('Oi, tudo bem?')).toBeInTheDocument());
+    expect(screen.getByText('Eu (provável)')).toBeInTheDocument();
+    expect(screen.getByText('Pessoa 2')).toBeInTheDocument();
+    expect(screen.getByText('12:01')).toBeInTheDocument();
+    expect(screen.getByText('12:02')).toBeInTheDocument();
+    expect(screen.queryByText('Texto corrido que não deve aparecer')).not.toBeInTheDocument();
+  });
+
   it('não duplica gravações quando o mesmo id vem nos dois dias UTC e rotula o status para leitores de tela', async () => {
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
     const startedAt = new Date(`${today}T12:00:00-03:00`).toISOString();
