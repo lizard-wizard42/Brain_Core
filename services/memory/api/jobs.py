@@ -155,10 +155,14 @@ def post_job_segments(
     if not segs:
         # Se chunk existe e tem áudio audível mas worker enviou vazio sem fala comprovada
         if chunk is not None and not _looks_silent(chunk["path"]):
-            # Silêncio não comprovado no áudio audível -> retentar para não perder conteúdo
-            logging.info("job %s vazio em áudio audível, agendando retry", job_id)
-            new_status = database.mark_job_retry_or_failed(job_id, job["attempts"], max_attempts)
-            return {"status": new_status}
+            if job["attempts"] + 1 < max_attempts:
+                # Silêncio não comprovado no áudio audível -> retentar para não perder conteúdo
+                logging.info("job %s vazio em áudio audível, agendando retry", job_id)
+                new_status = database.mark_job_retry_or_failed(job_id, job["attempts"], max_attempts)
+                return {"status": new_status}
+            # Última tentativa: a inferência concluiu sem falar nada (ruído, música). Aceitar
+            # o chunk vazio em vez de deixar a sessão inteira em "Erro no processamento".
+            logging.warning("job %s vazio em todas as tentativas; aceito como sem fala", job_id)
 
     database.insert_segments(job["session_id"], job["chunk_num"], tidy_segments(segs))
     database.mark_job_done(job_id, body.model)
