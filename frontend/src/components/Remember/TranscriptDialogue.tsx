@@ -3,6 +3,7 @@ import type { RememberSession, RememberTurn } from '../../types';
 import { rememberService, type ParticipantIdentity, type SegmentParticipants, type ParticipantDecision } from '../../services/rememberService';
 import {
   defaultLabelForSpeaker,
+  groupedSpeakerKey,
   loadSpeakerAliases,
   loadStableTurnSpeakerOverrides,
   loadTurnSpeakerOverrides,
@@ -227,7 +228,7 @@ function DialogueSession({ session, onlyMe, onLabelsChange }: DialogueProps) {
   const items = useMemo(() => turns.map((turn, index) => {
     const decision = turn.id != null ? decisions[turn.id] : null;
     const confirmed = !!decision?.identity_id && (decision.action === 'confirm' || decision.action === 'correct');
-    const grouped = turn.speaker && turn.speaker !== 'unknown' ? turn.speaker : turn.voice_is_me_probable ? 'me_probable' : turn.voice || 'unknown';
+    const grouped = groupedSpeakerKey(turn);
     const fallbackSpeaker = turn.id != null ? stableOverrides[turn.id] || grouped : overrides[index] || grouped;
     const speakerKey = confirmed ? (decision.is_owner ? 'me' : `identity:${decision.identity_id}`) : fallbackSpeaker;
     const isMe = speakerKey === 'me' || speakerKey === 'me_probable';

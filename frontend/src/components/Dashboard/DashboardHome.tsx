@@ -4,6 +4,7 @@ import { api } from '../../api/client';
 import type { CurrentUser } from '../../api/client';
 import type { PageSummary, RememberDay, RememberNote, RememberSession } from '../../types';
 import { rememberService } from '../../services/rememberService';
+import { defaultLabelForSpeaker, groupedSpeakerKey } from '../Remember/speakerAliases';
 import { NotasBoard } from '../Notas/NotasBoard';
 import { useNotas } from '../Notas/useNotas';
 
@@ -17,6 +18,10 @@ function greeting(): string {
 
 function hhmm(iso: string): string {
   return new Date(iso).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
+}
+
+function previewTurns(session: RememberSession) {
+  return (session.turns ?? []).filter(turn => turn.text.trim()).slice(-3);
 }
 
 function saoPauloDate(instant: Date = new Date()): string {
@@ -237,9 +242,21 @@ export function DashboardHome({ onOpenPage }: { onOpenPage: (page: { id: string;
                       className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${session.status === 'ready' ? 'bg-emerald-500' : session.status === 'error' ? 'bg-red-500' : 'bg-gray-500'}`}
                     />
                     <span className="min-w-0 flex-1">
-                      <span className="block line-clamp-2 text-sm text-[var(--theme-text)]">
-                        {session.text?.trim() || (session.status === 'ready' ? 'Sem transcrição' : STATUS_LABEL[session.status])}
-                      </span>
+                      {previewTurns(session).length > 0 ? (
+                        <span className="block space-y-1">
+                          {previewTurns(session).map((turn, index) => (
+                            <span key={turn.id ?? index} className="flex items-baseline gap-2 text-sm text-[var(--theme-text)]">
+                              <span className="shrink-0 font-mono text-[11px] text-[var(--theme-muted)]">{turn.start_at ? hhmm(turn.start_at) : '--:--'}</span>
+                              <span className="shrink-0 text-xs font-semibold text-[var(--theme-muted)]">{defaultLabelForSpeaker(groupedSpeakerKey(turn))}</span>
+                              <span className="min-w-0 flex-1 truncate">{turn.text.trim()}</span>
+                            </span>
+                          ))}
+                        </span>
+                      ) : (
+                        <span className="block line-clamp-2 text-sm text-[var(--theme-text)]">
+                          {session.text?.trim() || (session.status === 'ready' ? 'Sem transcrição' : STATUS_LABEL[session.status])}
+                        </span>
+                      )}
                       <span className="mt-0.5 block text-xs text-[var(--theme-muted)]">{session.text?.trim() ? `${STATUS_LABEL[session.status]} · ` : ''}{sessionMeta(session)}</span>
                     </span>
                   </li>

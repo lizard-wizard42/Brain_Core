@@ -20,6 +20,13 @@ export function defaultLabelForSpeaker(speaker?: string | null): string {
   return speaker.charAt(0).toUpperCase() + speaker.slice(1);
 }
 
+/** Speaker key for a turn before any manual decision: legacy label, else the session voice group. */
+export function groupedSpeakerKey(turn: { speaker?: string | null; voice?: string | null; voice_is_me_probable?: boolean }): string {
+  if (turn.speaker && turn.speaker !== 'unknown') return turn.speaker;
+  if (turn.voice_is_me_probable) return 'me_probable';
+  return turn.voice || 'unknown';
+}
+
 export function speakerTone(speaker?: string | null): { tone: string; isMe: boolean } {
   if (speaker === 'me') return { tone: 'var(--theme-primary)', isMe: true };
   if (speaker === 'me_probable') return { tone: 'var(--theme-primary)', isMe: true };
