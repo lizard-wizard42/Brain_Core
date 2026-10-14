@@ -1,3 +1,4 @@
+import { localDate } from '../../services/localDate';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DashboardHome } from './DashboardHome';
@@ -21,7 +22,7 @@ afterEach(() => cleanup());
 
 describe('DashboardHome', () => {
   it('não mostra gravações de ontem no painel de hoje', async () => {
-    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+    const today = localDate();
     const yesterday = new Date(Date.parse(`${today}T12:00:00Z`) - 86400000).toISOString().slice(0, 10);
     const old = new Date(`${yesterday}T23:30:00-03:00`).toISOString();
     vi.mocked(rememberService.getDay).mockImplementation(async (date) => ({
@@ -33,18 +34,17 @@ describe('DashboardHome', () => {
 
     render(<DashboardHome onOpenPage={vi.fn()} />);
 
-    await waitFor(() => expect(rememberService.getDay).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(rememberService.getDay).toHaveBeenCalledTimes(1));
     expect(await screen.findByText('Nenhuma gravação ainda.')).toBeInTheDocument();
     expect(screen.queryByText('Gravação de ontem')).not.toBeInTheDocument();
   });
 
-  it('inclui uma gravação no fim do dia de São Paulo, mesmo quando já é o dia seguinte em UTC', async () => {
-    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
-    const late = new Date(`${today}T23:00:00-03:00`).toISOString();
-    const lateUtcDay = late.slice(0, 10);
+  it('inclui uma gravação no fim do dia local usando uma única consulta', async () => {
+    const today = localDate();
+    const late = new Date(`${today}T23:00:00`).toISOString();
     vi.mocked(rememberService.getDay).mockImplementation(async (date) => ({
       date, total_seconds: 0, session_count: 0,
-      sessions: date === lateUtcDay
+      sessions: date === today
         ? [{ id: 'late', started_at: late, ended_at: new Date(Date.parse(late) + 120000).toISOString(), device_id: null, status: 'ready', text: 'Gravação desta noite' }]
         : [],
     }));
@@ -56,7 +56,7 @@ describe('DashboardHome', () => {
   });
 
   it('mostra as últimas falas como conversa, cada uma com seu horário e rótulo', async () => {
-    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+    const today = localDate();
     const startedAt = new Date(`${today}T12:00:00-03:00`).toISOString();
     const at = (min: number) => new Date(Date.parse(startedAt) + min * 60000).toISOString();
     const session = { id: 'chat', started_at: startedAt, ended_at: at(5), device_id: null, status: 'ready' as const, text: 'Texto corrido que não deve aparecer',
@@ -77,7 +77,7 @@ describe('DashboardHome', () => {
   });
 
   it('não duplica gravações quando o mesmo id vem nos dois dias UTC e rotula o status para leitores de tela', async () => {
-    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+    const today = localDate();
     const startedAt = new Date(`${today}T12:00:00-03:00`).toISOString();
     const session = { id: 'same', started_at: startedAt, ended_at: new Date(Date.parse(startedAt) + 60000).toISOString(), device_id: null, status: 'ready' as const, text: 'Gravação única' };
     vi.mocked(rememberService.getDay).mockImplementation(async (date) => ({ date, total_seconds: 0, session_count: 1, sessions: [session] }));
@@ -130,11 +130,11 @@ describe('dashboard loading and recovery', () => {
     expect(resume).toHaveTextContent('Página recente');
     fireEvent.click(resume);
     expect(onOpenPage).toHaveBeenCalledWith(newest);
-    expect(rememberService.getDay).toHaveBeenCalledTimes(2);
+    expect(rememberService.getDay).toHaveBeenCalledTimes(1);
   });
 
   it.each(['', 'Trecho parcial'])('shows a failed transcription as an error, including with text %s', async text => {
-    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+    const today = localDate();
     const started_at = new Date(`${today}T12:00:00-03:00`).toISOString();
     vi.mocked(rememberService.getDay).mockImplementation(async date => ({
       date, total_seconds: 0, session_count: 1,

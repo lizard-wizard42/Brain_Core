@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 import hashlib
 import hmac
@@ -207,6 +208,7 @@ async def upload_chunk(
 
 class SessionCompleteRequest(BaseModel):
     status: str
+    ended_at: datetime | None = None
 
 
 @router.post("/sessions/{session_id}/complete")
@@ -224,7 +226,20 @@ def complete_session_route(
     if payload.status not in ("stopped", "failed"):
         raise HTTPException(status_code=400, detail="status must be 'stopped' or 'failed'")
 
-    if not database.complete_session(session_id, payload.status, owner_user_id):
+    ended_at = None
+    if payload.ended_at is not None:
+        end = payload.ended_at
+        if end.tzinfo is None or end > datetime.now(timezone.utc):
+            raise HTTPException(status_code=400, detail="ended_at must be a past timestamp with timezone")
+        with database.get_connection() as conn:
+            row = conn.execute("SELECT started_at FROM sessions WHERE id = ? AND owner_user_id IS ?",
+                               (session_id, owner_user_id)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="session not found")
+        if end < datetime.fromisoformat(row["started_at"].replace("Z", "+00:00")):
+            raise HTTPException(status_code=400, detail="ended_at precedes recording start")
+        ended_at = end.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    if not database.complete_session(session_id, payload.status, owner_user_id, ended_at):
         raise HTTPException(status_code=404, detail="session not found")
 
     return {"session_id": session_id, "status": payload.status}

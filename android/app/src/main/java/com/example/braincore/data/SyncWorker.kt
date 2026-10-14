@@ -85,7 +85,7 @@ class SyncWorker(context: Context, parameters: WorkerParameters) : CoroutineWork
                 if (!db.isSessionFullyUploaded(sessionId)) continue
                 if (db.needsCompletion(sessionId)) {
                     if (!forceTranscription && !SyncPreferences.autoTranscribe(applicationContext)) continue
-                    api.complete(sessionId, db.getSessionStatus(sessionId) == "partial", ownerUserId)
+                    api.complete(sessionId, db.getSessionStatus(sessionId) == "partial", ownerUserId, db.getSessionEndMillis(sessionId))
                     if (!sameCredential()) return@withContext Result.success()
                     db.markCompletionSent(sessionId)
                 }

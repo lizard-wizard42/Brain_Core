@@ -3,6 +3,7 @@ import sqlite3
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from services.memory.storage.models import CURRENT_SCHEMA_VERSION
 
@@ -463,12 +464,12 @@ def insert_chunk(session_id: str, chunk_num: int, sha256: str, size_bytes: int, 
         conn.close()
 
 
-def complete_session(session_id: str, status: str, owner_user_id: str | None = None) -> bool:
+def complete_session(session_id: str, status: str, owner_user_id: str | None = None, ended_at: str | None = None) -> bool:
     conn = get_connection()
     try:
         cur = conn.execute(
-            "UPDATE sessions SET ended_at = ?, status = ? WHERE id = ? AND owner_user_id IS ?",
-            (_now_iso(), status, session_id, owner_user_id),
+            "UPDATE sessions SET ended_at = COALESCE(ended_at, ?), status = ? WHERE id = ? AND owner_user_id IS ?",
+            (ended_at or _now_iso(), status, session_id, owner_user_id),
         )
         conn.commit()
         return cur.rowcount > 0
@@ -821,15 +822,18 @@ def distinct_days(year: int, month: int, owner_user_id: str) -> list[str]:
         conn.close()
 
 
-def get_sessions_by_date(date: str, owner_user_id: str) -> list:
+def get_sessions_by_date(date: str, owner_user_id: str, time_zone: str = "UTC") -> list:
+    zone = ZoneInfo(time_zone)
+    start = datetime.fromisoformat(date).replace(tzinfo=zone)
+    end = start + timedelta(days=1)
     conn = get_connection()
     try:
-        cur = conn.execute(
+        return conn.execute(
             "SELECT id, device_id, started_at, ended_at, status FROM sessions "
-            "WHERE owner_user_id = ? AND substr(started_at, 1, 10) = ? ORDER BY started_at ASC",
-            (owner_user_id, date),
-        )
-        return cur.fetchall()
+            "WHERE owner_user_id = ? AND julianday(started_at) >= julianday(?) "
+            "AND julianday(started_at) < julianday(?) ORDER BY started_at ASC",
+            (owner_user_id, start.astimezone(timezone.utc).isoformat(), end.astimezone(timezone.utc).isoformat()),
+        ).fetchall()
     finally:
         conn.close()
 

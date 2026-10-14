@@ -79,3 +79,20 @@ def test_listings_and_search_are_scoped_to_owner(client):
     hits = client.get(f"/search?q=zebra&owner_user_id={OWNER_A}", headers=AUTH).json()["results"]
     assert [h["session_id"] for h in hits] == ["sess-a"]
     assert client.get(f"/years?owner_user_id={str(uuid.uuid4())}", headers=AUTH).json() == []
+
+
+def test_local_history_midnight_and_dst_boundaries(client):
+    database.create_session_if_missing("late", "phone", "2026-01-01T01:00:00Z", OWNER_A)
+    query = f"owner_user_id={OWNER_A}&time_zone=America/Sao_Paulo"
+    result = client.get(f"/days/2025-12-31?{query}", headers=AUTH)
+    assert result.status_code == 200
+    assert [s["id"] for s in result.json()["sessions"]] == ["late"]
+    assert not client.get(f"/days/2026-01-01?{query}", headers=AUTH).json()["sessions"]
+    assert not client.get(f"/days/2025-12-31?owner_user_id={OWNER_B}&time_zone=America/Sao_Paulo", headers=AUTH).json()["sessions"]
+    # A spring-forward calendar day is 23 hours, not a fixed 24-hour window.
+    for name, timestamp in [("start", "2026-03-08T05:00:00Z"), ("last", "2026-03-09T03:59:59Z"), ("next", "2026-03-09T04:00:00Z")]:
+        database.create_session_if_missing(name, "phone", timestamp, OWNER_A)
+    response = client.get(f"/days/2026-03-08?owner_user_id={OWNER_A}&time_zone=America/New_York", headers=AUTH)
+    assert [s["id"] for s in response.json()["sessions"]] == ["start", "last"]
+    for date, zone in [("2026-02-30", "UTC"), ("2026-01-01", "invalid")]:
+        assert client.get(f"/days/{date}?owner_user_id={OWNER_A}&time_zone={zone}", headers=AUTH).status_code == 400

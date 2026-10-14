@@ -562,18 +562,33 @@ export async function logout(req: AuthRequest, res: Response): Promise<void> {
     res.status(401).json({ error: 'Usuário não autenticado' });
     return;
   }
+  let client: PoolClient | undefined;
   try {
-    await query(
-      `UPDATE users
-       SET session_version = session_version + 1
-       WHERE id = $1`,
-      [req.userId]
+    client = await pool.connect();
+    await client.query('BEGIN');
+    // Serialize logout with password changes; the next statement sees the
+    // committed device versions even when two browser sessions log out together.
+    const changed = await client.query<{ session_version: number }>(
+      'UPDATE users SET session_version = session_version + 1 WHERE id = $1 RETURNING session_version',
+      [req.userId],
     );
+    if (changed.rows.length) {
+      const version = changed.rows[0].session_version;
+      await client.query(
+        `UPDATE mobile_devices SET session_version = $2
+         WHERE user_id = $1 AND revoked_at IS NULL AND session_version = $3`,
+        [req.userId, version, version - 1],
+      );
+    }
+    await client.query('COMMIT');
     disconnectAccountSockets(req.userId);
     res.setHeader('Set-Cookie', clearAuthCookie(req));
     res.json({ ok: true });
   } catch {
+    await client?.query('ROLLBACK').catch(() => undefined);
     res.status(500).json({ error: 'Erro interno' });
+  } finally {
+    client?.release();
   }
 }
 

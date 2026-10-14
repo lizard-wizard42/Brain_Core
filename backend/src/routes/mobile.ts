@@ -267,9 +267,14 @@ router.post('/sessions/:sessionId/complete', authenticateDevice, async (req: Dev
     if (!await ownedSession(req, res)) return;
     const status = req.body?.status;
     if (status !== 'stopped' && status !== 'failed') { res.status(400).json({ error: 'Status inválido' }); return; }
+    const endedAt = req.body?.ended_at;
+    if (endedAt !== undefined && (typeof endedAt !== 'string' || !Number.isFinite(Date.parse(endedAt)))) {
+      res.status(400).json({ error: 'Horário de término inválido' }); return;
+    }
     const upstream = await memoryRequest(`/api/v1/sessions/${String(req.params.sessionId)}/complete?owner_user_id=${encodeURIComponent(req.mobileUserId!)}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, ended_at: endedAt }),
     });
+    if (upstream.status === 400 || upstream.status === 422) { res.status(400).json({ error: 'Horário de término inválido' }); return; }
     if (upstream.status === 404) { res.status(404).json({ error: 'Sessão não encontrada' }); return; }
     if (!upstream.ok) { unavailable(res); return; }
     res.json(await upstream.json());

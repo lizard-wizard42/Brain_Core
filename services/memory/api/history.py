@@ -1,5 +1,6 @@
 import re
 from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Header, HTTPException, Query
 
@@ -14,6 +15,15 @@ _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 def _parse_iso(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def dated_sessions(date: str, owner: str, time_zone: str):
+    try:
+        ZoneInfo(time_zone)
+        datetime.strptime(date, "%Y-%m-%d")
+    except (ValueError, ZoneInfoNotFoundError):
+        raise HTTPException(status_code=400, detail="Invalid date or timezone")
+    return database.get_sessions_by_date(date, owner, time_zone)
 
 
 def _session_dict(row) -> dict:
@@ -56,12 +66,12 @@ def list_days(year: int, month: int, owner_user_id: str, authorization: str | No
 
 
 @router.get("/days/{date}")
-def get_day(date: str, owner_user_id: str, authorization: str | None = Header(default=None)) -> dict:
+def get_day(date: str, owner_user_id: str, authorization: str | None = Header(default=None), time_zone: str = "UTC") -> dict:
     require_token(authorization)
     owner = valid_owner(owner_user_id)
     if not _DATE_RE.match(date):
         raise HTTPException(status_code=400, detail="date must be YYYY-MM-DD")
-    rows = database.get_sessions_by_date(date, owner)
+    rows = dated_sessions(date, owner, time_zone)
     return {
         "date": date,
         "total_seconds": _total_seconds(rows),
@@ -74,6 +84,7 @@ def get_day(date: str, owner_user_id: str, authorization: str | None = Header(de
 def list_sessions(
     owner_user_id: str,
     date: str | None = Query(default=None),
+    time_zone: str = "UTC",
     authorization: str | None = Header(default=None),
 ) -> list[dict]:
     require_token(authorization)
@@ -81,7 +92,7 @@ def list_sessions(
     if date is not None:
         if not _DATE_RE.match(date):
             raise HTTPException(status_code=400, detail="date must be YYYY-MM-DD")
-        rows = database.get_sessions_by_date(date, owner)
+        rows = dated_sessions(date, owner, time_zone)
     else:
         rows = database.get_recent_sessions(50, owner)
     return [_session_dict(row) for row in rows]

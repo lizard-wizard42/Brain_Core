@@ -19,7 +19,7 @@ export ANDROID_HOME
 PROPS_PATH="${BRAINCORE_ANDROID_SIGNING_PROPS:-$HOME/.config/braincore/android-signing.properties}"
 if [ ! -f "$PROPS_PATH" ]; then
     echo "error: signing properties file not found: $PROPS_PATH" >&2
-    echo "hint: create it (see docs/operations/android-release.md) or export BRAINCORE_ANDROID_SIGNING_PROPS" >&2
+    echo "hint: create it (see android/README.md) or export BRAINCORE_ANDROID_SIGNING_PROPS" >&2
     exit 1
 fi
 

@@ -1,3 +1,4 @@
+import { localDate } from '../../services/localDate';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { RememberDay, RememberSession } from '../../types';
@@ -24,7 +25,7 @@ function noteSeedFromSession(session: RememberSession, kind: 'note' | 'reminder'
 }
 
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return localDate();
 }
 
 function formatTime(value: string | null): string {

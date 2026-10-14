@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-14 — Confiabilidade da sincronização e histórico
+
+- Sair da conta no navegador mantém os aparelhos Android já vinculados; troca de senha e revogação continuam invalidando credenciais. Vínculos antigos inválidos não são reativados.
+- Histórico, busca e painel inicial usam o fuso do navegador, inclusive em viradas de dia e mudanças de horário de verão.
+- Android 1.1.2 envia o término real da gravação ao sincronizar; novas tentativas de conclusão preservam o horário já salvo. Atualize também o servidor para esse comportamento.
+
 ## 2026-10-08 — Nomear uma voz uma vez
 
 - Novo painel “Vozes da conversa” no topo da sessão: dê um nome (ou “Eu”) a cada voz e todas as falas dela passam a usá-lo. O nome fica salvo na sessão.

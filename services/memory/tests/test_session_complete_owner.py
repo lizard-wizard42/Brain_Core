@@ -61,3 +61,21 @@ def test_completion_auth_validation_and_atomic_database_boundary(client):
     assert not database.complete_session("victim", "failed", OWNER_B)
     assert not database.complete_session("victim", "failed")
     assert state("victim") == before
+
+
+def test_delayed_upload_uses_recorded_end_and_retries_keep_it(client):
+    url = f"/sessions/own/complete?owner_user_id={OWNER_B}"
+    ended = "2026-10-03T00:15:00Z"
+    assert client.post(url, headers=AUTH, json={"status": "stopped", "ended_at": ended}).status_code == 200
+    assert state("own")[1] == ended
+    assert client.post(url, headers=AUTH, json={"status": "stopped"}).status_code == 200
+    assert state("own")[1] == ended
+
+
+@pytest.mark.parametrize("ended", ["2026-10-02T23:59:00Z", "2026-10-03T00:15:00", "2999-01-01T00:00:00Z", "invalid"])
+def test_invalid_recorded_end_does_not_complete(client, ended):
+    before = state("own")
+    response = client.post(f"/sessions/own/complete?owner_user_id={OWNER_B}", headers=AUTH,
+                           json={"status": "stopped", "ended_at": ended})
+    assert response.status_code in (400, 422)
+    assert state("own") == before

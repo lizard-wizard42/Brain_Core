@@ -482,3 +482,50 @@ test('templates are account snapshots without media or live child cards; new pag
   const original = (await call('pages','get',{id:source.id})).data;
   assert.deepEqual(original.content,doc); assert.equal(original.revision,0);
 });
+
+test('web logout preserves only valid mobile links, while password revocation still rejects them', async () => {
+  const account = randomUUID();
+  await query("INSERT INTO users(id,email,password_hash) VALUES($1,$2,'synthetic')", [account, `${account}@example.invalid`]);
+  const secret = `bcmd_${randomBytes(32).toString('base64url')}`;
+  const active = randomUUID(), stale = randomUUID(), revoked = randomUUID();
+  for (const [id, version, revocation] of [[active, 1, null], [stale, 0, null], [revoked, 1, new Date()]]) {
+    await query('INSERT INTO mobile_devices(id,user_id,name,token_hash,session_version,revoked_at) VALUES($1,$2,$3,$4,$5,$6)',
+      [id, account, 'Synthetic phone', createHash('sha256').update(id === active ? secret : id).digest('hex'), version, revocation]);
+  }
+  const app = express(); app.use(express.json());
+  app.post('/logout', authMiddleware, require('../dist/controllers/authController').logout);
+  app.use('/mobile', require('../dist/routes/mobile').default);
+  const running = await new Promise(resolve => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
+  const base = `http://127.0.0.1:${running.address().port}`;
+  const access = jwt.sign({ sub: account, sv: 1, type: 'access' }, process.env.JWT_SECRET, { expiresIn: 60 });
+  const linked = () => fetch(`${base}/mobile/device`, { headers: { Authorization: `Bearer ${secret}` } });
+  try {
+    assert.equal((await linked()).status, 200);
+    const logout = () => fetch(`${base}/logout`, { method: 'POST', headers: { Authorization: `Bearer ${access}` } });
+    assert.equal((await logout()).status, 200);
+    assert.equal((await logout()).status, 401);
+    assert.equal((await linked()).status, 200);
+    const rows = await query('SELECT id,session_version FROM mobile_devices WHERE user_id=$1', [account]);
+    assert.equal(rows.find(r => r.id === active).session_version, 2);
+    assert.equal(rows.find(r => r.id === stale).session_version, 0);
+    assert.equal(rows.find(r => r.id === revoked).session_version, 1);
+    // Concurrent logout must not strand the still-valid phone on an old version.
+    const controller = require('../dist/controllers/authController');
+    const response = () => ({ setHeader() {}, json() {}, status(code) { assert.fail(`logout failed: ${code}`); } });
+    await Promise.all([controller.logout({ userId: account, headers: {} }, response()), controller.logout({ userId: account, headers: {} }, response())]);
+    assert.equal((await linked()).status, 200);
+    await query('UPDATE users SET session_version=session_version+1 WHERE id=$1', [account]);
+    assert.equal((await linked()).status, 401);
+  } finally { await new Promise(resolve => running.close(resolve)); }
+});
+
+test('history tree groups each account by the requested local calendar day', async () => {
+  const device = randomUUID();
+  await query("INSERT INTO mobile_devices(id,user_id,name,token_hash,session_version) VALUES($1,$2,'Calendar test',$3,1)", [device, owner, randomUUID()]);
+  await query('INSERT INTO mobile_sessions(session_id,user_id,device_id,started_at) VALUES($1,$2,$3,$4)',
+    [randomUUID(), owner, device, '2026-01-01T01:00:00Z']);
+  const { ownedDates } = require('../dist/remember/ownership');
+  assert.ok((await ownedDates(owner, 'America/Sao_Paulo')).includes('2025-12-31'));
+  assert.ok((await ownedDates(owner, 'UTC')).includes('2026-01-01'));
+  assert.ok(!(await ownedDates(other, 'America/Sao_Paulo')).includes('2025-12-31'));
+});
