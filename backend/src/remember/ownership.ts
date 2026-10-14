@@ -8,14 +8,14 @@ export async function ownedSessionIds(userId: string): Promise<Set<string>> {
   return new Set(rows.map((row) => row.session_id));
 }
 
-export async function ownedDates(userId: string): Promise<string[]> {
+export async function ownedDates(userId: string, timeZone = 'UTC'): Promise<string[]> {
   const rows = await query<{ day: string }>(`
-    SELECT DISTINCT to_char(started_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS day
+    SELECT DISTINCT to_char(started_at AT TIME ZONE $2, 'YYYY-MM-DD') AS day
     FROM (
       SELECT started_at FROM mobile_sessions WHERE user_id = $1
       UNION ALL SELECT started_at FROM browser_recording_sessions WHERE user_id = $1
     ) own
     ORDER BY day DESC
-  `, [userId]);
+  `, [userId, timeZone]);
   return rows.map((row) => row.day);
 }

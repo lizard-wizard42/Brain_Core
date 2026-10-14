@@ -1,3 +1,4 @@
+import { historyZoneQuery, localDate } from './localDate';
 import { apiRequest } from '../api/client';
 import { activeBrowserUserId } from '../api/browserSession';
 import type { RememberDay, RememberSearchResponse, RememberSession, RememberSpeaker, RememberStatus, RememberTranscript, RememberVoiceprint } from '../types';
@@ -26,11 +27,11 @@ export const rememberService = {
   getStatus: async () => apiRequest<RememberStatus>(`${ROOT}/status`),
   start: async () => apiRequest<RememberStatus>(`${ROOT}/start`, { method: 'POST' }),
   stop: async () => apiRequest<RememberStatus>(`${ROOT}/stop`, { method: 'POST' }),
-  getYears: async () => (await apiRequest<{ years: number[] }>(`${ROOT}/years`)).years,
-  getMonths: async (year: number) => (await apiRequest<{ months: number[] }>(`${ROOT}/years/${year}/months`)).months,
-  getDays: async (year: number, month: number) => (await apiRequest<{ days: string[] }>(`${ROOT}/years/${year}/months/${month}/days`)).days,
-  getDay: async (date: string) => apiRequest<RememberDay>(`${ROOT}/days/${encodeURIComponent(date)}`),
-  getSessions: async (date?: string) => (await apiRequest<{ sessions: RememberSession[] }>(`${ROOT}/sessions${date ? `?date=${encodeURIComponent(date)}` : ''}`)).sessions,
+  getYears: async () => (await apiRequest<{ years: number[] }>(`${ROOT}/years?${historyZoneQuery()}`)).years,
+  getMonths: async (year: number) => (await apiRequest<{ months: number[] }>(`${ROOT}/years/${year}/months?${historyZoneQuery()}`)).months,
+  getDays: async (year: number, month: number) => (await apiRequest<{ days: string[] }>(`${ROOT}/years/${year}/months/${month}/days?${historyZoneQuery()}`)).days,
+  getDay: async (date: string) => apiRequest<RememberDay>(`${ROOT}/days/${encodeURIComponent(date)}?${historyZoneQuery()}`),
+  getSessions: async (date?: string) => (await apiRequest<{ sessions: RememberSession[] }>(`${ROOT}/sessions?${historyZoneQuery()}${date ? `&date=${encodeURIComponent(date)}` : ''}`)).sessions,
   getTranscript: async (sessionId: string) => apiRequest<RememberTranscript>(`${ROOT}/sessions/${encodeURIComponent(sessionId)}/transcript`),
   getParticipantIdentities: async (sessionId: string) => apiRequest<ParticipantIdentity[]>(`${participantRoot(sessionId)}/identities`),
   createParticipantIdentity: async (sessionId: string, displayName: string) => apiRequest<ParticipantIdentity>(`${participantRoot(sessionId)}/identities`, { method: 'POST', body: JSON.stringify({ display_name: displayName }) }),
@@ -40,7 +41,8 @@ export const rememberService = {
   createParticipantTemplate: async (sessionId: string, segmentId: number) => apiRequest<unknown>(`${participantRoot(sessionId)}/segments/${segmentId}/template`, { method: 'POST' }),
   search: async (q: string, limit?: number, speaker?: RememberSpeaker) => {
     const query = `q=${encodeURIComponent(q)}${limit ? `&limit=${limit}` : ''}${speaker ? `&speaker=${speaker}` : ''}`;
-    return apiRequest<RememberSearchResponse>(`${ROOT}/search?${query}`);
+    const response = await apiRequest<RememberSearchResponse>(`${ROOT}/search?${query}`);
+    return { ...response, results: response.results.map(result => ({ ...result, date: localDate(new Date(result.started_at)) })) };
   },
   getVoiceprint: async () => apiRequest<RememberVoiceprint>(`${ROOT}/voiceprint`),
   enrollVoiceprint: async (audio: Blob, ownerUserId: string) =>

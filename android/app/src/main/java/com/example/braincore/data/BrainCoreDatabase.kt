@@ -470,6 +470,10 @@ class BrainCoreDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_N
         "SELECT started_at FROM sessions WHERE id = ?", arrayOf(sessionId)
     ).use { c -> if (c.moveToFirst()) c.getLong(0) else null }
 
+    fun getSessionEndMillis(sessionId: String): Long? = readableDatabase.rawQuery(
+        "SELECT ended_at FROM sessions WHERE id = ?", arrayOf(sessionId)
+    ).use { c -> if (c.moveToFirst() && !c.isNull(0)) c.getLong(0) else null }
+
     fun getSessionStatus(sessionId: String): String? = readableDatabase.rawQuery(
         "SELECT status FROM sessions WHERE id = ?", arrayOf(sessionId)
     ).use { c -> if (c.moveToFirst()) c.getString(0) else null }

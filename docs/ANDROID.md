@@ -43,3 +43,11 @@ The app records only after a user action. Obtain consent before recording other 
 ## Participant review in Android 1.1.1
 
 **Corrigir** remains available even when no participant or suggestion exists. Choose **Minha voz** when the account has an enrolled voice, or enter a new participant name and choose **Criar e identificar**. Confirmed/corrected segments attempt to create a reusable reference; short or unsuitable audio keeps the manual decision without a reference. Busy voice comparison is displayed separately from offline state. Install 1.1.1 for these native controls; the backend’s enrolled-voice suggestions also work with 1.1.0.
+
+## Recording reliability in Android 1.1.2
+
+Update the server and install the signed 1.1.2 APK over the existing release; do not uninstall or clear app storage when recordings are pending. The updated app sends the recorded end time, so an offline recording uploaded the next day keeps its real duration. Older completed sessions are not rewritten.
+
+Signing out of the web app preserves valid Android device links. Password/security changes and explicitly unlinking a device still revoke access. If an earlier server version already invalidated a link, sign in to the same account in **PC** and link recordings again in **Ajustes**. Pending audio remains assigned to its original account. Check the upload and transcription settings and keep the computer available until processing finishes.
+
+Web history, search links and the dashboard now follow the browser timezone instead of UTC calendar dates.

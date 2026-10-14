@@ -94,10 +94,10 @@ export async function getRememberDays(year: number, month: number, userId: strin
   catch (error) { if (error instanceof CeltwoUnavailableError && error.statusCode === 404) return []; throw error; }
 }
 
-export async function getRememberDay(date: string, userId: string): Promise<RememberDay> {
+export async function getRememberDay(date: string, userId: string, timeZone = 'UTC'): Promise<RememberDay> {
   if (config.CELTWO_MEMORY_MODE === 'mock') return { date, total_seconds: 0, session_count: 0, sessions: [] };
   if (config.CELTWO_MEMORY_MODE === 'offline') return { date, total_seconds: 0, session_count: 0, sessions: [] };
-  try { return await celtwoRequest<RememberDay>(`/days/${encodeURIComponent(date)}?owner_user_id=${encodeURIComponent(userId)}`); }
+  try { return await celtwoRequest<RememberDay>(`/days/${encodeURIComponent(date)}?owner_user_id=${encodeURIComponent(userId)}&time_zone=${encodeURIComponent(timeZone)}`); }
   catch (error) {
     if (error instanceof CeltwoUnavailableError && error.statusCode === 404) {
       return {
@@ -113,9 +113,9 @@ export async function getRememberDay(date: string, userId: string): Promise<Reme
   }
 }
 
-export async function getRememberSessions(userId: string, date?: string): Promise<RememberSession[]> {
+export async function getRememberSessions(userId: string, date?: string, timeZone = 'UTC'): Promise<RememberSession[]> {
   if (config.CELTWO_MEMORY_MODE !== 'proxy') return [];
-  const query = `?owner_user_id=${encodeURIComponent(userId)}${date ? `&date=${encodeURIComponent(date)}` : ''}`;
+  const query = `?owner_user_id=${encodeURIComponent(userId)}${date ? `&date=${encodeURIComponent(date)}` : ''}&time_zone=${encodeURIComponent(timeZone)}`;
   try { return await celtwoRequest<RememberSession[]>(`/sessions${query}`); }
   catch (error) { if (error instanceof CeltwoUnavailableError && error.statusCode === 404) return []; throw error; }
 }

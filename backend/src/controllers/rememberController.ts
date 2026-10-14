@@ -281,19 +281,27 @@ export async function stopRemember(req: AuthRequest, res: Response): Promise<voi
   await changeRecording(req, res, false);
 }
 
+function historyTimeZone(req: AuthRequest): string {
+  const zone = req.query.time_zone;
+  if (zone === undefined) return 'UTC';
+  if (typeof zone !== 'string' || zone.length > 100) throw new RangeError('Fuso horário inválido');
+  try { return new Intl.DateTimeFormat('en', { timeZone: zone }).resolvedOptions().timeZone; }
+  catch { throw new RangeError('Fuso horário inválido'); }
+}
+
 export async function rememberYears(req: AuthRequest, res: Response): Promise<void> {
-  try { res.json({ years: [...new Set((await ownedDates(req.userId!)).map((day) => Number(day.slice(0, 4))))] }); }
-  catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'Celtwo offline' }); }
+  try { res.json({ years: [...new Set((await ownedDates(req.userId!, historyTimeZone(req))).map((day) => Number(day.slice(0, 4))))] }); }
+  catch (error) { res.status(error instanceof RangeError ? 400 : 503).json({ error: error instanceof Error ? error.message : 'Celtwo offline' }); }
 }
 
 export async function rememberMonths(req: AuthRequest, res: Response): Promise<void> {
-  try { res.json({ months: [...new Set((await ownedDates(req.userId!)).filter((day) => day.startsWith(`${String(req.params.year)}-`)).map((day) => Number(day.slice(5, 7))))] }); }
-  catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'Celtwo offline' }); }
+  try { res.json({ months: [...new Set((await ownedDates(req.userId!, historyTimeZone(req))).filter((day) => day.startsWith(`${String(req.params.year)}-`)).map((day) => Number(day.slice(5, 7))))] }); }
+  catch (error) { res.status(error instanceof RangeError ? 400 : 503).json({ error: error instanceof Error ? error.message : 'Celtwo offline' }); }
 }
 
 export async function rememberDays(req: AuthRequest, res: Response): Promise<void> {
-  try { res.json({ days: (await ownedDates(req.userId!)).filter((day) => day.startsWith(`${String(req.params.year)}-${String(Number(String(req.params.month))).padStart(2, '0')}-`)) }); }
-  catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'Celtwo offline' }); }
+  try { res.json({ days: (await ownedDates(req.userId!, historyTimeZone(req))).filter((day) => day.startsWith(`${String(req.params.year)}-${String(Number(String(req.params.month))).padStart(2, '0')}-`)) }); }
+  catch (error) { res.status(error instanceof RangeError ? 400 : 503).json({ error: error instanceof Error ? error.message : 'Celtwo offline' }); }
 }
 
 export async function rememberDay(req: AuthRequest, res: Response): Promise<void> {
@@ -303,13 +311,13 @@ export async function rememberDay(req: AuthRequest, res: Response): Promise<void
   }
   try {
     const owned = await ownedSessionIds(req.userId!);
-    const day = await getRememberDay(String(req.params.date), req.userId!);
+    const day = await getRememberDay(String(req.params.date), req.userId!, historyTimeZone(req));
     const sessions = day.sessions.filter((item) => owned.has(item.id));
     const totalSeconds = sessions.reduce((sum, item) => item.ended_at
       ? sum + Math.max(0, Math.floor((Date.parse(item.ended_at) - Date.parse(item.started_at)) / 1000)) : sum, 0);
     res.json({ ...day, sessions, session_count: sessions.length, total_seconds: totalSeconds });
   }
-  catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'Celtwo offline' }); }
+  catch (error) { res.status(error instanceof RangeError ? 400 : 503).json({ error: error instanceof Error ? error.message : 'Celtwo offline' }); }
 }
 
 export async function rememberSessions(req: AuthRequest, res: Response): Promise<void> {
@@ -320,9 +328,9 @@ export async function rememberSessions(req: AuthRequest, res: Response): Promise
   }
   try {
     const owned = await ownedSessionIds(req.userId!);
-    res.json({ sessions: (await getRememberSessions(req.userId!, date)).filter((item) => owned.has(item.id)) });
+    res.json({ sessions: (await getRememberSessions(req.userId!, date, historyTimeZone(req))).filter((item) => owned.has(item.id)) });
   }
-  catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : 'Celtwo offline' }); }
+  catch (error) { res.status(error instanceof RangeError ? 400 : 503).json({ error: error instanceof Error ? error.message : 'Celtwo offline' }); }
 }
 
 export async function rememberTranscript(req: AuthRequest, res: Response): Promise<void> {

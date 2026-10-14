@@ -144,14 +144,20 @@ class MobileApi(private val context: Context) {
         } finally { connection.disconnect() }
     }
 
-    fun complete(sessionId: String, failed: Boolean, ownerUserId: String) {
+    fun complete(sessionId: String, failed: Boolean, ownerUserId: String, endedAt: Long?) {
         val connection = connection("/api/mobile/sessions/$sessionId/complete?${ownerQuery(ownerUserId)}", "POST",
             requireNotNull(deviceToken))
         try {
             connection.setRequestProperty("Content-Type", "application/json")
             connection.doOutput = true
             val status = if (failed) "failed" else "stopped"
-            connection.outputStream.use { it.write(JSONObject().put("status", status).toString().toByteArray()) }
+            val payload = JSONObject().put("status", status)
+            if (endedAt != null) {
+                val format = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
+                format.timeZone = TimeZone.getTimeZone("UTC")
+                payload.put("ended_at", format.format(Date(endedAt)))
+            }
+            connection.outputStream.use { it.write(payload.toString().toByteArray()) }
             response(connection)
         } finally { connection.disconnect() }
     }

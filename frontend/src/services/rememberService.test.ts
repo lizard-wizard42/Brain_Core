@@ -32,6 +32,16 @@ describe('rememberService', () => {
     expect(apiRequest).toHaveBeenNthCalledWith(2, '/api/remember/memory/search?q=caf%C3%A9%20%26%20bolo&limit=5&speaker=me');
   });
 
+  it('uses the viewer timezone for history and the local day for search links', async () => {
+    const zone = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    vi.mocked(apiRequest).mockResolvedValue({ sessions: [], results: [] });
+    await rememberService.getDay('2026-01-01');
+    expect(apiRequest).toHaveBeenLastCalledWith(`/api/remember/memory/days/2026-01-01?time_zone=${zone}`);
+    const instant = new Date(2026, 0, 1, 23, 30);
+    vi.mocked(apiRequest).mockResolvedValue({ query: 'test', results: [{ started_at: instant.toISOString(), date: 'wrong' }] });
+    expect((await rememberService.search('test')).results[0].date).toBe('2026-01-01');
+  });
+
   it('endereça os endpoints de voiceprint', async () => {
     vi.mocked(apiRequest).mockResolvedValue({ enrolled: false });
     await rememberService.getVoiceprint();

@@ -1,3 +1,4 @@
+import { localDate } from '../../services/localDate';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../api/client';
@@ -17,19 +18,15 @@ function greeting(): string {
 }
 
 function hhmm(iso: string): string {
-  return new Date(iso).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
 function previewTurns(session: RememberSession) {
   return (session.turns ?? []).filter(turn => turn.text.trim()).slice(-3);
 }
 
-function saoPauloDate(instant: Date = new Date()): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(instant);
-}
-
-function nextUtcDate(date: string): string {
-  return new Date(Date.parse(`${date}T12:00:00Z`) + 86400000).toISOString().slice(0, 10);
+function viewerDate(instant: Date = new Date()): string {
+  return localDate(instant);
 }
 
 function relative(iso: string): string {
@@ -55,8 +52,8 @@ function formatDuration(seconds: number): string {
 function sessionMeta(session: RememberSession): string {
   const end = session.ended_at ? new Date(session.ended_at).getTime() : Date.now();
   const dur = formatDuration(Math.max(0, Math.round((end - new Date(session.started_at).getTime()) / 1000)));
-  const day = saoPauloDate(new Date(session.started_at));
-  const suffix = day !== saoPauloDate() ? ` · ${day.split('-').reverse().join('/')}` : '';
+  const day = viewerDate(new Date(session.started_at));
+  const suffix = day !== viewerDate() ? ` · ${day.split('-').reverse().join('/')}` : '';
   return dur + suffix;
 }
 
@@ -119,7 +116,7 @@ function Panel({ title, action, children }: { title: string; action?: React.Reac
 export function DashboardHome({ onOpenPage }: { onOpenPage: (page: { id: string; title: string; icon?: string | null }) => void }) {
   const navigate = useNavigate();
   const { notes, loading, error, createNote, saveNote, deleteNote } = useNotas();
-  const [todayIso, setTodayIso] = useState(saoPauloDate);
+  const [todayIso, setTodayIso] = useState(viewerDate);
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [pagesAttempt, retryPages] = useState(0);
   const [memoryAttempt, retryMemories] = useState(0);
@@ -133,7 +130,7 @@ export function DashboardHome({ onOpenPage }: { onOpenPage: (page: { id: string;
   const today = !memoriesLoading && !memoriesError ? dayResult?.day : null;
 
   useEffect(() => {
-    const timer = window.setInterval(() => setTodayIso(saoPauloDate()), 60000);
+    const timer = window.setInterval(() => setTodayIso(viewerDate()), 60000);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -153,14 +150,13 @@ export function DashboardHome({ onOpenPage }: { onOpenPage: (page: { id: string;
 
   useEffect(() => {
     let active = true;
-    // The memory service indexes UTC dates. A São Paulo day can span two
-    // UTC dates, so fetch both and keep only sessions from the local day.
-    Promise.all([rememberService.getDay(todayIso), rememberService.getDay(nextUtcDate(todayIso))])
-      .then(([first, second]) => {
+    // Calendar dates follow the viewer timezone throughout the history API.
+    rememberService.getDay(todayIso)
+      .then((first) => {
         if (!active) return;
-        const byId = new Map([...first.sessions, ...second.sessions].map((session) => [session.id, session]));
+        const byId = new Map(first.sessions.map((session) => [session.id, session]));
         const sessions = [...byId.values()]
-          .filter((session) => saoPauloDate(new Date(session.started_at)) === todayIso);
+          .filter((session) => viewerDate(new Date(session.started_at)) === todayIso);
         const total_seconds = sessions.reduce((sum, session) => session.ended_at
           ? sum + Math.max(0, Math.round((Date.parse(session.ended_at) - Date.parse(session.started_at)) / 1000)) : sum, 0);
         setDay({ date: todayIso, attempt: memoryAttempt, error: false, day: { date: todayIso, sessions, session_count: sessions.length, total_seconds } });

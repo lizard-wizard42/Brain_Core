@@ -1,3 +1,4 @@
+import { localDate } from '../../services/localDate';
 import { useCallback, useEffect, useState } from 'react';
 import { rememberService } from '../../services/rememberService';
 import { browserRecording } from '../../services/browserRecording';
@@ -65,7 +66,7 @@ export function RememberSidebarTree({ onOpen }: { onOpen: (date?: string) => voi
     finally { setLoadingKey(null); }
   };
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDate();
   return <div className="mb-2">
     <button type="button" aria-expanded={expanded} onClick={() => void toggleRoot()} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-gray-200 hover:bg-white/[0.04]">
       <span aria-hidden="true" className="w-3 text-gray-500">{expanded ? '▾' : '▸'}</span><span>🧠</span><span className="flex-1 font-medium">Linha do tempo</span><span className={recording ? 'text-red-400' : 'text-gray-600'} aria-label={recording ? 'PC gravando' : 'PC sem gravação'}>●</span>
