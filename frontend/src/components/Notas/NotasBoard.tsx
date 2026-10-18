@@ -15,6 +15,9 @@ export function NotasBoard({
   onCreate,
   onSave,
   onDelete,
+  onToggleChecklist,
+  deletedNote,
+  onRestore,
   preview = false,
 }: {
   notes: RememberNote[];
@@ -25,7 +28,12 @@ export function NotasBoard({
   onCreate: (draft: NoteDraft) => Promise<void>;
   onSave: (note: RememberNote, draft: NoteDraft) => Promise<void>;
   onDelete: (note: RememberNote) => Promise<void>;
+  onToggleChecklist?: (note: RememberNote, itemId: string, checked: boolean) => Promise<void>;
+  deletedNote?: RememberNote | null;
+  onRestore?: (note: RememberNote) => Promise<void>;
 }) {
+  const [restoreBusy, setRestoreBusy] = useState(false);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [composerSeed, setComposerSeed] = useState<NoteDraft>(() => emptyDraft());
   const [search, setSearch] = useState('');
@@ -61,6 +69,15 @@ export function NotasBoard({
   return (
     <div>
 
+      {deletedNote && onRestore && <div role="status" className="mb-4 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface)] p-3 text-sm text-[var(--theme-text)]">
+        Nota movida para a lixeira.
+        <button type="button" disabled={restoreBusy} className="ml-3 min-h-11 text-[var(--theme-link)] underline" onClick={async () => {
+          setRestoreBusy(true); setRestoreError(null);
+          try { await onRestore(deletedNote); } catch (err) { setRestoreError(err instanceof Error ? err.message : 'Não foi possível restaurar. Tente novamente.'); }
+          finally { setRestoreBusy(false); }
+        }}>{restoreBusy ? 'Restaurando…' : 'Desfazer'}</button>
+        {restoreError && <p role="alert">{restoreError}</p>}
+      </div>}
       <NotasComposer
         open={composerOpen}
         onOpen={openComposer}
@@ -107,7 +124,7 @@ export function NotasBoard({
           <div className={COLUMNS}>
             {shown.map((note) => (
               <div key={note.id} id={`quick-note-${note.id}`} tabIndex={-1} className="min-w-0 rounded-2xl focus:outline focus:outline-2 focus:outline-[var(--theme-primary)]">
-                <NotasCard note={note} onSave={onSave} onDelete={onDelete} />
+                <NotasCard note={note} onSave={onSave} onDelete={onDelete} onToggleChecklist={onToggleChecklist} />
               </div>
             ))}
           </div>

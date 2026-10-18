@@ -11,6 +11,9 @@ vi.mock('../../api/client', () => ({
     createRememberNote: vi.fn(),
     updateRememberNote: vi.fn(),
     deleteRememberNote: vi.fn(),
+    listTrashedRememberNotes: vi.fn(),
+    restoreRememberNote: vi.fn(),
+    checkRememberNoteItem: vi.fn(),
   },
 }));
 
@@ -91,4 +94,29 @@ describe('preservação dos metadados ao editar', () => {
     await act(async () => { await result.current.saveNote(original, { ...toDraft(original), reminderEnabled: false }); });
     expect(api.updateRememberNote).toHaveBeenLastCalledWith('n1', expect.objectContaining({ reminder_date: null, reminder_label: null }));
   });
+});
+
+
+it('loads persisted trash and restores the original identity without creating a new note', async () => {
+  const deleted = note({ deleted_at: '2026-10-18T20:00:00Z', tags: ['keep'] });
+  vi.mocked(api.listTrashedRememberNotes).mockResolvedValue({ notes: [deleted] });
+  vi.mocked(api.restoreRememberNote).mockResolvedValue({ ...deleted, deleted_at: null });
+  const { result } = renderHook(() => useNotas({ autoload: false }));
+  await act(async () => { await result.current.loadTrash(); });
+  expect(result.current.trash[0].id).toBe(deleted.id);
+  await act(async () => { await result.current.restoreNote(deleted); });
+  expect(result.current.trash).toHaveLength(0);
+  expect(result.current.notes[0]).toMatchObject({ id: deleted.id, tags: ['keep'], deleted_at: null });
+});
+
+it('updates only the targeted checklist flag through its dedicated API', async () => {
+  const original = note({ tags: ['keep'], checklist: [{ id: 'item', text: 'Revisar', checked: false }] });
+  vi.mocked(api.listRememberNotes).mockResolvedValue({ notes: [original] });
+  vi.mocked(api.checkRememberNoteItem).mockResolvedValue({ ...original, checklist: [{ ...original.checklist[0], checked: true }] });
+  const { result } = renderHook(() => useNotas());
+  await waitFor(() => expect(result.current.notes).toHaveLength(1));
+  await act(async () => { await result.current.toggleChecklist(original, 'item', true); });
+  expect(api.checkRememberNoteItem).toHaveBeenLastCalledWith(original.id, 'item', true);
+  expect(result.current.notes[0].checklist[0].checked).toBe(true);
+  expect(result.current.notes[0].tags).toEqual(['keep']);
 });

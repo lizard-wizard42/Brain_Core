@@ -106,7 +106,7 @@ describe('NotasBoard', () => {
     await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ id: 'n3' }), expect.objectContaining({ title: 'Titulo novo' })));
 
     fireEvent.click(await screen.findByRole('button', { name: 'Editar nota' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Apagar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mover para lixeira' }));
     await waitFor(() => expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'n3' })));
   });
 
@@ -136,4 +136,35 @@ describe('NotasBoard', () => {
     expect(onSave).toHaveBeenCalledTimes(2);
   });
 
+});
+
+
+afterEach(cleanup);
+
+it('marks a checklist item directly and keeps it unchanged when saving fails', async () => {
+  const note = makeNote({ checklist: [{ id: 'one', text: 'Revisar', checked: false }] });
+  const toggle = vi.fn().mockRejectedValueOnce(new Error('Sem conexão'));
+  render(<NotasBoard notes={[note]} loading={false} error={null} onCreate={vi.fn()} onSave={vi.fn()} onDelete={vi.fn()} onToggleChecklist={toggle} />);
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Revisar' }));
+  await waitFor(() => expect(toggle).toHaveBeenCalledWith(note, 'one', true));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Sem conexão');
+  expect(screen.getByRole('checkbox', { name: 'Revisar' })).not.toBeChecked();
+  expect(screen.queryByRole('button', { name: 'Salvar' })).not.toBeInTheDocument();
+});
+
+it('offers undo after moving a note to trash and reports a failed restore', async () => {
+  const restore = vi.fn().mockRejectedValueOnce(new Error('Servidor indisponível'));
+  render(<NotasBoard notes={[]} loading={false} error={null} onCreate={vi.fn()} onSave={vi.fn()} onDelete={vi.fn()} deletedNote={makeNote()} onRestore={restore} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Desfazer' }));
+  await waitFor(() => expect(restore).toHaveBeenCalled());
+  expect(await screen.findByRole('alert')).toHaveTextContent('Servidor indisponível');
+  expect(screen.getByRole('button', { name: 'Desfazer' })).toBeEnabled();
+});
+
+it('reports failure to trash a note without hiding its editor', async () => {
+  render(<NotasBoard notes={[makeNote()]} loading={false} error={null} onCreate={vi.fn()} onSave={vi.fn()} onDelete={vi.fn().mockRejectedValue(new Error('Não foi possível apagar'))} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Editar nota' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Mover para lixeira' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível apagar');
+  expect(screen.getByRole('button', { name: 'Salvar' })).toBeInTheDocument();
 });

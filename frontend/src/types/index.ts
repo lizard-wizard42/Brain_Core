@@ -115,6 +115,7 @@ export interface RememberChecklistItem {
 }
 
 export interface RememberNote {
+  deleted_at?: string | null;
   id: string;
   title: string;
   body: string;

@@ -39,7 +39,7 @@ export async function searchNotes(userId: string, needle: string, kind: string, 
       UNION ALL
       SELECT id, title, 'note', 'note', NULL, updated_at, NULL::uuid,
         concat_ws(' ', body, (SELECT string_agg(item->>'text', ' ') FROM jsonb_array_elements(checklist) item)) FROM remember_notes
-      WHERE user_id = $1::text AND $3 != 'pages'
+      WHERE user_id = $1::text AND deleted_at IS NULL AND $3 != 'pages'
     ), matches AS (
       SELECT *, strpos(${fold('body')}, ${fold('$2')}) AS location,
         strpos(${fold('title')}, ${fold('$2')}) AS title_location FROM documents

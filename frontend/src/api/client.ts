@@ -528,6 +528,17 @@ export const api = {
       body: JSON.stringify(body),
     }).then(refreshNativeReminders),
 
+  listTrashedRememberNotes: () =>
+    request<{ notes: import('../types').RememberNote[] }>('/api/remember/trash'),
+
+  restoreRememberNote: (id: string) =>
+    request<import('../types').RememberNote>(`/api/remember/${id}/restore`, { method: 'POST' }).then(refreshNativeReminders),
+
+  checkRememberNoteItem: (id: string, itemId: string, checked: boolean) =>
+    request<import('../types').RememberNote>(`/api/remember/${id}/checklist/${encodeURIComponent(itemId)}`, {
+      method: 'PATCH', body: JSON.stringify({ checked }),
+    }),
+
   deleteRememberNote: (id: string) =>
     request<{ deleted: boolean }>(`/api/remember/${id}`, {
       method: 'DELETE',

@@ -18,7 +18,7 @@ export async function exportAccountData(req: AuthRequest, res: Response): Promis
                     content, sort_order, created_at, updated_at, deleted_at
              FROM pages WHERE owner_user_id = $1 ORDER BY created_at`, [userId]),
       query(`SELECT id, title, body, color, checklist, tags, reminder_date, reminder_time,
-                    reminder_label, reminder_repeat_daily, created_at, updated_at
+                    reminder_label, reminder_repeat_daily, created_at, updated_at, deleted_at
              FROM remember_notes WHERE user_id = $1::text ORDER BY created_at`, [userId]),
       query(`SELECT c.status, c.created_at, u.name AS contact_name, u.email AS contact_email
              FROM contacts c

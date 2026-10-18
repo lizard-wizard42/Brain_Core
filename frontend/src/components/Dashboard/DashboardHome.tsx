@@ -115,7 +115,7 @@ function Panel({ title, action, children }: { title: string; action?: React.Reac
 
 export function DashboardHome({ onOpenPage }: { onOpenPage: (page: { id: string; title: string; icon?: string | null }) => void }) {
   const navigate = useNavigate();
-  const { notes, loading, error, createNote, saveNote, deleteNote } = useNotas();
+  const { notes, loading, error, createNote, saveNote, deleteNote, deletedNote, restoreNote, toggleChecklist } = useNotas();
   const [todayIso, setTodayIso] = useState(viewerDate);
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [pagesAttempt, retryPages] = useState(0);
@@ -326,7 +326,7 @@ export function DashboardHome({ onOpenPage }: { onOpenPage: (page: { id: string;
             <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--theme-muted)]">Notas recentes</h2>
             <button type="button" onClick={() => navigate('/notes')} className="min-h-11 rounded-lg px-2 text-xs text-[var(--theme-link)] hover:bg-[var(--theme-hover)]">Ver todas as notas →</button>
           </div>
-          <NotasBoard preview notes={notes} loading={loading} error={error} onCreate={createNote} onSave={saveNote} onDelete={deleteNote} />
+          <NotasBoard preview deletedNote={deletedNote} onRestore={restoreNote} onToggleChecklist={toggleChecklist} notes={notes} loading={loading} error={error} onCreate={createNote} onSave={saveNote} onDelete={deleteNote} />
         </section>
       </div>
     </div>
