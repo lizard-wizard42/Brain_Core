@@ -167,7 +167,10 @@ def probable_owner_voices(session_id: str) -> set[int]:
         if vec.size and np.all(np.isfinite(vec)) and np.linalg.norm(vec) > 1e-8:
             vectors.append((identity, _unit(vec)))
     result = set()
-    for idx, voice in active_voices(session_id, model).items():
+    # A group is already built from quality-gated clips of at least two
+    # seconds. Do not apply the separate multi-utterance display gate before
+    # comparing a short recording with a known reference.
+    for idx, voice in database.get_session_voices(session_id, model).items():
         vec = _unit(voice["centroid"])
         if not np.all(np.isfinite(vec)) or np.linalg.norm(vec) < 1e-8:
             continue

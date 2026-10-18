@@ -16,6 +16,7 @@ export function NotasCard({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<NoteDraft>(() => toDraft(note));
   const [busy, setBusy] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const editColor = noteColor(draft.color);
 
   useEffect(() => {
@@ -26,9 +27,12 @@ export function NotasCard({
 
   const save = async () => {
     setBusy(true);
+    setSaveError(null);
     try {
       await onSave(note, draft);
       setEditing(false);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Não foi possível salvar a nota. Tente novamente.');
     } finally {
       setBusy(false);
     }
@@ -124,6 +128,7 @@ export function NotasCard({
                 </label>
               </div>
             )}
+            {saveError && <p role="alert" className="rounded-xl border border-red-800/30 bg-red-100 px-3 py-2 text-sm text-red-900">{saveError}</p>}
             <div className="flex items-center justify-between gap-3 pt-1">
               <button type="button" onClick={remove} disabled={busy} className="rounded-xl px-3 py-2 text-[12px] text-[#8a2b2b] hover:bg-red-500/10">Apagar</button>
               <button type="button" onClick={save} disabled={busy} className="rounded-xl bg-white px-3 py-2 text-[12px] font-medium text-black">{busy ? 'Salvando…' : 'Salvar'}</button>

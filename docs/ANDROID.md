@@ -77,3 +77,7 @@ Update both the server and the app. The native timeline now preserves the server
 The server compares each voice group with the account's enrolled sample and its active, manually confirmed voice references. Several groups may match the same owner; groups no longer compete against each other for a single owner slot. References for other participants can block an ambiguous match. A group with six seconds of speech can be displayed even when ASR produced fewer than three sentences.
 
 **Eu (provável)** is an automatic suggestion, not a confirmed identity or a calibrated probability. Manual corrections take priority, and deleted/revoked references stop contributing. Short, noisy or mixed-speaker audio can still remain unidentified. Naming a whole voice in the web conversation applies to that session; correcting a suitable individual segment can supply a reusable reference. No accuracy percentage is claimed from synthetic tests.
+
+### Short recordings
+
+The server also evaluates quality-gated short voice groups against the account's references before applying the general multi-sentence display gate. A matching short group can appear as **Eu (provável)**; a weak or ambiguous match remains unidentified. This server-side fix works with Android 1.1.5 and needs no new APK.
