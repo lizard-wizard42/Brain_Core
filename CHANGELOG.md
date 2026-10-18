@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — short recording recognition and note editing
+
+- Keep a reference-matched owner group visible in short recordings without weakening the similarity or competing-identity thresholds. Unmatched short groups remain unidentified.
+- Preserve tags and reminder labels when editing notes; show create/save failures and retain the draft for retry.
+
 ## 2026-10-18 — Android 1.1.5 voice identification
 
 - Preserve server voice groups, probable-owner matches and manual corrections in the native timeline; use “Eu” consistently in speaker headers.

@@ -109,4 +109,31 @@ describe('NotasBoard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Apagar' }));
     await waitFor(() => expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'n3' })));
   });
+
+  it('mostra falha de criação sem perder o rascunho e permite tentar novamente', async () => {
+    const { onCreate } = setup([]);
+    onCreate.mockRejectedValueOnce(new Error('Falha de conexão'));
+    fireEvent.click(screen.getByText('Escreva uma nota…'));
+    fireEvent.change(screen.getByPlaceholderText('Título'), { target: { value: 'Rascunho de teste' } });
+    fireEvent.click(screen.getByRole('button', { name: '📝 Criar nota' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Falha de conexão');
+    expect(screen.getByDisplayValue('Rascunho de teste')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '📝 Criar nota' }));
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+    expect(onCreate).toHaveBeenCalledTimes(2);
+  });
+
+  it('mostra falha de edição sem fechar o editor e permite tentar novamente', async () => {
+    const { onSave } = setup([makeNote()]);
+    onSave.mockRejectedValueOnce(new Error('Não foi possível salvar'));
+    fireEvent.click(screen.getByRole('button', { name: 'Editar nota' }));
+    fireEvent.change(screen.getByDisplayValue('Comprar café'), { target: { value: 'Edição de teste' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível salvar');
+    expect(screen.getByDisplayValue('Edição de teste')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+    expect(onSave).toHaveBeenCalledTimes(2);
+  });
+
 });

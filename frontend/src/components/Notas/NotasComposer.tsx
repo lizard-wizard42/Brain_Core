@@ -103,19 +103,24 @@ export function NotasComposer({
 }) {
   const [draft, setDraft] = useState<NoteDraft>(emptyDraft());
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const composerColor = noteColor(draft.color);
 
   useEffect(() => {
     if (!open) return;
     setDraft(initialDraft);
+    setSaveError(null);
   }, [initialDraft, open]);
 
   const handleCreate = async () => {
     setSaving(true);
+    setSaveError(null);
     try {
       await onCreate(draft);
       setDraft(emptyDraft());
       onClose();
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Não foi possível criar a nota. Tente novamente.');
     } finally {
       setSaving(false);
     }
@@ -211,6 +216,7 @@ export function NotasComposer({
           )}
         </div>
 
+        {saveError && <p role="alert" className="rounded-xl border border-red-800/30 bg-red-100 px-3 py-2 text-sm text-red-900">{saveError}</p>}
         <div className="flex items-center justify-end gap-3">
           <button type="button" disabled={saving} onClick={handleCreate} className="rounded-2xl bg-[#17120d] px-4 py-3 text-[13px] font-medium text-white hover:bg-black transition-colors disabled:opacity-50">
             {saving ? 'Salvando…' : '📝 Criar nota'}

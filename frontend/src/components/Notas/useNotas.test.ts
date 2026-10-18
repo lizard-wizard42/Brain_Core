@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useNotas } from './useNotas';
-import { emptyDraft } from './notasModel';
+import { emptyDraft, toDraft } from './notasModel';
 import { api } from '../../api/client';
 import type { RememberNote } from '../../types';
 
@@ -71,5 +71,24 @@ describe('useNotas', () => {
 
     await act(async () => { await result.current.deleteNote(result.current.notes[0]); });
     expect(result.current.notes).toHaveLength(0);
+  });
+});
+
+
+describe('preservação dos metadados ao editar', () => {
+  it('mantém tags e rótulo do lembrete que não têm controles no editor', async () => {
+    const original = note({ tags: ['projeto', 'revisar'], reminder_date: '2026-11-01', reminder_label: 'Revisão' });
+    vi.mocked(api.updateRememberNote).mockResolvedValue(original);
+    const { result } = renderHook(() => useNotas({ autoload: false }));
+    await act(async () => { await result.current.saveNote(original, { ...toDraft(original), title: 'Título corrigido' }); });
+    expect(api.updateRememberNote).toHaveBeenLastCalledWith('n1', expect.objectContaining({ tags: ['projeto', 'revisar'], reminder_label: 'Revisão' }));
+  });
+
+  it('limpa o rótulo quando o usuário remove o lembrete', async () => {
+    const original = note({ reminder_date: '2026-11-01', reminder_label: 'Revisão' });
+    vi.mocked(api.updateRememberNote).mockResolvedValue(original);
+    const { result } = renderHook(() => useNotas({ autoload: false }));
+    await act(async () => { await result.current.saveNote(original, { ...toDraft(original), reminderEnabled: false }); });
+    expect(api.updateRememberNote).toHaveBeenLastCalledWith('n1', expect.objectContaining({ reminder_date: null, reminder_label: null }));
   });
 });

@@ -35,13 +35,16 @@ export function useNotas({ autoload = true }: { autoload?: boolean } = {}) {
   }, []);
 
   const saveNote = useCallback(async (note: RememberNote, draft: NoteDraft) => {
+    const reminder = normalizeReminder(draft);
     const updated = await api.updateRememberNote(note.id, {
       title: draft.title,
       body: draft.body,
       color: draft.color,
       checklist: draft.checklist.filter((item) => item.text.trim()),
-      tags: [],
-      ...normalizeReminder(draft),
+      // These fields are not editable here; preserve metadata created elsewhere.
+      tags: note.tags,
+      ...reminder,
+      reminder_label: reminder.reminder_date ? note.reminder_label : null,
     });
     setNotes((current) => current.map((entry) => (entry.id === note.id ? updated : entry)));
   }, []);

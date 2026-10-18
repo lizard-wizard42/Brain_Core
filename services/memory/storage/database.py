@@ -1174,7 +1174,7 @@ def compute_turns(session_id: str) -> list[dict]:
     try:
         probable = probable_owner_voices(session_id)
         active = {idx for model in {m for m in _voice_models(session_id)}
-                  for idx in active_voices(session_id, model)}
+                  for idx in active_voices(session_id, model)} | probable
     except Exception:  # grouping is advisory; never break the transcript
         probable, active = set(), set()
     from services.memory.storage.identities import get_voice_labels

@@ -91,7 +91,14 @@ def test_probable_me_only_with_enrolled_voice_and_clear_margin(session):
 
 def test_enrolled_voice_matching_nobody_marks_nobody(session):
     voices.assign_voices("s1", 0, ToneEmbedder())
-    _enroll(450)
+    _enroll(180)
+    conn = database.get_connection()
+    try:
+        # No enrolled identity matches: every tone vector has nonnegative entries.
+        conn.execute("UPDATE account_voiceprints SET embedding=?", (np.array([-1, -1, -1], dtype=np.float32).tobytes(),))
+        conn.commit()
+    finally:
+        conn.close()
     assert voices.me_probable_voice("s1") is None
 
 
@@ -129,15 +136,15 @@ def test_confirmed_owner_template_is_reused_and_revocation_removes_it(session, m
     from services.memory.storage import identities, voice_templates
     voices.assign_voices("s1", 0, ToneEmbedder())
     _enroll(450)  # enrollment from another channel does not match the dominant voice
-    assert voices.probable_owner_voices("s1") == set()
+    assert voices.probable_owner_voices("s1") == {2}
     seg = database.get_segments_for_chunk("s1", 0)[0]
     own_id = identities.owner_identity_id("owner")
     identities.decide_segment("owner", seg["id"], own_id, "confirm")
     monkeypatch.setattr(voice_templates, "decode_pcm_16k_mono", lambda *a, **kw: tone(180, 30))
     template = voice_templates.create_template("owner", seg["id"], ToneEmbedder())
-    assert voices.probable_owner_voices("s1") == {0}
+    assert voices.probable_owner_voices("s1") == {0, 2}
     assert voice_templates.delete_template("owner", template["id"])
-    assert voices.probable_owner_voices("s1") == set()
+    assert voices.probable_owner_voices("s1") == {2}
 
 
 def test_competing_identity_blocks_ambiguous_owner_and_foreign_templates_are_ignored(session, monkeypatch):
@@ -157,3 +164,12 @@ def test_competing_identity_blocks_ambiguous_owner_and_foreign_templates_are_ign
     finally:
         conn.close()
     assert voices.probable_owner_voices("s1") == {0}
+
+
+def test_short_recognized_owner_is_visible_without_exposing_unmatched_stray_groups(session):
+    voices.assign_voices('s1', 0, ToneEmbedder())
+    _enroll(450)
+    turns = database.compute_turns('s1')
+    assert turns[-1].get('voice') == 'speaker_2'
+    assert turns[-1].get('voice_is_me_probable') is True
+    assert all(t.get('voice_is_me_probable') is False for t in turns if t.get('voice') in ('speaker_0', 'speaker_1'))
