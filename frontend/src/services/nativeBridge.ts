@@ -151,3 +151,11 @@ export function stopNativeVoiceSample(): Promise<NativeVoiceSampleResult> {
 export function cancelNativeVoiceSample(): Promise<NativeVoiceSampleResult> {
   return sendBridgeRequest<NativeVoiceSampleResult>({ action: 'cancelVoiceSample' });
 }
+
+/** Android owns notification permissions and channel preferences. */
+export function openNativeNotificationSettings(): void {
+  window.brainCoreNativeBridge?.postMessage(JSON.stringify({ action: 'notificationSettings' }));
+}
+export function testNativeNotification(): void {
+  window.brainCoreNativeBridge?.postMessage(JSON.stringify({ action: 'testNotification' }));
+}

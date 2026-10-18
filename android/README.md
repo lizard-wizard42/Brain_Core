@@ -26,3 +26,17 @@ Update the server and install the signed 1.1.2 APK over the existing release; do
 Signing out of the web app preserves valid Android device links. Password/security changes and explicitly unlinking a device still revoke access. If an earlier server version already invalidated a link, sign in to the same account in **PC** and link recordings again in **Ajustes**. Pending audio remains assigned to its original account. Check the upload and transcription settings and keep the computer available until processing finishes.
 
 Web history, search links and the dashboard now follow the browser timezone instead of UTC calendar dates.
+
+## Android 1.1.3 startup
+
+Database recovery and background-work scheduling now run off the main thread so they do not hold up the first screen. The web view shows loading feedback and avoids pushing a duplicate initial route into browser history. Recording recovery and account-scoped upload behavior are retained.
+
+Update using an APK with the same package and signing certificate as the installed app. A `.dev` installation may contain real recordings: never uninstall it or clear its storage to install an update, and do not run database instrumentation against a personal installation.
+
+## Android 1.1.4 native notifications
+
+Linked devices synchronize reminder metadata from their own account, independently of audio upload preferences. Android schedules downloaded reminders locally, including daily repeats, and restores future schedules after restart, app update, and clock/timezone changes. Date-only reminders use 09:00 in the phone timezone. No note body or title is stored for background notifications; the alert opens Notes. Completed mobile transcriptions open the Timeline.
+
+Open Settings → This device to test an alert or manage Android notification channels and sounds. Android 13+ requires notification permission. The white Brain Core vector is used in the status bar and for themed launcher icons.
+
+This is local scheduling plus background synchronization, not Firebase push. Changes made on another device are fetched when opening the app and periodically (minimum 15 minutes, possibly delayed by Android). The computer and private network must be reachable to fetch changes. Downloaded alarms work offline; edits/deletions made elsewhere take effect after the next successful sync. Alarms are inexact and may be delayed by battery saving; this is not an exact-time alarm clock. Force-stopping the app disables background delivery until it is opened again. Unlinking or switching accounts cancels downloaded reminders.

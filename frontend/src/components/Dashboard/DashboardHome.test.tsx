@@ -5,7 +5,8 @@ import { DashboardHome } from './DashboardHome';
 import { api } from '../../api/client';
 import { rememberService } from '../../services/rememberService';
 
-vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
+const navigate = vi.hoisted(() => vi.fn());
+vi.mock('react-router-dom', () => ({ useNavigate: () => navigate }));
 vi.mock('../../api/client', () => ({ api: { getMe: vi.fn(), getTree: vi.fn() } }));
 vi.mock('../../services/rememberService', () => ({ rememberService: { getDay: vi.fn() } }));
 vi.mock('../Notas/NotasBoard', () => ({ NotasBoard: () => null }));
@@ -21,6 +22,18 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('DashboardHome', () => {
+  it('oferece acessos diretos às três áreas principais', async () => {
+    vi.mocked(rememberService.getDay).mockImplementation(async date => ({ date, sessions: [], total_seconds: 0, session_count: 0 }));
+    render(<DashboardHome onOpenPage={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Linha do tempo' }));
+    expect(navigate).toHaveBeenLastCalledWith('/remember');
+    fireEvent.click(screen.getByRole('button', { name: 'Conhecimento' }));
+    expect(navigate).toHaveBeenLastCalledWith('/knowledge');
+    fireEvent.click(screen.getByRole('button', { name: 'Ver todas as notas →' }));
+    expect(navigate).toHaveBeenLastCalledWith('/notes');
+    await screen.findByText('Nenhuma gravação ainda.');
+  });
+
   it('não mostra gravações de ontem no painel de hoje', async () => {
     const today = localDate();
     const yesterday = new Date(Date.parse(`${today}T12:00:00Z`) - 86400000).toISOString().slice(0, 10);

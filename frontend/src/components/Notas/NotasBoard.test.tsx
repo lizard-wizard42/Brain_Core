@@ -36,6 +36,59 @@ describe('NotasBoard', () => {
     expect(screen.getByText('Nenhuma nota encontrada para "inexistente".')).toBeInTheDocument();
   });
 
+  it('busca sem acentos e combina os filtros com a pesquisa', () => {
+    setup([
+      makeNote({ id: 'a', title: 'Reunião', reminder_date: '2026-06-01' }),
+      makeNote({ id: 'b', title: 'Reunião da equipe', checklist: [{ id: 'c', text: 'Pauta', checked: false }] }),
+    ]);
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Buscar notas' }), { target: { value: 'reuniao' } });
+    expect(screen.getByText('Reunião')).toBeInTheDocument();
+    expect(screen.getByText('Reunião da equipe')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Lembretes' }));
+    expect(screen.getByText('Reunião')).toBeInTheDocument();
+    expect(screen.queryByText('Reunião da equipe')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Listas' }));
+    expect(screen.queryByText('Reunião', { exact: true })).not.toBeInTheDocument();
+    expect(screen.getByText('Reunião da equipe')).toBeInTheDocument();
+  });
+
+  it('ordena por título sem mudar os dados e permite limpar uma busca vazia', () => {
+    const notes = [makeNote({ id: 'b', title: 'Zebra' }), makeNote({ id: 'a', title: 'Abacate' })];
+    setup(notes);
+    fireEvent.change(screen.getByRole('combobox', { name: 'Ordenar' }), { target: { value: 'title' } });
+    const cards = [...document.querySelectorAll('[id^="quick-note-"]')];
+    expect(cards.map(card => card.id)).toEqual(['quick-note-a', 'quick-note-b']);
+    expect(notes.map(note => note.id)).toEqual(['b', 'a']);
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'nada' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar filtros' }));
+    expect(screen.getByText('Abacate')).toBeInTheDocument();
+    expect(screen.getByText('Zebra')).toBeInTheDocument();
+  });
+
+  it('limita a primeira renderização e permite carregar o restante', () => {
+    setup(Array.from({ length: 30 }, (_, index) => makeNote({ id: `n${index}`, title: `Nota ${index}` })));
+    expect(screen.getAllByRole('button', { name: 'Editar nota' })).toHaveLength(24);
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar mais notas (6)' }));
+    expect(screen.getAllByRole('button', { name: 'Editar nota' })).toHaveLength(30);
+    expect(screen.queryByRole('button', { name: /Mostrar mais notas/ })).not.toBeInTheDocument();
+  });
+
+  it('mantém acessível uma nota antiga aberta por link direto', () => {
+    const notes = Array.from({ length: 30 }, (_, index) => makeNote({ id: `n${index}`, title: `Nota ${index}` }));
+    render(<NotasBoard notes={notes} focusedNoteId="n29" loading={false} error={null} onCreate={vi.fn()} onSave={vi.fn()} onDelete={vi.fn()} />);
+    expect(screen.getByText('Nota 29')).toBeInTheDocument();
+    expect(document.getElementById('quick-note-n29')).toHaveFocus();
+  });
+
+  it('mostra apenas seis notas recentes na prévia sem o botão flutuante', () => {
+    const notes = Array.from({ length: 10 }, (_, index) => makeNote({ id: `n${index}`, title: `Nota ${index}`, updated_at: `2026-05-${String(index + 1).padStart(2, '0')}T10:00:00Z` }));
+    render(<NotasBoard preview notes={notes} loading={false} error={null} onCreate={vi.fn()} onSave={vi.fn()} onDelete={vi.fn()} />);
+    expect(screen.getAllByRole('button', { name: 'Editar nota' })).toHaveLength(6);
+    expect(screen.getByText('Nota 9')).toBeInTheDocument();
+    expect(screen.queryByText('Nota 0')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Criar nota' })).not.toBeInTheDocument();
+  });
+
   it('cria uma nota pelo composer', async () => {
     const { onCreate } = setup([]);
     fireEvent.click(screen.getByText('Escreva uma nota…'));

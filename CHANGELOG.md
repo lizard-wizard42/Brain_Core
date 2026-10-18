@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-18 — Android: abertura e notificações nativas
+
+- Recuperação de gravações e preparação do banco fora da thread de interface, indicador de carregamento e navegação inicial sem duplicação.
+- Android 1.1.4: canais para lembretes e transcrições prontas, teste de notificação e acesso às configurações do Android.
+- Lembretes sincronizados por conta, agendados no aparelho e restaurados após reinício; sincronização periódica e alarmes inexatos sujeitos às restrições de bateria do Android.
+- Logo branco vetorial para notificações e ícone temático do launcher.
+- Página inicial com atalhos e prévia de seis notas; Notas com filtros, busca sem acentos, ordenação e carregamento em lotes de 24.
+
 ## 2026-10-14 — Confiabilidade da sincronização e histórico
 
 - Sair da conta no navegador mantém os aparelhos Android já vinculados; troca de senha e revogação continuam invalidando credenciais. Vínculos antigos inválidos não são reativados.

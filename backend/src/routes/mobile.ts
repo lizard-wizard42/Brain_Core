@@ -147,6 +147,17 @@ router.get('/device', authenticateDevice, (req: DeviceRequest, res: Response) =>
   res.json({ device_id: req.mobileDeviceId, user_id: req.mobileUserId });
 });
 
+// Only reminder metadata is exposed to the linked account; note bodies stay out of background polling.
+router.get('/reminders', authenticateDevice, async (req: DeviceRequest, res: Response) => {
+  try {
+    const reminders = await query(
+      `SELECT id, reminder_date::text, reminder_time::text, reminder_repeat_daily
+       FROM remember_notes WHERE user_id = $1 AND reminder_date IS NOT NULL`, [req.mobileUserId],
+    );
+    res.json({ reminders });
+  } catch { unavailable(res); }
+});
+
 router.post('/notes', authenticateDevice, async (req: DeviceRequest, res: Response) => {
   (req as AuthRequest).userId = req.mobileUserId;
   try { await createRememberNote(req as AuthRequest, res); } catch { unavailable(res); }

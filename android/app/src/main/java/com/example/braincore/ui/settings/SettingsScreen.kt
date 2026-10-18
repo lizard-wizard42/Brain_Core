@@ -599,6 +599,13 @@ fun SettingsScreen(
             }
 
             Spacer(modifier = Modifier.height(24.dp))
+            TextButton(onClick = { com.example.braincore.notifications.NativeNotifications.settings(context) }) {
+                Text("Gerenciar notificações do Android")
+            }
+            TextButton(onClick = {
+                if (!com.example.braincore.notifications.NativeNotifications.test(context))
+                    com.example.braincore.notifications.NativeNotifications.settings(context)
+            }) { Text("Testar notificação") }
             Text("GRAVAÇÃO E PERMISSÕES", color = TextSecondary,
                 style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(10.dp))

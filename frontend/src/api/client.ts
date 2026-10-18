@@ -510,7 +510,7 @@ export const api = {
     request<import('../types').RememberNote>('/api/remember', {
       method: 'POST',
       body: JSON.stringify(body),
-    }),
+    }).then(refreshNativeReminders),
 
   updateRememberNote: (id: string, body: {
     title: string;
@@ -526,10 +526,16 @@ export const api = {
     request<import('../types').RememberNote>(`/api/remember/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(body),
-    }),
+    }).then(refreshNativeReminders),
 
   deleteRememberNote: (id: string) =>
     request<{ deleted: boolean }>(`/api/remember/${id}`, {
       method: 'DELETE',
-    }),
+    }).then(refreshNativeReminders),
 };
+
+function refreshNativeReminders<T>(result: T): T {
+  // Android fetches account-scoped metadata; no note content crosses the bridge.
+  try { window.brainCoreNativeBridge?.postMessage(JSON.stringify({ action: 'syncReminders' })); } catch { /* Older APKs can ignore this optional action. */ }
+  return result;
+}

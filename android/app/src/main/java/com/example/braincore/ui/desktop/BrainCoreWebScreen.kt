@@ -16,6 +16,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -82,6 +83,7 @@ fun BrainCoreWebScreen(
     val backgroundColor = BrainBgDark.toArgb()
     var loadError by remember(origin) { mutableStateOf<String?>(null) }
     var loaded by remember(origin) { mutableStateOf(false) }
+    var handledNavigationRequest by remember(origin) { mutableIntStateOf(navigationRequest) }
     var pendingFileCallback by remember { mutableStateOf<ValueCallback<Array<Uri>>?>(null) }
     val fileChooser = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         pendingFileCallback?.onReceiveValue(
@@ -199,7 +201,8 @@ fun BrainCoreWebScreen(
         webView.setBackgroundColor(backgroundColor)
     }
     LaunchedEffect(webView, targetRoute, navigationRequest, loaded) {
-        if (loaded) {
+        if (loaded && navigationRequest != handledNavigationRequest) {
+            handledNavigationRequest = navigationRequest
             val route = safeWebRoute(targetRoute)
             webView.evaluateJavascript(
                 "window.history.pushState({}, '', '$route'); window.dispatchEvent(new PopStateEvent('popstate'));",
@@ -217,6 +220,16 @@ fun BrainCoreWebScreen(
 
     Box(modifier = modifier) {
         AndroidView(factory = { webView }, modifier = Modifier.fillMaxSize())
+        if (!loaded && loadError == null) {
+            Column(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                CircularProgressIndicator()
+                Spacer(Modifier.height(12.dp))
+                Text("Abrindo Brain Core…", color = TextPrimary)
+            }
+        }
         if (loadError != null) {
             Column(
                 modifier = Modifier.fillMaxSize().padding(24.dp),

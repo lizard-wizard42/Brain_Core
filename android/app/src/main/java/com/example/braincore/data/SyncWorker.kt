@@ -110,6 +110,9 @@ class SyncWorker(context: Context, parameters: WorkerParameters) : CoroutineWork
                                 remoteSegmentId = turn.optLong("id").takeIf { it > 0L }
                             ))
                         }
+                        com.example.braincore.notifications.NativeNotifications.show(
+                            applicationContext, com.example.braincore.notifications.NativeNotifications.TRANSCRIPTS,
+                            "transcript:$sessionId", "Transcrição pronta", "Sua gravação já está disponível na Linha do Tempo.", "/remember", ownerUserId)
                         db.updateTranscript(sessionId, "ready", result.optString("text", ""), parsedTurns, done, total)
                         for (turn in parsedTurns) {
                             val segmentId = turn.remoteSegmentId ?: continue
@@ -147,6 +150,7 @@ object SyncScheduler {
         .build()
 
     fun start(context: Context) {
+        com.example.braincore.notifications.ReminderScheduler.start(context)
         val manager = WorkManager.getInstance(context)
         if (MobileCredentials.get(context) != null && ServerSettings.get(context).isNotBlank()) {
             manager.enqueueUniqueWork(

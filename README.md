@@ -6,6 +6,8 @@ Brain Core runs on a computer you control. Its database, uploads, and optional
 recordings live in persistent local volumes. The standard Docker installation
 needs no cloud account, API key, GPU, or external sync service.
 
+Android **1.1.4** adds native reminder and transcription notifications, a white status-bar icon, and background startup preparation. See [notification behavior and limits](android/README.md#android-114-native-notifications).
+
 Recording reliability update: Android **1.1.2** preserves recording end times during delayed uploads; the updated server keeps valid phone links when signing out on the web and displays history in the viewer’s timezone. See the [Android update guide](docs/ANDROID.md#recording-reliability-in-android-112).
 
 ![Brain Core logo](docs/images/brain-core.png)

@@ -24,3 +24,8 @@ This file defines mandatory rules for any coding agent working in this repositor
 
 - Use `./build.sh` for production publish flow.
 - This script is the canonical way to keep backend + frontend bundles aligned.
+
+## Contribution and release rules
+
+- Follow [the maintainer workflow](docs/MAINTAINER_WORKFLOW.md) for public contributions, runtime updates, Android signing and release distribution.
+- Keep personal installation data and private operational destinations out of commits and public artifacts.
