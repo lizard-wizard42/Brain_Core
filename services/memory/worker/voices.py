@@ -115,35 +115,78 @@ def assign_voices(session_id: str, chunk_num: int, embedder=None) -> dict[int, i
 def active_voices(session_id: str, model: str) -> dict[int, dict]:
     """Voices with enough segments to be a speaker, not stray noise.
 
-    A voice needs at least CELTWO_MEMORY_VOICE_MIN_SEGMENTS (default 3) segments and
-    2% of the session's grouped segments; smaller groups are shown as unidentified.
+    A voice needs CELTWO_MEMORY_VOICE_MIN_SEGMENTS (default 3) segments and
+    2% of the session's grouped segments, or at least six seconds of grouped
+    speech. This avoids hiding a long utterance just because ASR kept it whole.
     """
     found = database.get_session_voices(session_id, model)
     total = sum(v["n"] for v in found.values())
     floor = max(int(_f("CELTWO_MEMORY_VOICE_MIN_SEGMENTS", 3)), int(0.02 * total))
-    return {idx: v for idx, v in found.items() if v["n"] >= floor}
+    conn = database.get_connection()
+    try:
+        durations = dict(conn.execute(
+            "SELECT voice_idx, SUM(MAX(0, end_ms-start_ms)) FROM transcript_segments "
+            "WHERE session_id=? AND voice_idx IS NOT NULL GROUP BY voice_idx", (session_id,)
+        ).fetchall())
+    finally:
+        conn.close()
+    # ASR sentence boundaries are not evidence of different speakers: one long
+    # utterance can carry more voice information than three tiny sentences.
+    return {idx: v for idx, v in found.items()
+            if v["n"] >= floor or durations.get(idx, 0) >= 6000}
+
+
+def probable_owner_voices(session_id: str) -> set[int]:
+    """Compare groups against account references, never against other groups.
+
+    Confirmed templates complement enrollment across microphones. These are
+    advisory labels only; manual identities and corrections remain authoritative.
+    """
+    from services.memory.storage.identities import owner_identity_id
+    owner = database.get_session_owner(session_id)
+    if not owner:
+        return set()
+    voiceprint = database.get_voiceprint(owner)
+    if voiceprint is None:
+        return set()
+    model = voiceprint["model"]
+    own_id = owner_identity_id(owner)
+    refs = [(own_id, voiceprint["embedding"])]
+    conn = database.get_connection()
+    try:
+        refs.extend((r["identity_id"], r["embedding"]) for r in conn.execute(
+            "SELECT t.identity_id, t.embedding FROM voice_templates t "
+            "JOIN voice_identities i ON i.id=t.identity_id AND i.owner_user_id=t.owner_user_id "
+            "WHERE t.owner_user_id=? AND t.model=? AND t.deleted_at IS NULL AND i.deleted_at IS NULL",
+            (owner, model)))
+    finally:
+        conn.close()
+    vectors = []
+    for identity, raw in refs:
+        vec = np.frombuffer(raw, dtype=np.float32)
+        if vec.size and np.all(np.isfinite(vec)) and np.linalg.norm(vec) > 1e-8:
+            vectors.append((identity, _unit(vec)))
+    result = set()
+    for idx, voice in active_voices(session_id, model).items():
+        vec = _unit(voice["centroid"])
+        if not np.all(np.isfinite(vec)) or np.linalg.norm(vec) < 1e-8:
+            continue
+        scores = {}
+        for identity, ref in vectors:
+            if ref.size == vec.size:
+                scores[identity] = max(scores.get(identity, -1.0), float(np.dot(vec, ref)))
+        own_score = scores.get(own_id, -1.0)
+        competitor = max((score for identity, score in scores.items() if identity != own_id), default=-1.0)
+        if (own_score >= _f("CELTWO_MEMORY_VOICE_ME_THRESHOLD", 0.5)
+                and own_score - competitor >= _f("CELTWO_MEMORY_VOICE_ME_MARGIN", 0.1)):
+            result.add(idx)
+    return result
 
 
 def me_probable_voice(session_id: str) -> int | None:
-    """Voice index that very likely belongs to the account owner, else None."""
-    owner = database.get_session_owner(session_id)
-    if not owner:
-        return None
-    voiceprint = database.get_voiceprint(owner)
-    if voiceprint is None:
-        return None
-    voices = active_voices(session_id, voiceprint["model"])
-    ref = _unit(np.frombuffer(voiceprint["embedding"], dtype=np.float32))
-    scores = {idx: float(np.dot(v["centroid"], ref)) for idx, v in voices.items()
-              if v["centroid"].size == ref.size}
-    if not scores:
-        return None
-    ranked = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
-    best_idx, best = ranked[0]
-    margin = best - ranked[1][1] if len(ranked) > 1 else 1.0
-    if best >= _f("CELTWO_MEMORY_VOICE_ME_THRESHOLD", 0.5) and margin >= _f("CELTWO_MEMORY_VOICE_ME_MARGIN", 0.1):
-        return best_idx
-    return None
+    """Compatibility helper for callers expecting a single group."""
+    found = probable_owner_voices(session_id)
+    return min(found) if found else None
 
 
 def backfill(limit_sessions: int | None = None) -> int:

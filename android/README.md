@@ -40,3 +40,11 @@ Linked devices synchronize reminder metadata from their own account, independent
 Open Settings → This device to test an alert or manage Android notification channels and sounds. Android 13+ requires notification permission. The white Brain Core vector is used in the status bar and for themed launcher icons.
 
 This is local scheduling plus background synchronization, not Firebase push. Changes made on another device are fetched when opening the app and periodically (minimum 15 minutes, possibly delayed by Android). The computer and private network must be reachable to fetch changes. Downloaded alarms work offline; edits/deletions made elsewhere take effect after the next successful sync. Alarms are inexact and may be delayed by battery saving; this is not an exact-time alarm clock. Force-stopping the app disables background delivery until it is opened again. Unlinking or switching accounts cancels downloaded reminders.
+
+## Voice identification in Android 1.1.5
+
+Update both the server and the app. The native timeline now preserves the server's voice groups and owner-match indication instead of displaying every unconfirmed group as unidentified. It refreshes completed transcripts when opened; **Atualizar vozes** retries without recording or transcribing again. Cached identification remains available offline, and correction controls open on demand.
+
+The server compares each voice group with the account's enrolled sample and its active, manually confirmed voice references. Several groups may match the same owner; groups no longer compete against each other for a single owner slot. References for other participants can block an ambiguous match. A group with six seconds of speech can be displayed even when ASR produced fewer than three sentences.
+
+**Eu (provável)** is an automatic suggestion, not a confirmed identity or a calibrated probability. Manual corrections take priority, and deleted/revoked references stop contributing. Short, noisy or mixed-speaker audio can still remain unidentified. Naming a whole voice in the web conversation applies to that session; correcting a suitable individual segment can supply a reusable reference. No accuracy percentage is claimed from synthetic tests.

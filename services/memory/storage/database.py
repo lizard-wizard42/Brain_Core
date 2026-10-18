@@ -1169,14 +1169,14 @@ def compute_turns(session_id: str) -> list[dict]:
         ).fetchall()
     finally:
         conn.close()
-    from services.memory.worker.voices import active_voices, me_probable_voice
+    from services.memory.worker.voices import active_voices, probable_owner_voices
 
     try:
-        probable = me_probable_voice(session_id)
+        probable = probable_owner_voices(session_id)
         active = {idx for model in {m for m in _voice_models(session_id)}
                   for idx in active_voices(session_id, model)}
     except Exception:  # grouping is advisory; never break the transcript
-        probable, active = None, set()
+        probable, active = set(), set()
     from services.memory.storage.identities import get_voice_labels
 
     try:
@@ -1200,7 +1200,7 @@ def compute_turns(session_id: str) -> list[dict]:
                 "end_at": end_at}
         if seg["voice_idx"] is not None and seg["voice_idx"] in active:
             turn["voice"] = f"speaker_{seg['voice_idx']}"
-            turn["voice_is_me_probable"] = seg["voice_idx"] == probable
+            turn["voice_is_me_probable"] = seg["voice_idx"] in probable
             if seg["voice_idx"] in labels:
                 turn["voice_label"] = labels[seg["voice_idx"]]
         turns.append(turn)

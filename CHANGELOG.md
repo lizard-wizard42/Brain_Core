@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-18 — Android 1.1.5 voice identification
+
+- Preserve server voice groups, probable-owner matches and manual corrections in the native timeline; use “Eu” consistently in speaker headers.
+- Reuse confirmed account voice references across groups without making two groups of the same speaker compete. Preserve competing-identity ambiguity checks and manual decisions.
+- Show groups with enough speech duration even when ASR produces few sentences; refresh existing transcripts on opening and offer a retry control.
+- Open per-segment correction tools on demand instead of requesting voice suggestions for every visible bubble.
+
+
 ## 2026-10-18 — Android: abertura e notificações nativas
 
 - Recuperação de gravações e preparação do banco fora da thread de interface, indicador de carregamento e navegação inicial sem duplicação.
