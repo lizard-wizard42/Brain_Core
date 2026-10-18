@@ -69,3 +69,11 @@ Delivery is **inexact**: Android battery restrictions can delay alarms. Backgrou
 ## Home and Notes organization
 
 The home page offers direct shortcuts, clickable summaries and recent pages. Notes supports All, Lists and Reminders filters, accent-insensitive search (including tags and checklist items), title or update sorting, and progressive loading. A linked note remains reachable even when it is outside the initial batch. These improvements come from the updated server's web frontend.
+
+## Voice identification in Android 1.1.5
+
+Update both the server and the app. The native timeline now preserves the server's voice groups and owner-match indication instead of displaying every unconfirmed group as unidentified. It refreshes completed transcripts when opened; **Atualizar vozes** retries without recording or transcribing again. Cached identification remains available offline, and correction controls open on demand.
+
+The server compares each voice group with the account's enrolled sample and its active, manually confirmed voice references. Several groups may match the same owner; groups no longer compete against each other for a single owner slot. References for other participants can block an ambiguous match. A group with six seconds of speech can be displayed even when ASR produced fewer than three sentences.
+
+**Eu (provável)** is an automatic suggestion, not a confirmed identity or a calibrated probability. Manual corrections take priority, and deleted/revoked references stop contributing. Short, noisy or mixed-speaker audio can still remain unidentified. Naming a whole voice in the web conversation applies to that session; correcting a suitable individual segment can supply a reusable reference. No accuracy percentage is claimed from synthetic tests.

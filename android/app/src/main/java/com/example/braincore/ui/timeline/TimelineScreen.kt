@@ -368,6 +368,34 @@ fun SessionCard(
     onTogglePlayback: () -> Unit,
     onCreateNote: (isReminder: Boolean) -> Unit
 ) {
+    val context = LocalContext.current
+    val database = (context.applicationContext as BrainCoreApp).database
+    val scope = rememberCoroutineScope()
+    var refreshingVoices by remember(session.id) { mutableStateOf(false) }
+    var voiceRefreshError by remember(session.id) { mutableStateOf(false) }
+    suspend fun refreshVoices() {
+        val owner = session.ownerUserId ?: return
+        val credential = MobileCredentials.get(context) ?: return
+        if (owner != MobileCredentials.userId(context) || refreshingVoices) return
+        refreshingVoices = true
+        try {
+            val result = withContext(Dispatchers.IO) { MobileApi(context).transcript(session.id, owner) }
+            if (MobileCredentials.get(context) != credential || MobileCredentials.userId(context) != owner) return
+            if (result.optString("status") == "ready") {
+                val turns = com.example.braincore.data.parseTranscriptTurns(session.id, result)
+                if (turns.isNotEmpty()) withContext(Dispatchers.IO) {
+                    database.updateTranscript(session.id, "ready", result.optString("text"), turns,
+                        result.optJSONObject("progress")?.optInt("done") ?: session.transcriptDone,
+                        result.optJSONObject("progress")?.optInt("total") ?: session.transcriptTotal)
+                }
+            }
+            voiceRefreshError = false
+        } catch (_: Exception) { voiceRefreshError = true }
+        finally { refreshingVoices = false }
+    }
+    LaunchedEffect(session.id, session.transcriptState) {
+        if (session.transcriptState == "ready") refreshVoices()
+    }
     var visibleTurns by remember(session.id) { mutableIntStateOf(8) }
     var visibleCharacters by remember(session.id) { mutableIntStateOf(2000) }
     Card(
@@ -452,21 +480,31 @@ fun SessionCard(
 
             // Conteúdo transcrito
             if (session.turns.isNotEmpty()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(enabled = !refreshingVoices, onClick = { scope.launch { refreshVoices() } }) {
+                        Text(if (refreshingVoices) "Atualizando vozes…" else "Atualizar vozes")
+                    }
+                    if (voiceRefreshError) Text("Offline · identificação salva", style = MaterialTheme.typography.labelSmall)
+                }
                 val spokenTurns = session.turns.filter { it.text.isNotBlank() }
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     spokenTurns.take(visibleTurns).forEach { turn ->
-                        val speakerName = when (turn.speaker) {
-                            "me" -> "Você"
-                            "other" -> "Participante"
-                            else -> "Não identificado"
+                        var participant by remember(turn.id, turn.participantData) {
+                            mutableStateOf(turn.participantData?.let { runCatching { JSONObject(it) }.getOrNull() })
                         }
-                        val speakerColor = when (turn.speaker) {
-                            "me" -> BrainBlue
-                            "other" -> if (LocalBrainPalette.current.light) Color(0xFF6D28D9) else Color(0xFFB794F4)
+                        val decision = participant?.optJSONObject("decision")
+                        val displaySpeaker = com.example.braincore.data.model.SpeakerDisplay.withDecision(
+                            turn.speaker, decision?.optString("action"), decision?.optString("display_name"),
+                            decision?.optBoolean("is_owner") == true)
+                        val speakerName = com.example.braincore.data.model.SpeakerDisplay.name(displaySpeaker)
+                        val isOwner = com.example.braincore.data.model.SpeakerDisplay.isOwner(displaySpeaker)
+                        val speakerColor = when {
+                            isOwner -> BrainBlue
+                            displaySpeaker != "unknown" -> if (LocalBrainPalette.current.light) Color(0xFF6D28D9) else Color(0xFFB794F4)
                             else -> TextSecondary
                         }
                         Surface(
-                            modifier = Modifier.fillMaxWidth(0.94f).align(if (turn.speaker == "me") Alignment.End else Alignment.Start),
+                            modifier = Modifier.fillMaxWidth(0.94f).align(if (isOwner) Alignment.End else Alignment.Start),
                             shape = RoundedCornerShape(14.dp),
                             color = speakerColor.copy(alpha = 0.08f),
                             border = CardDefaults.outlinedCardBorder().copy(
@@ -489,8 +527,13 @@ fun SessionCard(
                                 }
                                 Spacer(Modifier.height(8.dp))
                                 Text(turn.text, style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
-                                if (turn.remoteSegmentId != null && session.ownerUserId == MobileCredentials.userId(LocalContext.current))
-                                    ParticipantControls(session.id, session.ownerUserId, turn)
+                                if (turn.remoteSegmentId != null && session.ownerUserId == MobileCredentials.userId(LocalContext.current)) {
+                                    var editingIdentity by remember(turn.id) { mutableStateOf(false) }
+                                    TextButton(onClick = { editingIdentity = !editingIdentity }) {
+                                        Text(if (editingIdentity) "Fechar identificação" else "Corrigir identificação")
+                                    }
+                                    if (editingIdentity) ParticipantControls(session.id, session.ownerUserId, turn) { participant = it }
+                                }
                                 Spacer(Modifier.height(4.dp))
                                 if (turn.timestamp > 0L) Text(
                                     SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(turn.timestamp)),
@@ -557,7 +600,7 @@ fun SessionCard(
 }
 
 @Composable
-private fun ParticipantControls(sessionId: String, sessionOwnerId: String?, turn: Turn) {
+private fun ParticipantControls(sessionId: String, sessionOwnerId: String?, turn: Turn, onData: (JSONObject) -> Unit) {
     val context = LocalContext.current
     val database = (context.applicationContext as BrainCoreApp).database
     val scope = rememberCoroutineScope()
@@ -584,6 +627,7 @@ private fun ParticipantControls(sessionId: String, sessionOwnerId: String?, turn
                 if (MobileCredentials.userId(context) != owner) return@launch
                 withContext(Dispatchers.IO) { database.saveParticipantData(sessionId, segmentId, owner, fresh) }
                 data = fresh
+                onData(fresh)
                 offline = false
                 currentFromServer = true
             } catch (_: Exception) { offline = true }
@@ -601,6 +645,7 @@ private fun ParticipantControls(sessionId: String, sessionOwnerId: String?, turn
                 if (MobileCredentials.userId(context) != owner) return@launch
                 withContext(Dispatchers.IO) { database.saveParticipantData(sessionId, segmentId, owner, confirmed) }
                 data = confirmed
+                onData(confirmed)
                 if (action in setOf("confirm", "correct")) {
                     try {
                         withContext(Dispatchers.IO) { MobileApi(context).createParticipantTemplate(sessionId, segmentId, owner) }
@@ -613,6 +658,7 @@ private fun ParticipantControls(sessionId: String, sessionOwnerId: String?, turn
                     if (MobileCredentials.userId(context) != owner) return@launch
                     withContext(Dispatchers.IO) { database.saveParticipantData(sessionId, segmentId, owner, fresh) }
                     data = fresh
+                onData(fresh)
                     offline = false
                     currentFromServer = true
                 } catch (_: Exception) { offline = true }
