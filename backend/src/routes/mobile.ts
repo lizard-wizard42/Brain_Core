@@ -152,7 +152,7 @@ router.get('/reminders', authenticateDevice, async (req: DeviceRequest, res: Res
   try {
     const reminders = await query(
       `SELECT id, reminder_date::text, reminder_time::text, reminder_repeat_daily
-       FROM remember_notes WHERE user_id = $1 AND reminder_date IS NOT NULL`, [req.mobileUserId],
+       FROM remember_notes WHERE user_id = $1 AND deleted_at IS NULL AND reminder_date IS NOT NULL`, [req.mobileUserId],
     );
     res.json({ reminders });
   } catch { unavailable(res); }

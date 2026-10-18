@@ -13,6 +13,7 @@ interface RememberChecklistItem {
 }
 
 interface RememberNoteRow {
+  deleted_at?: string | null;
   id: string;
   title: string;
   body: string;
@@ -94,10 +95,11 @@ function mapRow(row: RememberNoteRow) {
     reminder_sent_at: row.reminder_sent_at ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
+    deleted_at: row.deleted_at ?? null,
   };
 }
 
-export async function listRememberNotes(req: AuthRequest, res: Response): Promise<void> {
+async function listNotes(req: AuthRequest, res: Response, trashed: boolean): Promise<void> {
   const userId = req.userId;
   if (!userId) {
     res.status(401).json({ error: 'Usuário não autenticado' });
@@ -105,10 +107,10 @@ export async function listRememberNotes(req: AuthRequest, res: Response): Promis
   }
 
   const rows = await query<RememberNoteRow>(
-    `SELECT id, title, body, color, checklist, tags, reminder_date::text, reminder_time::text, reminder_label, reminder_repeat_daily, reminder_sent_at::text, created_at, updated_at
+    `SELECT id, title, body, color, checklist, tags, reminder_date::text, reminder_time::text, reminder_label, reminder_repeat_daily, reminder_sent_at::text, created_at, updated_at, deleted_at
      FROM remember_notes
-     WHERE user_id = $1
-     ORDER BY
+     WHERE user_id = $1 AND deleted_at IS ${trashed ? 'NOT NULL' : 'NULL'}
+     ORDER BY ${trashed ? 'deleted_at DESC,' : ''}
        CASE WHEN reminder_date = CURRENT_DATE THEN 0 ELSE 1 END,
        reminder_date ASC NULLS LAST,
        updated_at DESC`,
@@ -116,6 +118,13 @@ export async function listRememberNotes(req: AuthRequest, res: Response): Promis
   );
 
   res.json({ notes: rows.map(mapRow) });
+}
+
+export async function listRememberNotes(req: AuthRequest, res: Response): Promise<void> {
+  await listNotes(req, res, false);
+}
+export async function listTrashedRememberNotes(req: AuthRequest, res: Response): Promise<void> {
+  await listNotes(req, res, true);
 }
 
 export async function createRememberNote(req: AuthRequest, res: Response): Promise<void> {
@@ -137,7 +146,7 @@ export async function createRememberNote(req: AuthRequest, res: Response): Promi
   const rows = await query<RememberNoteRow>(
     `INSERT INTO remember_notes (user_id, title, body, color, checklist, tags, reminder_date, reminder_time, reminder_label, reminder_repeat_daily, reminder_sent_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULL)
-     RETURNING id, title, body, color, checklist, tags, reminder_date::text, reminder_time::text, reminder_label, reminder_repeat_daily, reminder_sent_at::text, created_at, updated_at`,
+     RETURNING id, title, body, color, checklist, tags, reminder_date::text, reminder_time::text, reminder_label, reminder_repeat_daily, reminder_sent_at::text, created_at, updated_at, deleted_at`,
     [
       userId,
       title,
@@ -192,8 +201,8 @@ export async function updateRememberNote(req: AuthRequest, res: Response): Promi
          END,
          updated_at = NOW()
      WHERE id = $10
-       AND user_id = $11
-     RETURNING id, title, body, color, checklist, tags, reminder_date::text, reminder_time::text, reminder_label, reminder_repeat_daily, reminder_sent_at::text, created_at, updated_at`,
+       AND user_id = $11 AND deleted_at IS NULL
+     RETURNING id, title, body, color, checklist, tags, reminder_date::text, reminder_time::text, reminder_label, reminder_repeat_daily, reminder_sent_at::text, created_at, updated_at, deleted_at`,
     [
       title,
       body,
@@ -226,9 +235,9 @@ export async function deleteRememberNote(req: AuthRequest, res: Response): Promi
 
   const id = String(req.params.id);
   const rows = await query<{ id: string }>(
-    `DELETE FROM remember_notes
+    `UPDATE remember_notes SET deleted_at = NOW(), updated_at = NOW()
      WHERE id = $1
-       AND user_id = $2
+       AND user_id = $2 AND deleted_at IS NULL
      RETURNING id`,
     [id, userId],
   );
@@ -239,6 +248,42 @@ export async function deleteRememberNote(req: AuthRequest, res: Response): Promi
   }
 
   res.json({ deleted: true });
+}
+
+/** Restore only the caller's trashed note, preserving all content and reminder state. */
+export async function restoreRememberNote(req: AuthRequest, res: Response): Promise<void> {
+  if (!req.userId) { res.status(401).json({ error: 'Usuário não autenticado' }); return; }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(req.params.id))) { res.status(404).json({ error: 'Nota não encontrada' }); return; }
+  const rows = await query<RememberNoteRow>(
+    `UPDATE remember_notes SET deleted_at = NULL, updated_at = NOW()
+     WHERE id = $1 AND user_id = $2 AND deleted_at IS NOT NULL
+     RETURNING id, title, body, color, checklist, tags, reminder_date::text, reminder_time::text,
+       reminder_label, reminder_repeat_daily, reminder_sent_at::text, created_at, updated_at, deleted_at`,
+    [String(req.params.id), req.userId],
+  );
+  if (!rows.length) { res.status(404).json({ error: 'Nota não encontrada na lixeira' }); return; }
+  res.json(mapRow(rows[0]));
+}
+
+/** Change one checklist flag in SQL so concurrent clicks never replace the whole note. */
+export async function checkRememberNoteItem(req: AuthRequest, res: Response): Promise<void> {
+  if (!req.userId) { res.status(401).json({ error: 'Usuário não autenticado' }); return; }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(req.params.id))) { res.status(404).json({ error: 'Nota não encontrada' }); return; }
+  if (typeof req.body?.checked !== 'boolean') { res.status(400).json({ error: 'Estado do item inválido' }); return; }
+  const rows = await query<RememberNoteRow>(
+    `UPDATE remember_notes SET checklist = (
+       SELECT jsonb_agg(CASE WHEN item->>'id' = $4 THEN jsonb_set(item, '{checked}', to_jsonb($3::boolean))
+         ELSE item END ORDER BY position)
+       FROM jsonb_array_elements(checklist) WITH ORDINALITY AS entry(item, position)
+     ), updated_at = NOW()
+     WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
+       AND EXISTS (SELECT 1 FROM jsonb_array_elements(checklist) AS entry(item) WHERE item->>'id' = $4)
+     RETURNING id, title, body, color, checklist, tags, reminder_date::text, reminder_time::text,
+       reminder_label, reminder_repeat_daily, reminder_sent_at::text, created_at, updated_at, deleted_at`,
+    [String(req.params.id), req.userId, req.body.checked, String(req.params.itemId)],
+  );
+  if (!rows.length) { res.status(404).json({ error: 'Nota ou item não encontrado' }); return; }
+  res.json(mapRow(rows[0]));
 }
 
 function requireUserId(req: AuthRequest, res: Response): string | null {

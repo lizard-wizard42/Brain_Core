@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { buildQuickDraft, emptyDraft, noteColor, normalizeReminder, reminderBadge, toDraft } from './notasModel';
+import { describe, expect, it, vi } from 'vitest';
+import { buildQuickDraft, emptyDraft, noteColor, normalizeReminder, reminderBadge, todayIso, toDraft } from './notasModel';
 import type { RememberNote } from '../../types';
 
 const note: RememberNote = {
@@ -50,4 +50,18 @@ describe('notasModel', () => {
     // @ts-expect-error - cor inexistente
     expect(noteColor('nope').id).toBe('sand');
   });
+});
+
+
+it('uses the local calendar at late evening and year boundaries', () => {
+  vi.useFakeTimers();
+  try {
+    vi.setSystemTime(new Date(2026, 9, 18, 22, 30));
+    expect(todayIso()).toBe('2026-10-18');
+    expect(buildQuickDraft('reminder').reminderDate).toBe('2026-10-18');
+    vi.setSystemTime(new Date(2026, 11, 31, 23, 30));
+    expect(todayIso()).toBe('2026-12-31');
+    vi.setSystemTime(new Date(2026, 0, 1, 0, 30));
+    expect(todayIso()).toBe('2026-01-01');
+  } finally { vi.useRealTimers(); }
 });

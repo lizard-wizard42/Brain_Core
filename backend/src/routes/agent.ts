@@ -24,7 +24,7 @@ const fields = {
 };
 const tables = { pages: 'pages', notes: 'remember_notes' };
 const owned = { pages: "owner_user_id = $1 AND deleted_at IS NULL AND type = 'note' AND is_section = FALSE",
-  notes: 'user_id = $1' };
+  notes: 'user_id = $1 AND deleted_at IS NULL' };
 
 function validId(value: unknown): string {
   if (typeof value !== 'string' || !uuid.test(value)) throw new AgentError(400, 'Invalid UUID');

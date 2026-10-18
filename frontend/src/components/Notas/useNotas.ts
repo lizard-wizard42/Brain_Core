@@ -5,6 +5,10 @@ import { normalizeReminder, type NoteDraft } from './notasModel';
 
 export function useNotas({ autoload = true }: { autoload?: boolean } = {}) {
   const [notes, setNotes] = useState<RememberNote[]>([]);
+  const [trash, setTrash] = useState<RememberNote[]>([]);
+  const [trashLoading, setTrashLoading] = useState(false);
+  const [trashError, setTrashError] = useState<string | null>(null);
+  const [deletedNote, setDeletedNote] = useState<RememberNote | null>(null);
   const [loading, setLoading] = useState(autoload);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,7 +56,30 @@ export function useNotas({ autoload = true }: { autoload?: boolean } = {}) {
   const deleteNote = useCallback(async (note: RememberNote) => {
     await api.deleteRememberNote(note.id);
     setNotes((current) => current.filter((entry) => entry.id !== note.id));
+    setTrash(current => [{ ...note, deleted_at: new Date().toISOString() }, ...current.filter(entry => entry.id !== note.id)]);
+    setDeletedNote(note);
   }, []);
 
-  return { notes, loading, error, reload, createNote, saveNote, deleteNote };
+  const loadTrash = useCallback(async () => {
+    setTrashLoading(true); setTrashError(null);
+    try { setTrash((await api.listTrashedRememberNotes()).notes); }
+    catch (err) { setTrashError(err instanceof Error ? err.message : 'Não foi possível carregar a lixeira.'); }
+    finally { setTrashLoading(false); }
+  }, []);
+
+  const restoreNote = useCallback(async (note: RememberNote) => {
+    const restored = await api.restoreRememberNote(note.id);
+    setNotes(current => [restored, ...current.filter(entry => entry.id !== restored.id)]);
+    setTrash(current => current.filter(entry => entry.id !== restored.id));
+    setDeletedNote(current => current?.id === restored.id ? null : current);
+  }, []);
+
+  const toggleChecklist = useCallback(async (note: RememberNote, itemId: string, checked: boolean) => {
+    const updated = await api.checkRememberNoteItem(note.id, itemId, checked);
+    setNotes(current => current.map(entry => entry.id === updated.id ? updated : entry));
+  }, []);
+
+  return { notes, loading, error, reload, createNote, saveNote, deleteNote,
+    trash, trashLoading, trashError, loadTrash, restoreNote, deletedNote, toggleChecklist };
+
 }

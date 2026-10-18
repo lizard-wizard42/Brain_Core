@@ -10,6 +10,9 @@ import { getAudioRetention, putAudioRetention, previewAudioRetention, cleanAudio
 import { getTranscriptionPolicy, putTranscriptionPolicy, runTranscriptionNow, pauseTranscription } from './transcriptionPolicy';
 import {
   createRememberNote,
+  listTrashedRememberNotes,
+  restoreRememberNote,
+  checkRememberNoteItem,
   deleteRememberNote,
   listRememberNotes,
   updateRememberNote,
@@ -213,6 +216,9 @@ router.put('/transcription-policy', putTranscriptionPolicy);
 router.post('/transcription-policy/run', runTranscriptionNow);
 router.post('/transcription-policy/pause', pauseTranscription);
 
+router.get('/trash', listTrashedRememberNotes);
+router.post('/:id/restore', restoreRememberNote);
+router.patch('/:id/checklist/:itemId', checkRememberNoteItem);
 router.get('/', listRememberNotes);
 router.post('/', createRememberNote);
 router.patch('/:id', updateRememberNote);

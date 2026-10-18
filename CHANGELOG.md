@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — interactive checklists, note trash and local dates
+
+- Mark/unmark checklist items directly on note cards. A dedicated atomic API preserves other items, content, tags and reminder state.
+- Move deleted quick notes to persistent account-scoped trash, with immediate Undo and a Trash view to restore them after reopening the app. Preserve content, metadata and note IDs; exclude trashed notes from normal lists, search, MCP and reminder delivery feeds.
+- Use the device's local calendar for default reminder dates, including late evening and year boundaries.
+- Additive database change: nullable `remember_notes.deleted_at`, initialized automatically on backend startup. Existing notes remain active. Previously hard-deleted notes cannot be recovered by this change.
+
 ## Unreleased — short recording recognition and note editing
 
 - Keep a reference-matched owner group visible in short recordings without weakening the similarity or competing-identity thresholds. Unmatched short groups remain unidentified.

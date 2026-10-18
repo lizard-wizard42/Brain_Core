@@ -228,6 +228,8 @@ export async function ensureAppSchema(): Promise<void> {
   await query(`CREATE INDEX IF NOT EXISTS idx_pages_due_date ON pages(due_date)`);
   await query(`CREATE INDEX IF NOT EXISTS idx_custom_emojis_created ON custom_emojis(created_at DESC)`);
   await query(`CREATE INDEX IF NOT EXISTS idx_terminal_tabs_user_seen ON terminal_tabs(user_id, is_active DESC, last_seen_at DESC)`);
+  await query(`ALTER TABLE remember_notes ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_remember_notes_user_trash ON remember_notes(user_id, deleted_at DESC) WHERE deleted_at IS NOT NULL`);
   await query(`CREATE INDEX IF NOT EXISTS idx_remember_notes_user_updated ON remember_notes(user_id, updated_at DESC)`);
   await query(`CREATE INDEX IF NOT EXISTS idx_remember_notes_user_reminder ON remember_notes(user_id, reminder_date ASC NULLS LAST)`);
   await query(`CREATE INDEX IF NOT EXISTS idx_trusted_devices_user_expires ON trusted_devices(user_id, expires_at DESC)`);
