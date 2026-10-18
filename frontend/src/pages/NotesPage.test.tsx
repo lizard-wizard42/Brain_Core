@@ -21,10 +21,10 @@ it('loads trash on demand, restores a note and toggles its checklist from the bo
   render(<MemoryRouter><NotesPage /></MemoryRouter>);
   await screen.findByText('Suas ideias começam aqui. Escreva sua primeira nota acima.');
   expect(api.listTrashedRememberNotes).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole('button', { name: 'Lixeira', exact: true }));
+  fireEvent.click(screen.getByRole('button', { name: 'Lixeira' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Restaurar Lista fictícia' }));
   await screen.findByText('Nota restaurada em Minhas notas.');
-  fireEvent.click(screen.getByRole('button', { name: 'Minhas notas', exact: true }));
+  fireEvent.click(screen.getByRole('button', { name: 'Minhas notas' }));
   fireEvent.click(screen.getByRole('checkbox', { name: 'Revisar' }));
   await waitFor(() => expect(screen.getByRole('checkbox', { name: 'Revisar' })).toBeChecked());
   expect(api.checkRememberNoteItem).toHaveBeenCalledWith('synthetic', 'item', true);
