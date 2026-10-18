@@ -28,6 +28,24 @@ import com.example.braincore.data.ServerSettings
 import com.example.braincore.ui.desktop.BrainCoreWebScreen
 
 class MainActivity : ComponentActivity() {
+    private var notificationRoute by mutableStateOf("/")
+    private var notificationRequest by mutableIntStateOf(0)
+    private fun readNotification(intent: android.content.Intent) {
+        val owner = intent.getStringExtra("notification_owner")
+        if (owner != null && owner != com.example.braincore.data.MobileCredentials.userId(this)) return
+        val route = intent.getStringExtra("notification_route") ?: return
+        if (route in setOf("/notes", "/remember")) { notificationRoute = route; notificationRequest++ }
+    }
+    override fun onResume() {
+        super.onResume()
+        com.example.braincore.notifications.ReminderScheduler.start(this)
+    }
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        readNotification(intent)
+    }
+
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -45,6 +63,7 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isNavigationBarContrastEnforced = false
         }
+        readNotification(intent)
         requestAppPermissions()
 
         setContent {
@@ -61,6 +80,8 @@ class MainActivity : ComponentActivity() {
             }
             BrainCoreTheme(themeChoice) {
                 MainAppScreen(
+                    initialRoute = notificationRoute,
+                    notificationRequest = notificationRequest,
                     onThemeChanged = {
                         ThemePreferences.save(this, it)
                         themeChoice = it
@@ -91,13 +112,15 @@ private enum class NativeScreen { WEB, TIMELINE, SETTINGS }
 
 @Composable
 fun MainAppScreen(
+    initialRoute: String = "/",
+    notificationRequest: Int = 0,
     onThemeChanged: (ThemeChoice) -> Unit,
     onRequestMicrophonePermission: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var serverUrl by remember { mutableStateOf(ServerSettings.get(context)) }
     var screen by remember { mutableStateOf(if (serverUrl.isBlank()) NativeScreen.SETTINGS else NativeScreen.WEB) }
-    var webRoute by remember { mutableStateOf("/") }
+    var webRoute by remember { mutableStateOf(initialRoute) }
     var webNavigationRequest by remember { mutableIntStateOf(0) }
 
     fun openWeb(route: String = "/") {
@@ -106,6 +129,9 @@ fun MainAppScreen(
         screen = NativeScreen.WEB
     }
 
+    LaunchedEffect(notificationRequest) {
+        if (notificationRequest > 0 && serverUrl.isNotBlank()) openWeb(initialRoute)
+    }
     Surface(modifier = Modifier.fillMaxSize(), color = BrainBgDark) {
         Box(Modifier.fillMaxSize().safeDrawingPadding()) {
             if (serverUrl.isNotBlank() && screen == NativeScreen.WEB) {

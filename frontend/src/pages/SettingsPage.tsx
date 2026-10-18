@@ -15,6 +15,8 @@ import {
   linkDevice,
   requestMicrophonePermission,
   unlinkDevice,
+  openNativeNotificationSettings,
+  testNativeNotification,
 } from '../services/nativeBridge';
 
 import settingsIconUrl from '../assets/icons/settings.svg';
@@ -401,6 +403,14 @@ function ThisDeviceSectionContent({ user }: { user: UserInfo | null }) {
             </div>
           )}
 
+          <div className="rounded-xl border border-gray-700 p-3 space-y-2">
+            <h3 className="text-sm font-medium">Notificações do Android</h3>
+            <p className="text-xs text-gray-400">Lembretes de Notas e transcrições prontas. Gerencie os alertas e sons nas configurações do aparelho.</p>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={openNativeNotificationSettings} className="rounded-lg border border-gray-600 px-3 py-2 text-xs">Gerenciar notificações</button>
+              <button type="button" onClick={testNativeNotification} className="rounded-lg border border-gray-600 px-3 py-2 text-xs">Testar notificação</button>
+            </div>
+          </div>
           {/* Permissão de microfone negada */}
           {status?.microphonePermission === 'denied' && (
             <div className="rounded-lg border border-amber-900/60 bg-amber-950/30 p-3 text-[12px] text-amber-300 flex flex-col gap-2">

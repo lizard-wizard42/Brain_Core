@@ -25,6 +25,8 @@ class MobileApi(private val context: Context) {
     private fun ownerQuery(ownerUserId: String): String =
         "owner_user_id=${URLEncoder.encode(ownerUserId, "UTF-8")}"
 
+    fun reminders(): JSONArray = jsonRequest("/api/mobile/reminders", "GET").getJSONArray("reminders")
+
     fun resolveLinkedUserId(): String {
         val connection = connection("/api/mobile/device", "GET", requireNotNull(deviceToken))
         return try { response(connection).getString("user_id") } finally { connection.disconnect() }

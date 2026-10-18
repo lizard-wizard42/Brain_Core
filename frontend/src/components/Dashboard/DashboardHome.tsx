@@ -104,7 +104,7 @@ function StatCard({ label, value, hint, onClick }: { label: string; value: strin
 function Panel({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className="min-w-0 rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-surface)] p-5">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--theme-muted)]">{title}</h2>
         {action}
       </div>
@@ -178,13 +178,21 @@ export function DashboardHome({ onOpenPage }: { onOpenPage: (page: { id: string;
 
   return (
     <div className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-[var(--theme-background)]">
-      <div className="mx-auto w-full max-w-[1240px] px-4 py-8 sm:px-8">
-        <header className="mb-8">
-          <h1 className="text-3xl font-semibold text-[var(--theme-text)]">
+      <div className="mx-auto w-full max-w-[1240px] px-4 py-6 sm:px-8 sm:py-8">
+        <header className="mb-6">
+          <h1 className="text-2xl font-semibold sm:text-3xl text-[var(--theme-text)]">
             {greeting()}{user?.name?.trim() ? `, ${user.name.trim()}` : ''}
           </h1>
           <p className="mt-1 text-sm text-[var(--theme-muted)]">Aqui está o resumo do seu dia no Brain Core.</p>
         </header>
+
+        <nav aria-label="Acessos rápidos" className="mb-6 grid grid-cols-3 gap-2 sm:gap-3">
+          {[{ label: 'Notas', path: '/notes', icon: '✎' }, { label: 'Linha do tempo', path: '/remember', icon: '◷' }, { label: 'Conhecimento', path: '/knowledge', icon: '▦' }].map(item => (
+            <button key={item.path} type="button" onClick={() => navigate(item.path)} className="flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface)] px-2 py-3 text-xs font-medium text-[var(--theme-text)] hover:bg-[var(--theme-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] sm:flex-row sm:gap-2 sm:text-sm">
+              <span aria-hidden="true" className="text-lg text-[var(--theme-muted)]">{item.icon}</span>{item.label}
+            </button>
+          ))}
+        </nav>
 
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-[2fr_1fr_1fr]">
           <div className="col-span-2 min-w-0 lg:col-span-1">
@@ -196,11 +204,12 @@ export function DashboardHome({ onOpenPage }: { onOpenPage: (page: { id: string;
             />
           </div>
           <StatCard
+            onClick={() => navigate(`/remember?date=${todayIso}`)}
             label="Gravações hoje"
             value={today ? String(today.session_count) : '—'}
             hint={memoriesLoading ? 'Carregando gravações…' : memoriesError ? 'Gravações indisponíveis' : today?.total_seconds ? `${formatDuration(today.total_seconds)} gravados` : 'nenhuma gravação concluída'}
           />
-          <StatCard label="Notas" value={loading || error ? '—' : notes.length.toLocaleString('pt-BR')} hint={loading ? 'Carregando notas…' : error ? 'Notas indisponíveis' : 'no seu quadro'} />
+          <StatCard onClick={() => navigate('/notes')} label="Notas" value={loading || error ? '—' : notes.length.toLocaleString('pt-BR')} hint={loading ? 'Carregando notas…' : error ? 'Notas indisponíveis' : 'no seu quadro'} />
         </div>
 
         <div className="mt-6 grid gap-4 lg:grid-cols-2">
@@ -210,7 +219,7 @@ export function DashboardHome({ onOpenPage }: { onOpenPage: (page: { id: string;
               <button
                 type="button"
                 onClick={() => navigate(`/remember?date=${todayIso}`)}
-                className="text-xs text-[var(--theme-muted)] hover:text-[var(--theme-text)]"
+                className="min-h-11 rounded-lg px-2 text-xs text-[var(--theme-link)] hover:bg-[var(--theme-hover)]"
               >
                 Ver dia →
               </button>
@@ -261,7 +270,7 @@ export function DashboardHome({ onOpenPage }: { onOpenPage: (page: { id: string;
             )}
           </Panel>
 
-          <Panel title="Páginas recentes">
+          <Panel title="Páginas recentes" action={<button type="button" onClick={() => navigate('/knowledge')} className="min-h-11 rounded-lg px-2 text-xs text-[var(--theme-link)] hover:bg-[var(--theme-hover)]">Ver todas →</button>}>
             {pagesLoading ? (
               <p role="status" className="text-sm text-[var(--theme-muted)]">Carregando páginas…</p>
             ) : pagesError ? (
@@ -302,18 +311,22 @@ export function DashboardHome({ onOpenPage }: { onOpenPage: (page: { id: string;
             </h2>
             <div className="grid gap-3 sm:grid-cols-3">
               {recall.map(({ label, note }) => (
-                <div key={label} className="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-background)] p-4">
+                <button type="button" key={label} onClick={() => navigate(`/notes?note=${encodeURIComponent(note.id)}`)} className="text-left hover:bg-[var(--theme-hover)] rounded-xl border border-[var(--theme-border)] bg-[var(--theme-background)] p-4">
                   <p className="text-xs font-medium text-[var(--theme-muted)]">{label}</p>
                   <p className="mt-0.5 text-xs text-[var(--theme-muted)]">{note.created_at.slice(0, 10).split('-').reverse().join('/')}</p>
                   <p className="mt-2 line-clamp-3 text-sm leading-6 text-[var(--theme-text)]">{note.title || note.body}</p>
-                </div>
+                </button>
               ))}
             </div>
           </section>
         )}
 
         <section className="mt-8" aria-label="Notas">
-          <NotasBoard notes={notes} loading={loading} error={error} onCreate={createNote} onSave={saveNote} onDelete={deleteNote} />
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--theme-muted)]">Notas recentes</h2>
+            <button type="button" onClick={() => navigate('/notes')} className="min-h-11 rounded-lg px-2 text-xs text-[var(--theme-link)] hover:bg-[var(--theme-hover)]">Ver todas as notas →</button>
+          </div>
+          <NotasBoard preview notes={notes} loading={loading} error={error} onCreate={createNote} onSave={saveNote} onDelete={deleteNote} />
         </section>
       </div>
     </div>

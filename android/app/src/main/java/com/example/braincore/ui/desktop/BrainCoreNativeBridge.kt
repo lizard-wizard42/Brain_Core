@@ -71,6 +71,12 @@ object BrainCoreNativeBridge {
                     val requestId = json.optString("requestId")
 
                     when (action) {
+                        "syncReminders" -> com.example.braincore.notifications.ReminderScheduler.start(context)
+                        "notificationSettings" -> com.example.braincore.notifications.NativeNotifications.settings(context)
+                        "testNotification" -> {
+                            val shown = com.example.braincore.notifications.NativeNotifications.test(context)
+                            if (!shown) com.example.braincore.notifications.NativeNotifications.settings(context)
+                        }
                         "getStatus" -> handleGetStatus(context, view, replyProxy, requestId, scope)
                         "cleanLocal" -> handleCleanLocal(json, context, view, replyProxy, requestId, scope)
                         "linkDevice" -> handleLinkDevice(json, context, view, replyProxy, requestId, scope)
