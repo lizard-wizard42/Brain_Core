@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — compact shared page list
+
+- Replace tall shared-page cards with single-line 44px rows; remove repeated owner badges and edit metadata from sidebar navigation.
+- Keep owner management visible as a discreet borderless icon with a full touch target and keyboard focus.
+
+
 ## Unreleased — clearer shared navigation
 
 - Give shared pages readable two-line titles, separate metadata and permission badges, visible owner controls, and theme-aware search and empty states.
