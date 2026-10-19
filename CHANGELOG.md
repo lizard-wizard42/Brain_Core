@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — consistent compact sidebar
+
+- Align Memory, Knowledge, page rows and Shared navigation around compact 44 px controls, theme colors and visible keyboard focus.
+- Group page actions behind a discreet overflow control, with Escape/outside dismissal, while preserving rename, subpage creation, trash and drag-and-drop. Page titles now support keyboard navigation and direct dragging.
+- Simplify footer icons, mobile tab controls and search-result presentation. Clarify that page deletion moves it to recoverable Trash.
+
+
 ## Unreleased — compact shared page list
 
 - Replace tall shared-page cards with single-line 44px rows; remove repeated owner badges and edit metadata from sidebar navigation.

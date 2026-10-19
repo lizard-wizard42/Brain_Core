@@ -1,7 +1,7 @@
 .sidebar-footer {
   display: flex;
   gap: 6px;
-  padding: 10px;
+  padding: 6px 8px;
   border-top: 1px solid var(--theme-border);
   background: var(--theme-background);
 }
@@ -10,9 +10,9 @@
   align-items: center;
   justify-content: center;
   min-height: 44px;
-  border: 1px solid var(--theme-border);
-  border-radius: 9px;
-  background: var(--theme-surface);
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
   color: var(--theme-text);
   cursor: pointer;
 }
@@ -21,7 +21,8 @@
   outline: 2px solid var(--theme-primary);
   outline-offset: 2px;
 }
-.sidebar-footer-create {
+.sidebar-footer .sidebar-footer-create {
+  border: 1px solid var(--theme-border);
   flex: 1;
   min-width: 0;
   padding: 0 8px;

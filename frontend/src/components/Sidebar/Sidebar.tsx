@@ -1,8 +1,9 @@
 import './sidebarFooter.css';
+import './sidebar.css';
 import { NewPageForm } from './NewPageForm';
 import { NotebookIcon } from '../Notebook/NotebookIcon';
 import { UnifiedSearchResults } from '../Search/UnifiedSearchResults';
-import { memo, useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { memo, useState, useEffect, useCallback, useRef, useMemo, useId } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { TreePage } from '../../types';
 import type { Tab } from '../../hooks/useTabs';
@@ -79,10 +80,10 @@ function ConfirmModal({
       className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 backdrop-blur-[2px]"
       onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl shadow-2xl p-6 w-80 flex flex-col gap-5">
+      <div className="bg-[var(--theme-background)] border border-[var(--theme-border)] rounded-xl shadow-xl p-5 w-80 flex flex-col gap-4">
         <div className="flex flex-col gap-1">
-          <h2 className="text-[15px] font-semibold text-white">Confirmar exclusão</h2>
-          <p className="text-[13px] text-gray-400">{message}</p>
+          <h2 className="text-[15px] font-semibold text-[var(--theme-text)]">Confirmar exclusão</h2>
+          <p className="text-[13px] text-[var(--theme-muted)]">{message}</p>
         </div>
         <div className="flex gap-2 justify-end">
           <button
@@ -198,6 +199,18 @@ function PageNodeComponent({
   const [renaming, setRenaming] = useState(false);
   const [title, setTitle] = useState(page.title);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const actionsId = useId();
+  const actionsPanelRef = useRef<HTMLDivElement>(null);
+  const actionsButtonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!actionsOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !actionsPanelRef.current?.contains(event.target) && !actionsButtonRef.current?.contains(event.target)) setActionsOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOutside);
+    return () => document.removeEventListener('pointerdown', closeOutside);
+  }, [actionsOpen]);
   const [iconAnchorRect, setIconAnchorRect] = useState<DOMRect | null>(null);
   const renameInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -289,7 +302,7 @@ function PageNodeComponent({
     }
   };
 
-  const indent = 10 + depth * 14;
+  const indent = 2 + Math.min(depth, 3) * 12;
 
   // Compute drop position from mouse Y relative to the row
   const rowRef = useRef<HTMLDivElement>(null);
@@ -339,6 +352,11 @@ function PageNodeComponent({
   return (
     <div
       style={{ opacity: isDragging ? 0.4 : 1 }}
+      onKeyDown={event => {
+        if (event.key === 'Escape' && actionsOpen) {
+          event.stopPropagation(); setActionsOpen(false); actionsButtonRef.current?.focus();
+        }
+      }}
     >
       {/* Drop indicator — BEFORE */}
       {isOver && dropPos === 'before' && (
@@ -347,22 +365,15 @@ function PageNodeComponent({
 
       <div
         ref={rowRef}
-        className={`group flex min-h-11 md:min-h-0 w-full min-w-0 items-center gap-1.5 py-[3px] rounded-md cursor-pointer transition-colors select-none ${
-          isActive ? 'bg-white/[0.07] text-white' : 'hover:bg-white/[0.03] text-[#c7c7c7]'
-        } ${isOver && dropPos === 'inside' ? 'ring-1 ring-blue-500/60 bg-blue-500/5' : ''}`}
-        style={{ paddingLeft: `${indent}px`, paddingRight: '8px' }}
+        className={`group sidebar-page-row ${isOver && dropPos === 'inside' ? 'ring-1 ring-blue-500/60 bg-blue-500/5' : ''}`}
+        data-active={isActive || undefined}
+        style={{ paddingLeft: `${indent}px`, paddingRight: '0' }}
         onMouseDown={e => {
           if (e.button !== 1 || renaming) return;
           e.preventDefault();
           e.stopPropagation();
           if (onPageClick) onPageClick(page, true);
           else window.open("/page/" + page.id, "_blank");
-        }}
-        onClick={() => {
-          if (!renaming) {
-            if (onPageClick) onPageClick(page);
-            else navigate(`/page/${page.id}`);
-          }
         }}
         onAuxClick={e => e.preventDefault()}
         onDragOver={handleDragOverRow}
@@ -371,7 +382,7 @@ function PageNodeComponent({
       >
         {/* Drag handle */}
         <span
-          className="hidden md:block text-[10px] text-gray-800 w-3 shrink-0 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity hover:text-gray-500 mr-0.5"
+          className="sidebar-drag-handle"
           draggable
           onDragStart={e => {
             e.stopPropagation();
@@ -396,14 +407,15 @@ function PageNodeComponent({
           <button
             type="button"
             aria-label={open ? `Recolher ${page.title}` : `Expandir ${page.title}`}
-            className="flex h-8 w-8 md:h-auto md:w-3 shrink-0 items-center justify-center text-[10px] text-gray-500 transition-transform hover:text-gray-300"
+            className="sidebar-node-toggle"
+            aria-expanded={open}
             style={{ transform: open ? 'none' : 'rotate(-90deg)' }}
             onClick={e => { e.stopPropagation(); onToggle(page.id); }}
           >
             ▾
           </button>
         ) : (
-          <span className="w-8 md:w-3 shrink-0" />
+          <span className="sidebar-node-spacer" aria-hidden="true" />
         )}
 
         {/* Ícone */}
@@ -411,7 +423,7 @@ function PageNodeComponent({
           type="button"
           aria-label="Trocar ícone"
           title="Trocar ícone"
-          className="text-sm leading-none w-8 h-8 md:w-5 md:h-5 flex items-center justify-center shrink-0 rounded hover:bg-white/5 transition-colors"
+          className="sidebar-node-icon"
           onClick={e => {
             e.stopPropagation();
             const rect = e.currentTarget.getBoundingClientRect();
@@ -444,45 +456,27 @@ function PageNodeComponent({
             }}
           />
         ) : (
-          <span className="flex-1 min-w-0 truncate text-[13px] leading-5">
+          <button type="button" className="sidebar-page-title" title={page.title} draggable
+            onDragStart={event => { event.stopPropagation(); onDragStart(page.id); }}
+            onDragEnd={event => { event.stopPropagation(); onDragEnd(); }}
+            aria-current={isActive ? 'page' : undefined}
+            onClick={() => { setActionsOpen(false); if (onPageClick) onPageClick(page); else navigate(`/page/${page.id}`); }}>
             {page.title}
-          </span>
+          </button>
         )}
 
-        {/* Ações */}
-        <div className="flex md:hidden md:group-hover:flex items-center gap-0.5 shrink-0">
-          <button
-            title="Nova página aqui"
-            className="text-gray-500 hover:text-gray-200 text-sm w-7 h-8 md:w-4 md:h-4 flex items-center justify-center rounded transition-colors"
-            onClick={e => {
-              e.stopPropagation();
-              setAdding(true);
-              onToggle(page.id, true);
-              setNewTitle('');
-            }}
-          >
-            +
-          </button>
-          <button
-            title="Renomear"
-            className="text-gray-500 hover:text-gray-200 text-[12px] w-7 h-8 md:w-4 md:h-4 flex items-center justify-center rounded transition-colors"
-            onClick={e => {
-              e.stopPropagation();
-              setTitle(page.title);
-              setRenaming(true);
-            }}
-          >
-            ✏
-          </button>
-          <button
-            title="Apagar"
-            className="text-gray-500 hover:text-red-400 text-[12px] w-7 h-8 md:w-4 md:h-4 flex items-center justify-center rounded transition-colors"
-            onClick={e => { e.stopPropagation(); setShowDeleteConfirm(true); }}
-          >
-            ✕
-          </button>
-        </div>
+        <button type="button" ref={actionsButtonRef} className="sidebar-page-menu"
+          aria-label={`Ações de ${page.title}`} title="Ações da página"
+          aria-expanded={actionsOpen} aria-controls={actionsOpen ? actionsId : undefined}
+          onClick={() => setActionsOpen(value => !value)}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
+        </button>
       </div>
+      {actionsOpen && <div ref={actionsPanelRef} id={actionsId} role="group" aria-label={`Opções de ${page.title}`} className="sidebar-page-actions">
+        <button type="button" title="Nova página aqui" onClick={() => { setActionsOpen(false); setAdding(true); onToggle(page.id, true); setNewTitle(''); }}>+ Subpágina</button>
+        <button type="button" title="Renomear" onClick={() => { setActionsOpen(false); setTitle(page.title); setRenaming(true); }}>Renomear</button>
+        <button type="button" title="Apagar" onClick={() => { setActionsOpen(false); setShowDeleteConfirm(true); }}>Lixeira</button>
+      </div>}
 
       {iconAnchorRect && (
         <EmojiPicker
@@ -500,7 +494,7 @@ function PageNodeComponent({
       {/* Modal de confirmação */}
       {showDeleteConfirm && (
         <ConfirmModal
-          message={`Apagar "${page.title}"${hasChildren ? ' e todo seu conteúdo' : ''}? Esta ação não pode ser desfeita.`}
+          message={`Apagar "${page.title}"${hasChildren ? ' e todo seu conteúdo' : ''}? A página será movida para a lixeira e poderá ser restaurada.`}
           onConfirm={handleDelete}
           onClose={() => setShowDeleteConfirm(false)}
         />
@@ -716,22 +710,22 @@ export const Sidebar = memo(function Sidebar({
   };
 
   return (
-    <aside className="w-[min(86vw,320px)] md:w-56 h-full flex flex-col bg-[#111111] border-r border-[#1f1f1f] shrink-0" style={{ height: 'var(--app-viewport-height, 100%)' }}>
+    <aside className="brain-sidebar w-[min(86vw,320px)] md:w-56 h-full flex flex-col shrink-0" style={{ height: 'var(--app-viewport-height, 100%)' }}>
       {/* Header */}
-      <div className="px-3 py-3.5 flex items-center gap-2">
+      <div className="sidebar-brand-row">
         <button type="button"
-          className="flex-1 flex items-center gap-2 cursor-pointer hover:bg-white/[0.03] transition-colors rounded-md px-1 py-0.5 text-left"
+          className="sidebar-brand"
           onClick={() => { navigate('/'); onClose?.(); }}
           aria-label="Brain Core: abrir Dashboard"
         >
           <img src={appIconUrl} alt="Brain Core" className="w-[18px] h-[18px] rounded-sm object-cover" />
-          <span className="font-semibold text-[13px] text-[#e0e0e0]">Brain Core</span>
+          <span className="font-semibold text-[13px]">Brain Core</span>
         </button>
         {/* Botão fechar — só aparece no mobile */}
         {onClose && (
           <button
             onClick={onClose}
-            className="md:hidden text-gray-600 hover:text-gray-300 transition-colors p-1 rounded-lg hover:bg-white/5 shrink-0"
+            className="sidebar-close md:hidden"
             aria-label="Fechar menu"
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -750,16 +744,16 @@ export const Sidebar = memo(function Sidebar({
           placeholder="Buscar…"
           aria-label="Buscar páginas e notas"
           maxLength={200}
-          className="w-full rounded-md border border-[#242424] bg-[#161616] px-2.5 py-1.5 text-[12px] text-gray-200 outline-none placeholder:text-gray-600 focus:border-[#333]"
+          className="sidebar-search"
         />
       </div>
 
-      <details className="md:hidden border-b border-[#1f1f1f] px-2 pb-2 text-[12px] text-gray-300">
-        <summary className="cursor-pointer rounded-md px-2 py-2">Abas abertas ({tabs.length})</summary>
+      <details className="sidebar-mobile-tabs md:hidden">
+        <summary className="sidebar-tabs-summary">Abas abertas ({tabs.length})</summary>
         <div className="flex flex-wrap gap-2 px-2 pb-2">
-          <button type="button" onClick={() => { onNewTab?.(); onClose?.(); }} className="min-h-11 rounded-md border border-[#2a2a2a] px-3 py-1">+ Nova aba</button>
-          <button type="button" onClick={() => { onGoBack?.(); onClose?.(); }} className="min-h-11 rounded-md border border-[#2a2a2a] px-3 py-1">← Voltar</button>
-          <button type="button" onClick={onCloseAllTabs} disabled={tabs.length === 0} className="min-h-11 rounded-md border border-[#2a2a2a] px-3 py-1 disabled:opacity-40">Fechar todas</button>
+          <button type="button" onClick={() => { onNewTab?.(); onClose?.(); }} className="sidebar-tab-tool">+ Nova aba</button>
+          <button type="button" onClick={() => { onGoBack?.(); onClose?.(); }} className="sidebar-tab-tool">← Voltar</button>
+          <button type="button" onClick={onCloseAllTabs} disabled={tabs.length === 0} className="sidebar-tab-tool">Fechar todas</button>
         </div>
         <div className="max-h-44 overflow-y-auto">
           {tabs.map(tab => (
@@ -776,24 +770,24 @@ export const Sidebar = memo(function Sidebar({
       {/* Árvore */}
       <nav
         className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-1 px-1"
-        style={{ scrollbarWidth: 'thin', scrollbarColor: '#2a2a2a transparent' }}
+        style={{ scrollbarWidth: 'thin', scrollbarColor: 'var(--theme-border) transparent' }}
         onDragOver={e => e.preventDefault()}
       >
         {search.trim() ? (
           <UnifiedSearchResults query={search.trim()} onPageClick={onPageClick} onClose={onClose} />
         ) : (
           <>
-        <p className="px-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-600">Memória</p>
+        <p className="sidebar-section-label">Memória</p>
         <RememberErrorBoundary><RememberSidebarTree onOpen={onRememberOpen ?? ((date) => navigate(date ? `/remember?date=${encodeURIComponent(date)}` : '/remember'))} /></RememberErrorBoundary>
         {navigator.userAgent.includes('BrainCoreAndroid/1') && (
-          <a href="braincore://capture" onClick={() => onClose?.()} className="flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[13px] text-gray-300 hover:bg-white/[0.04]">🎙 Gravar neste celular</a>
+          <a href="braincore://capture" onClick={() => onClose?.()} className="sidebar-nav-link">🎙 Gravar neste celular</a>
         )}
-        <button type="button" onClick={() => { navigate('/notes'); onClose?.(); }} className="flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[13px] text-gray-300 hover:bg-white/[0.04]">📝 Notas</button>
-        <div className="flex items-center gap-1 pt-2">
-          <button type="button" onClick={() => { navigate('/knowledge'); onClose?.(); }} className="min-h-10 min-w-0 flex-1 px-2 text-left text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">Conhecimento</button>
+        <button type="button" onClick={() => { navigate('/notes'); onClose?.(); }} className="sidebar-nav-link">📝 Notas</button>
+        <div className="sidebar-section-header">
+          <button type="button" onClick={() => { navigate('/knowledge'); onClose?.(); }} className="sidebar-section-name">Conhecimento</button>
           <button type="button" onClick={() => { navigate('/knowledge'); onClose?.(); }}
             aria-label="Abrir visão geral de Conhecimento" title="Visão geral de Conhecimento"
-            className="flex min-h-10 min-w-10 items-center justify-center rounded text-[var(--theme-muted)] hover:bg-[var(--theme-hover)] hover:text-[var(--theme-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]">
+            className="sidebar-section-tool">
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
               <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
               <rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
@@ -802,13 +796,13 @@ export const Sidebar = memo(function Sidebar({
           <button type="button" onClick={toggleAll} disabled={!branchIds.size}
             aria-label={allExpanded ? 'Recolher toda a árvore de Conhecimento' : 'Expandir toda a árvore de Conhecimento'}
             title={allExpanded ? 'Recolher tudo' : 'Expandir tudo'}
-            className="flex min-h-10 min-w-10 items-center justify-center rounded text-[var(--theme-muted)] hover:bg-[var(--theme-hover)] hover:text-[var(--theme-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] disabled:opacity-30">
+            className="sidebar-section-tool">
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
               <path d={allExpanded ? 'm7 4 5 5 5-5M7 20l5-5 5 5' : 'm7 9 5-5 5 5M7 15l5 5 5-5'} />
             </svg>
           </button>
         </div>
-        <div className="mx-2 my-1 border-t border-[#1f1f1f]" />
+        <div className="sidebar-divider" />
         {tree.map(page => (
           <PageNode
             key={page.id}
@@ -833,7 +827,7 @@ export const Sidebar = memo(function Sidebar({
               onCancel={() => { setAdding(false); setNewTitle(''); }} />
           </div>
         )}
-        <div className="mx-2 my-2 border-t border-[#1f1f1f]" />
+        <div className="sidebar-divider sidebar-divider-spaced" />
         <SharedSection
           activePage={activePage}
           onOpenPage={(page) => onPageClick?.({ ...page, sort_order: 0, children: [] })}
