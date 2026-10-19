@@ -198,6 +198,18 @@ describe('Sidebar', () => {
     await waitFor(() => expect(api.createPage).toHaveBeenCalledWith(expect.objectContaining({ title: 'Estudos fictícios', type: 'notebook' })));
   });
 
+  it('opens an acknowledged page even when refreshing the tree fails', async () => {
+    vi.mocked(api.createPage).mockResolvedValueOnce({ id: 'created', title: 'Fictional page', type: 'note' } as Page);
+    const onPageClick = vi.fn();
+    render(<Sidebar tree={[]} activePage={null} onRefresh={vi.fn().mockRejectedValue(new Error('refresh offline'))} onPageClick={onPageClick} />);
+    fireEvent.click(screen.getByText('+ Nova página'));
+    fireEvent.change(screen.getByPlaceholderText('Título da página…'), { target: { value: 'Fictional page' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Nota' }));
+    await waitFor(() => expect(onPageClick).toHaveBeenCalledWith(expect.objectContaining({ id: 'created' })));
+    expect(api.createPage).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('form', { name: 'Criar página' })).not.toBeInTheDocument();
+  });
+
   it('renomeia página existente', async () => {
     vi.mocked(api.renamePage).mockResolvedValueOnce({} as Page);
 

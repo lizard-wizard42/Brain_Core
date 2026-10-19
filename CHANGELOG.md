@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — clearer page creation
+
+- Replace unframed page-format links with consistent bordered options, icons and short descriptions for Note, Infinite and Notebook. Keep Cancel in a separate footer and share the same form for root pages and subpages.
+- Disable empty-title submissions, prevent duplicate creation while a request is pending, and preserve the title with inline error feedback for retry. A tree refresh failure no longer makes an acknowledged creation look unsuccessful.
+
 ## Unreleased — handwriting notebooks
 
 - Add Notebook (Caderno) as a third page format, with an original notebook icon and entry below Infinite in the page/subpage creation flow.
