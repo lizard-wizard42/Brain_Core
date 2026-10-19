@@ -1,16 +1,9 @@
 import { useId, useMemo, useRef, useState } from 'react';
 import type { SharedPageSummary } from '../../types';
-import { ShareBadge } from './ShareBadge';
 import { ShareManagerModal } from './ShareManagerModal';
 import { useSharedPages } from './sharedPagesContext';
-import { filterSharedPages, formatDateTime } from './sharedModel';
+import { filterSharedPages } from './sharedModel';
 import './sharedSection.css';
-
-function lastEditLine(page: SharedPageSummary): string {
-  const when = formatDateTime(page.last_edited_at ?? page.updated_at);
-  if (!when) return '';
-  return page.last_editor ? `por ${page.last_editor} em ${when}` : `em ${when}`;
-}
 
 function SharedItem({
   page,
@@ -33,11 +26,7 @@ function SharedItem({
         aria-current={active ? 'page' : undefined}
       >
         <span aria-hidden="true" className="shared-page-icon">{page.icon || '📄'}</span>
-        <span className="shared-page-copy">
-          <span className="shared-page-title">{page.title}</span>
-          <span className="shared-page-meta" title={lastEditLine(page)}>{lastEditLine(page)}</span>
-          <span className="shared-page-role"><ShareBadge role={page.role} count={page.grantees?.length} /></span>
-        </span>
+        <span className="shared-page-title">{page.title}</span>
       </button>
       {page.role === 'owner' && onManage && (
         <button
@@ -47,7 +36,7 @@ function SharedItem({
           title="Gerenciar acesso"
           className="shared-page-manage"
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="19" cy="12" r="1.7" /></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="19" cy="12" r="1.7" /></svg>
         </button>
       )}
     </div>

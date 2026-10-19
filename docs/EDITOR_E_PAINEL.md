@@ -91,8 +91,9 @@ próprios controles; esta ação não muda a organização nem o conteúdo das n
 
 A seção **Compartilhados** pode ser recolhida pelo cabeçalho e distingue páginas
 recebidas das páginas compartilhadas por você. A busca filtra as duas listas e
-pode ser limpa pelo botão ao lado do campo. Títulos ocupam até duas linhas; autoria,
-data e permissão aparecem abaixo, sem disputar espaço com o nome da página.
+pode ser limpa pelo botão ao lado do campo. Cada página ocupa uma linha compacta de 44 px, com ícone e título. O título completo
+aparece ao passar o mouse e no cabeçalho da página ao abri-la. Autoria, data e badges
+de permissão não ocupam a lista; os detalhes de acesso continuam no painel da página.
 
 O menu **Gerenciar acesso** permanece visível nas páginas das quais você é dono,
 inclusive em telas de toque. Selecionar uma página apenas a abre; gerenciar acesso
