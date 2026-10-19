@@ -3,7 +3,7 @@ export interface PageSummary {
   parent_page_id?: string | null;
   title: string;
   slug: string;
-  type: 'note' | 'infinite';
+  type: 'note' | 'infinite' | 'notebook';
   icon?: string | null;
   is_section?: boolean;
   tags?: string[];
@@ -16,8 +16,9 @@ export interface PageSummary {
 
 export interface Page extends PageSummary {
   revision: number;
-  type: 'note' | 'infinite';
-  content: TiptapDoc | InfiniteDoc;
+  access_role?: PageShareRole;
+  type: 'note' | 'infinite' | 'notebook';
+  content: TiptapDoc | InfiniteDoc | NotebookDoc;
   markdown_source?: string;
   cover_url?: string | null;
   cover_position_y?: number;
@@ -29,7 +30,7 @@ export interface SharedPageSummary {
   id: string;
   title: string;
   slug: string;
-  type: 'note' | 'infinite';
+  type: 'note' | 'infinite' | 'notebook';
   icon?: string | null;
   updated_at: string;
   revision?: number;
@@ -71,7 +72,7 @@ export interface PageVersion {
   reason: string;
   content_hash: string;
   created_at: string;
-  content?: TiptapDoc | InfiniteDoc;
+  content?: TiptapDoc | InfiniteDoc | NotebookDoc;
   author_user_id?: string | null;
   author_name?: string | null;
   page_revision?: number | null;
@@ -207,7 +208,7 @@ export interface RememberSearchResponse {
 }
 
 export interface SearchResult {
-  id: string; title: string; kind: 'page' | 'note'; type: 'note' | 'infinite';
+  id: string; title: string; kind: 'page' | 'note'; type: 'note' | 'infinite' | 'notebook';
   icon: string | null; updated_at: string; parent_page_id: string | null;
   snippet: string; path: { id: string; title: string }[];
 }
@@ -215,3 +216,18 @@ export interface NoteSearchResponse { items: SearchResult[]; next_offset: number
 
 export interface PageTemplateSummary { id: string; name: string; created_at: string }
 export interface PageTemplate extends PageTemplateSummary { content: TiptapDoc }
+
+/** Fixed-size sheets; backgrounds are independent from editable ink and text. */
+export type NotebookPaper = 'blank' | 'ruled' | 'grid' | 'dots' | 'oxford';
+export interface InkPoint { x: number; y: number; pressure: number }
+export interface NotebookStroke {
+  id: string; tool: 'pen' | 'highlighter'; color: string; width: number; points: InkPoint[];
+}
+export interface NotebookText {
+  id: string; x: number; y: number; width: number; text: string; color: string; fontSize: number;
+}
+export interface NotebookSheet {
+  id: string; paper: NotebookPaper; spacing: number; tint: string;
+  strokes: NotebookStroke[]; texts: NotebookText[];
+}
+export interface NotebookDoc { notebook: true; version: 1; sheets: NotebookSheet[] }

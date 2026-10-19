@@ -1,4 +1,4 @@
-import type { ContactSummary, InfiniteDoc, PageGrant, PageShareRole, PageVersion, SharedPageSummary, TiptapDoc, TiptapNode } from '../../types';
+import type { ContactSummary, InfiniteDoc, NotebookDoc, PageGrant, PageShareRole, PageVersion, SharedPageSummary, TiptapDoc, TiptapNode } from '../../types';
 
 export interface SharedBucket {
   received: SharedPageSummary[];
@@ -69,7 +69,7 @@ function nodeText(node: TiptapNode): string {
 }
 
 /** Plain-text blocks (one per top-level node) so a change summary stays readable. */
-export function contentToBlocks(content: TiptapDoc | InfiniteDoc | undefined | null): string[] {
+export function contentToBlocks(content: TiptapDoc | InfiniteDoc | NotebookDoc | undefined | null): string[] {
   if (!content || !('type' in content) || content.type !== 'doc') return [];
   return content.content.map((node) => nodeText(node).trim()).filter((text) => text.length > 0);
 }
@@ -82,7 +82,7 @@ export interface DiffSummary {
 }
 
 /** Block-level summary of what changed between a previous and the current snapshot. */
-export function summarizeDiff(previous: TiptapDoc | InfiniteDoc | undefined | null, current: TiptapDoc | InfiniteDoc | undefined | null): DiffSummary {
+export function summarizeDiff(previous: TiptapDoc | InfiniteDoc | NotebookDoc | undefined | null, current: TiptapDoc | InfiniteDoc | NotebookDoc | undefined | null): DiffSummary {
   const before = contentToBlocks(previous);
   const after = contentToBlocks(current);
 

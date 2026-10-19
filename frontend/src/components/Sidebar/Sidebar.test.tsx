@@ -187,6 +187,17 @@ describe('Sidebar', () => {
     );
   });
 
+  it('oferece Caderno depois de Infinite e cria o formato notebook', async () => {
+    vi.mocked(api.createPage).mockResolvedValueOnce({ id: 'p-book', title: 'Estudos fictícios', type: 'notebook' } as Page);
+    render(<Sidebar tree={[]} activePage={null} onRefresh={onRefresh} onPageClick={vi.fn()} />);
+    fireEvent.click(screen.getByText('+ Nova página'));
+    fireEvent.change(screen.getByPlaceholderText('Título da página…'), { target: { value: 'Estudos fictícios' } });
+    const notebook = screen.getByRole('button', { name: 'Caderno' });
+    expect(screen.getByRole('button', { name: 'Infinite' }).compareDocumentPosition(notebook) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.click(notebook);
+    await waitFor(() => expect(api.createPage).toHaveBeenCalledWith(expect.objectContaining({ title: 'Estudos fictícios', type: 'notebook' })));
+  });
+
   it('renomeia página existente', async () => {
     vi.mocked(api.renamePage).mockResolvedValueOnce({} as Page);
 

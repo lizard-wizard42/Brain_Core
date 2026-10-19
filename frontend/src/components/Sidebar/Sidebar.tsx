@@ -1,3 +1,4 @@
+import { NotebookIcon } from '../Notebook/NotebookIcon';
 import { UnifiedSearchResults } from '../Search/UnifiedSearchResults';
 import { memo, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -215,7 +216,7 @@ function PageNodeComponent({
   const isOver = drag?.overId === page.id;
   const dropPos = isOver ? drag?.position : null;
 
-  const handleAddPage = async (type: 'note' | 'infinite' = 'note') => {
+  const handleAddPage = async (type: 'note' | 'infinite' | 'notebook' = 'note') => {
     if (!newTitle.trim()) return;
     const slug = toSlug(newTitle);
     try {
@@ -415,7 +416,7 @@ function PageNodeComponent({
             setIconAnchorRect((current) => (current ? null : rect));
           }}
         >
-          {renderPageIcon(page.icon)}
+          {page.type === 'notebook' && !page.icon ? <NotebookIcon width={16} height={16} /> : renderPageIcon(page.icon)}
         </button>
 
         {/* Título ou input de rename */}
@@ -547,7 +548,7 @@ function PageNodeComponent({
                     }
                   }}
                 />
-                <div className="mt-2 flex items-center gap-2">
+                <div className="mt-2 flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     className="rounded-md bg-white/8 px-2.5 py-1 text-[11px] text-gray-200 hover:bg-white/12 transition-colors"
@@ -564,6 +565,7 @@ function PageNodeComponent({
                   >
                     Infinite
                   </button>
+                  <button type="button" className="flex min-h-11 items-center gap-1 rounded-md px-2.5 py-1 text-[11px] text-gray-200 hover:bg-white/10" onMouseDown={e => e.preventDefault()} onClick={() => { void handleAddPage('notebook'); }}><NotebookIcon width={16} height={16} /> Caderno</button>
                   <button
                     type="button"
                     className="ml-auto rounded-md px-2 py-1 text-[11px] text-gray-500 hover:text-gray-300 transition-colors"
@@ -741,7 +743,7 @@ export const Sidebar = memo(function Sidebar({
     setDrag(null);
   }, []);
 
-  const handleAddPage = async (type: 'note' | 'infinite' = 'note') => {
+  const handleAddPage = async (type: 'note' | 'infinite' | 'notebook' = 'note') => {
     if (!newTitle.trim()) return;
     const slug = toSlug(newTitle);
     try {
@@ -894,7 +896,7 @@ export const Sidebar = memo(function Sidebar({
                   }
                 }}
               />
-              <div className="mt-2 flex items-center gap-2">
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   className="rounded-md bg-white/8 px-2.5 py-1 text-[11px] text-gray-200 hover:bg-white/12 transition-colors"
@@ -911,6 +913,7 @@ export const Sidebar = memo(function Sidebar({
                 >
                   Infinite
                 </button>
+                <button type="button" className="flex min-h-11 items-center gap-1 rounded-md px-2.5 py-1 text-[11px] text-gray-200 hover:bg-white/10" onMouseDown={e => e.preventDefault()} onClick={() => { void handleAddPage('notebook'); }}><NotebookIcon width={16} height={16} /> Caderno</button>
                 <button
                   type="button"
                   className="ml-auto rounded-md px-2 py-1 text-[11px] text-gray-500 hover:text-gray-300 transition-colors"
