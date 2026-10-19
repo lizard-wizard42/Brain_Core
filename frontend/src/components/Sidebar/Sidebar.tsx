@@ -1,3 +1,4 @@
+import './sidebarFooter.css';
 import { NewPageForm } from './NewPageForm';
 import { NotebookIcon } from '../Notebook/NotebookIcon';
 import { UnifiedSearchResults } from '../Search/UnifiedSearchResults';
@@ -842,11 +843,11 @@ export const Sidebar = memo(function Sidebar({
       </nav>
 
       {/* Footer */}
-      <div className="px-3 py-2.5 border-t border-[#1a1a1a] flex items-center gap-2">
+      <div className="sidebar-footer">
         <button
           type="button"
           aria-label="Criar nova página"
-          className="flex-1 min-h-10 text-left text-[12px] text-gray-600 hover:text-gray-400 py-0.5 transition-colors"
+          className="sidebar-footer-create"
           onClick={() => { setSearch(''); setAdding(true); setNewTitle(''); }}
         >
           + Nova página
@@ -855,19 +856,19 @@ export const Sidebar = memo(function Sidebar({
           type="button"
           aria-label="Abrir configurações"
           title="Configurações"
-          className="min-h-10 min-w-10 text-gray-600 hover:text-gray-400 text-[14px] leading-none transition-colors p-0.5"
+          className="sidebar-footer-tool"
           onClick={() => navigate('/settings')}
         >
-          ⚙
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="m9 3-1 3-3 1-2 3 2 2-1 3 2 3 3-1 2 3h3l1-3 3-1 2-3-2-2 1-3-2-3-3 1-2-3Z"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
         <button
           type="button"
           aria-label="Abrir lixeira"
           title="Lixeira"
-          className="min-h-10 min-w-10 text-gray-600 hover:text-gray-400 text-[14px] leading-none transition-colors p-0.5"
+          className="sidebar-footer-tool"
           onClick={() => setShowTrash(true)}
         >
-          🗑
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>
         </button>
       </div>
 

@@ -86,3 +86,16 @@ As setas individuais continuam disponíveis e o estado é lembrado neste navegad
 Selecionar outra página revela o caminho dela novamente. O botão fica desativado
 quando não existem ramos com filhos. Linha do tempo e Compartilhados mantêm seus
 próprios controles; esta ação não muda a organização nem o conteúdo das notas.
+
+## Compartilhados e ações laterais
+
+A seção **Compartilhados** pode ser recolhida pelo cabeçalho e distingue páginas
+recebidas das páginas compartilhadas por você. A busca filtra as duas listas e
+pode ser limpa pelo botão ao lado do campo. Títulos ocupam até duas linhas; autoria,
+data e permissão aparecem abaixo, sem disputar espaço com o nome da página.
+
+O menu **Gerenciar acesso** permanece visível nas páginas das quais você é dono,
+inclusive em telas de toque. Selecionar uma página apenas a abre; gerenciar acesso
+continua sendo uma ação separada. Os botões **Nova página**, **Configurações** e
+**Lixeira** no rodapé têm bordas visíveis, foco de teclado e área mínima de 44 px.
+As mudanças são visuais e não alteram convites, permissões ou conteúdo das páginas.
