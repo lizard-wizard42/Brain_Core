@@ -223,6 +223,56 @@ describe('Sidebar', () => {
     expect(screen.queryByRole('form', { name: 'Criar página' })).not.toBeInTheDocument();
   });
 
+  it('keeps page actions separate from navigation and closes them with Escape', () => {
+    const onPageClick = vi.fn();
+    render(<Sidebar tree={baseTree} activePage="page-1" onRefresh={onRefresh} onPageClick={onPageClick} />);
+    const actions = screen.getByRole('button', { name: 'Ações de Página Original' });
+    fireEvent.click(actions);
+    expect(screen.getByRole('group', { name: 'Opções de Página Original' })).toBeVisible();
+    expect(onPageClick).not.toHaveBeenCalled();
+    fireEvent.keyDown(actions, { key: 'Escape' });
+    expect(actions).toHaveFocus();
+    expect(screen.queryByRole('group', { name: 'Opções de Página Original' })).not.toBeInTheDocument();
+    const page = screen.getByRole('button', { name: 'Página Original' });
+    expect(page).toHaveAttribute('aria-current', 'page');
+    fireEvent.click(page);
+    expect(onPageClick).toHaveBeenCalledWith(baseTree[0]);
+  });
+
+  it('creates a subpage through page actions without navigating to the parent', async () => {
+    vi.mocked(api.createPage).mockResolvedValueOnce({ id: 'child-new', title: 'Subpágina fictícia', type: 'note' } as Page);
+    const onPageClick = vi.fn();
+    render(<Sidebar tree={baseTree} activePage={null} onRefresh={onRefresh} onPageClick={onPageClick} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Ações de Página Original' }));
+    fireEvent.click(screen.getByTitle('Nova página aqui'));
+    fireEvent.change(screen.getByPlaceholderText('Título da página…'), { target: { value: 'Subpágina fictícia' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Nota' }));
+    await waitFor(() => expect(api.createPage).toHaveBeenCalledWith(expect.objectContaining({ parent_page_id: 'page-1', title: 'Subpágina fictícia' })));
+    await waitFor(() => expect(onPageClick).toHaveBeenCalledWith(expect.objectContaining({ id: 'child-new' })));
+    expect(onPageClick).toHaveBeenCalledOnce();
+  });
+
+  it('dismisses page actions on outside pointer input and preserves middle-click tabs', () => {
+    const onPageClick = vi.fn();
+    render(<Sidebar tree={baseTree} activePage={null} onRefresh={onRefresh} onPageClick={onPageClick} />);
+    const actions = screen.getByRole('button', { name: 'Ações de Página Original' });
+    fireEvent.click(actions);
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Abrir configurações' }));
+    expect(actions).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.mouseDown(screen.getByRole('button', { name: 'Página Original' }), { button: 1 });
+    expect(onPageClick).toHaveBeenCalledWith(baseTree[0], true);
+  });
+
+  it('keeps page titles draggable into another branch', async () => {
+    vi.mocked(api.patchPage).mockResolvedValueOnce({} as Page);
+    const destination = { ...baseTree[0], id: 'destination', title: 'Destino fictício' };
+    render(<Sidebar tree={[...baseTree, destination]} activePage={null} onRefresh={onRefresh} />);
+    fireEvent.dragStart(screen.getByRole('button', { name: 'Página Original' }));
+    fireEvent.dragOver(screen.getByRole('button', { name: 'Destino fictício' }), { clientY: 0 });
+    fireEvent.drop(screen.getByRole('button', { name: 'Destino fictício' }));
+    await waitFor(() => expect(api.patchPage).toHaveBeenCalledWith('page-1', { parent_page_id: 'destination', sort_order: 0 }));
+  });
+
   it('renomeia página existente', async () => {
     vi.mocked(api.renamePage).mockResolvedValueOnce({} as Page);
 
@@ -234,6 +284,7 @@ describe('Sidebar', () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole('button', { name: 'Ações de Página Original' }));
     fireEvent.click(screen.getByTitle('Renomear'));
     const input = screen.getByDisplayValue('Página Original');
     fireEvent.change(input, { target: { value: 'Página Renomeada' } });
@@ -253,6 +304,7 @@ describe('Sidebar', () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole('button', { name: 'Ações de Página Original' }));
     fireEvent.click(screen.getByTitle('Apagar'));
     const confirmButton = screen.getByRole('button', { name: 'Apagar' });
     fireEvent.click(confirmButton);

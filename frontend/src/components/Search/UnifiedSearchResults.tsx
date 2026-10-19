@@ -39,18 +39,18 @@ function Results({ query, kind, onPageClick, onClose }: { query: string; kind: s
     }, 200);
     return () => { clearTimeout(timer); controller.abort(); };
   }, [query, kind, offset, retry]);
-  return <div className="flex flex-col gap-2">
+  return <div className="flex flex-col gap-1">
     {items.map(item => <button key={`${item.kind}-${item.id}`} type="button"
-      className="min-h-11 rounded-lg border border-[var(--theme-border)] p-3 text-left hover:bg-[var(--theme-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
+      className="min-h-11 rounded-md px-2 py-2 text-left hover:bg-[var(--theme-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]"
       onClick={() => {
         if (item.kind === 'note') navigate(`/notes?note=${encodeURIComponent(item.id)}`);
         else if (onPageClick) onPageClick({ ...item, slug: item.id, sort_order: 0, children: [] });
         else navigate(`/page/${item.id}`);
         onClose?.();
       }}>
-      <span className="block break-words text-sm font-medium text-[var(--theme-text)]"><Highlight text={item.title || 'Sem título'} query={query} /></span>
-      <span className="mt-1 block break-words text-[11px] text-[var(--theme-muted)]">{item.kind === 'note' ? 'Nota rápida' : item.path.map(p => p.title || 'Sem título').join(' › ')}</span>
-      {item.snippet && <span className="mt-2 block break-words text-xs text-[var(--theme-muted)]"><Highlight text={item.snippet} query={query} /></span>}
+      <span className="block truncate text-[12px] font-medium text-[var(--theme-text)]" title={item.title || 'Sem título'}><Highlight text={item.title || 'Sem título'} query={query} /></span>
+      <span className="mt-0.5 block truncate text-[10px] text-[var(--theme-muted)]">{item.kind === 'note' ? 'Nota rápida' : item.path.map(p => p.title || 'Sem título').join(' › ')}</span>
+      {item.snippet && <span className="mt-1 line-clamp-2 break-words text-[11px] text-[var(--theme-muted)]"><Highlight text={item.snippet} query={query} /></span>}
     </button>)}
     {loading && <p role="status" className="p-2 text-xs">Pesquisando…</p>}
     {error && <div role="alert" className="p-2 text-xs">Não foi possível pesquisar. <button type="button" className="min-h-11 underline" onClick={() => { setLoading(true); setError(false); setRetry(r => r + 1); }}>Tentar novamente</button></div>}

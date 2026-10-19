@@ -97,6 +97,38 @@ de permissão não ocupam a lista; os detalhes de acesso continuam no painel da 
 
 O menu **Gerenciar acesso** permanece visível nas páginas das quais você é dono,
 inclusive em telas de toque. Selecionar uma página apenas a abre; gerenciar acesso
-continua sendo uma ação separada. Os botões **Nova página**, **Configurações** e
-**Lixeira** no rodapé têm bordas visíveis, foco de teclado e área mínima de 44 px.
+continua sendo uma ação separada. No rodapé, **Nova página** mantém o contorno; **Configurações** e **Lixeira** usam
+ícones discretos. Os três têm foco de teclado e área mínima de 44 px.
 As mudanças são visuais e não alteram convites, permissões ou conteúdo das páginas.
+
+## Consistent sidebar controls
+
+Memory, Notes, Knowledge and Shared use compact single-line rows with 44 px
+minimum height, theme-aware hover/selection colors and visible keyboard focus.
+Knowledge keeps individual branch toggles, the overview grid and expand/collapse
+controls. Deep nesting uses bounded indentation so titles remain readable.
+
+Each page has a separate title button and a discreet **More actions** control.
+The latter reveals **Subpage**, **Rename** and **Trash** without opening the page.
+Escape closes the actions and returns focus to their trigger; clicking outside
+closes them too. The page title and drag handle both support drag-and-drop.
+The full title is available on hover. Trash confirmation explains recovery.
+
+The mobile tab section retains open/close/back actions with touch-sized targets.
+Search results use borderless rows and limit previews to two lines while keeping
+filters, pagination and highlighted matches. Footer creation remains outlined;
+settings and trash use lighter icon controls. No storage or permission changes
+are required.
+
+### Navigation previews
+
+These previews use fictional pages and English demonstration labels. They do not
+change the installation's locale.
+
+**Page actions:** subpage creation, rename and recoverable Trash stay separate from navigation.
+
+<img src="images/sidebar-page-actions-demo.jpg" alt="Compact page actions with fictional content" width="224">
+
+**Mobile navigation:** compact rows, branch controls and footer actions within a narrow drawer.
+
+<img src="images/sidebar-mobile-demo.jpg" alt="Mobile sidebar with fictional content" width="320">

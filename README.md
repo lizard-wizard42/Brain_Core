@@ -14,9 +14,21 @@ Recording reliability update: Android **1.1.2** preserves recording end times du
 
 ![Brain Core logo](docs/images/brain-core.png)
 
+### Compact navigation
+
+The sidebar uses consistent, compact rows across Memory, Notes, Knowledge and
+Shared pages. Page actions live under a discreet overflow control; titles can be
+opened by keyboard or dragged into another branch. The overview, expand/collapse,
+search filters and recoverable Trash remain available. See the [navigation guide](docs/EDITOR_E_PAINEL.md#consistent-sidebar-controls).
+
 ### Screenshots
 
-These screenshots use fictional content.
+These screenshots use fictional content. Navigation previews use English demonstration labels.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/sidebar-navigation-dark-demo.jpg">
+  <img src="docs/images/sidebar-navigation-light-demo.jpg" alt="Compact sidebar and Knowledge overview with fictional pages and English demonstration labels">
+</picture>
 
 ![Brain Core dashboard with fictional notes and pages](docs/images/dashboard-demo.png)
 
