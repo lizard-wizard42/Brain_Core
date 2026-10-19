@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — clearer shared navigation
+
+- Give shared pages readable two-line titles, separate metadata and permission badges, visible owner controls, and theme-aware search and empty states.
+- Add bordered touch-friendly sidebar footer buttons for page creation, settings and trash. Existing sharing and page actions are preserved.
+
+
 ## Unreleased — clearer page creation
 
 - Replace unframed page-format links with consistent bordered options, icons and short descriptions for Note, Infinite and Notebook. Keep Cancel in a separate footer and share the same form for root pages and subpages.

@@ -46,6 +46,19 @@ describe('Sidebar', () => {
     cleanup();
   });
 
+  it('keeps settings and trash available from the footer without changing pages', async () => {
+    vi.mocked(api.getTrash).mockResolvedValue([]);
+    render(<Sidebar tree={baseTree} activePage={null} onRefresh={onRefresh} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir configurações' }));
+    expect(navigateSpy).toHaveBeenCalledWith('/settings');
+    navigateSpy.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir lixeira' }));
+    expect(await screen.findByText('Lixeira')).toBeVisible();
+    expect(api.getTrash).toHaveBeenCalledOnce();
+    expect(navigateSpy).not.toHaveBeenCalled();
+    expect(api.deletePage).not.toHaveBeenCalled();
+  });
+
   it('ordena Notas, Conhecimento, árvore e Compartilhados após Linha do tempo', () => {
     render(<Sidebar tree={baseTree} activePage={null} onRefresh={onRefresh} />);
     const labels = ['Linha do tempo', '📝 Notas', 'Conhecimento', 'Página Original', 'Compartilhados'];

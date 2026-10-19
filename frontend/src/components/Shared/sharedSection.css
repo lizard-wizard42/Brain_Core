@@ -1,0 +1,34 @@
+.shared-section { min-width: 0; margin: 12px 4px 6px; color: var(--theme-text); }
+.shared-section-toggle { display: flex; align-items: center; gap: 7px; width: 100%; min-height: 44px; padding: 7px 5px; border: 1px solid transparent; border-radius: 8px; text-align: left; color: var(--theme-muted); background: transparent; cursor: pointer; }
+.shared-section-toggle:hover { background: var(--theme-hover); }
+.shared-section-title { font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
+.shared-section-symbol { flex-shrink: 0; }
+.shared-section-count { min-width: 18px; padding: 1px 5px; border: 1px solid var(--theme-border); border-radius: 6px; background: var(--theme-surface); text-align: center; font-size: 10px; }
+.shared-section-chevron { margin-left: auto; flex-shrink: 0; }
+.shared-section-chevron[data-open="true"] { transform: rotate(90deg); }
+.shared-section-content { min-width: 0; }
+.shared-section-search { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 44px; margin-bottom: 12px; padding-left: 9px; border: 1px solid var(--theme-border); border-radius: 8px; background: var(--theme-background); color: var(--theme-muted); }
+.shared-section-search > svg { flex-shrink: 0; }
+.shared-section-search:focus-within { border-color: var(--theme-primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--theme-primary) 12%, transparent); }
+.shared-search-input { width: 100%; min-width: 0; min-height: 42px; padding: 8px 5px 8px 0; border: 0; background: transparent; outline: none; color: var(--theme-text); font-size: 11px; }
+.shared-search-input::placeholder { color: var(--theme-muted); opacity: .85; }
+.shared-search-input::-webkit-search-cancel-button { display: none; }
+.shared-search-clear { display: grid; place-items: center; min-width: 44px; min-height: 42px; align-self: stretch; border: 0; border-radius: 7px; background: transparent; color: var(--theme-muted); cursor: pointer; font-size: 20px; }
+.shared-search-clear:hover { background: var(--theme-hover); color: var(--theme-text); }
+.shared-section-groups { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.shared-group-title { display: flex; align-items: center; gap: 6px; margin: 0 2px 6px; color: var(--theme-muted); font-size: 10px; font-weight: 500; line-height: 1.5; }
+.shared-group-title > span { margin-left: auto; font-size: 10px; font-variant-numeric: tabular-nums; }
+.shared-page-item { display: flex; align-items: center; min-width: 0; margin-top: 5px; border: 1px solid var(--theme-border); border-radius: 9px; background: var(--theme-surface); }
+.shared-page-item:hover { background: var(--theme-hover); }
+.shared-page-item[data-active="true"] { border-color: var(--theme-primary); background: color-mix(in srgb, var(--theme-primary) 9%, var(--theme-surface)); }
+.shared-page-open { display: flex; align-items: flex-start; flex: 1; gap: 7px; min-width: 0; min-height: 44px; padding: 9px 7px; border: 0; border-radius: 8px; background: transparent; color: var(--theme-text); text-align: left; cursor: pointer; }
+.shared-page-icon { width: 20px; flex-shrink: 0; text-align: center; line-height: 20px; font-size: 15px; }
+.shared-page-copy { display: block; min-width: 0; flex: 1; }
+.shared-page-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; font-size: 12px; font-weight: 500; line-height: 1.5; }
+.shared-page-meta { display: block; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--theme-muted); font-size: 10px; line-height: 1.5; }
+.shared-page-role { display: block; margin-top: 6px; }
+.shared-page-manage { display: grid; place-items: center; align-self: flex-start; flex-shrink: 0; min-width: 44px; min-height: 44px; margin: 4px 3px 0 0; border: 1px solid var(--theme-border); border-radius: 7px; background: var(--theme-background); color: var(--theme-muted); cursor: pointer; }
+.shared-page-manage:hover { border-color: var(--theme-primary); color: var(--theme-text); }
+.shared-section-message { margin: 5px 3px; color: var(--theme-muted); font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
+.shared-section-empty { padding: 4px 5px; border: 1px dashed var(--theme-border); border-radius: 8px; }
+.shared-section button:focus-visible { outline: 2px solid var(--theme-primary); outline-offset: 2px; }
