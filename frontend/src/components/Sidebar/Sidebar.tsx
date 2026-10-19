@@ -1,3 +1,4 @@
+import { NewPageForm } from './NewPageForm';
 import { NotebookIcon } from '../Notebook/NotebookIcon';
 import { UnifiedSearchResults } from '../Search/UnifiedSearchResults';
 import { memo, useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -226,7 +227,7 @@ function PageNodeComponent({
         slug,
         type 
       });
-      await onRefresh();
+      await onRefresh().catch(() => {});
       setAdding(false);
       setNewTitle('');
       onToggle(page.id, true);
@@ -237,7 +238,7 @@ function PageNodeComponent({
         navigate(`/page/${created.id}`);
       }
     } catch {
-      alert('Erro ao criar página');
+      throw new Error('Page creation failed');
     }
   };
 
@@ -527,58 +528,9 @@ function PageNodeComponent({
           ))}
 
           {adding && (
-            <div style={{ paddingLeft: `${10 + (depth + 1) * 14}px`, paddingRight: '8px' }}>
-              <div className="my-1 rounded-lg border border-white/10 bg-white/[0.03] p-2">
-                <input
-                  autoFocus
-                  className="w-full bg-white/5 text-[13px] text-gray-200 rounded-md px-2 py-1 outline-none border border-accent/50 focus:border-accent"
-                  placeholder="Título da página…"
-                  value={newTitle}
-                  onChange={e => setNewTitle(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      void handleAddPage('note');
-                    }
-                    if (e.key === 'Escape') {
-                      e.preventDefault();
-                      setAdding(false);
-                      setNewTitle('');
-                    }
-                  }}
-                />
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    className="rounded-md bg-white/8 px-2.5 py-1 text-[11px] text-gray-200 hover:bg-white/12 transition-colors"
-                    onMouseDown={e => e.preventDefault()}
-                    onClick={() => { void handleAddPage('note'); }}
-                  >
-                    Nota
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-md bg-white/8 px-2.5 py-1 text-[11px] text-gray-200 hover:bg-white/12 transition-colors"
-                    onMouseDown={e => e.preventDefault()}
-                    onClick={() => { void handleAddPage('infinite'); }}
-                  >
-                    Infinite
-                  </button>
-                  <button type="button" className="flex min-h-11 items-center gap-1 rounded-md px-2.5 py-1 text-[11px] text-gray-200 hover:bg-white/10" onMouseDown={e => e.preventDefault()} onClick={() => { void handleAddPage('notebook'); }}><NotebookIcon width={16} height={16} /> Caderno</button>
-                  <button
-                    type="button"
-                    className="ml-auto rounded-md px-2 py-1 text-[11px] text-gray-500 hover:text-gray-300 transition-colors"
-                    onMouseDown={e => e.preventDefault()}
-                    onClick={() => {
-                      setAdding(false);
-                      setNewTitle('');
-                    }}
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </div>
+            <div style={{ paddingLeft: `${Math.min(38, 10 + (depth + 1) * 14)}px`, paddingRight: '8px' }}>
+              <NewPageForm nested title={newTitle} onTitleChange={setNewTitle} onCreate={handleAddPage}
+                onCancel={() => { setAdding(false); setNewTitle(''); }} />
             </div>
           )}
         </div>
@@ -748,7 +700,7 @@ export const Sidebar = memo(function Sidebar({
     const slug = toSlug(newTitle);
     try {
       const created = await api.createPage({ title: newTitle.trim(), slug, type });
-      await onRefresh();
+      await onRefresh().catch(() => {});
       setAdding(false);
       setNewTitle('');
 
@@ -758,7 +710,7 @@ export const Sidebar = memo(function Sidebar({
         navigate(`/page/${created.id}`);
       }
     } catch {
-      alert('Erro ao criar página');
+      throw new Error('Page creation failed');
     }
   };
 
@@ -876,57 +828,8 @@ export const Sidebar = memo(function Sidebar({
 
         {adding && (
           <div className="px-2 py-0.5 mt-1">
-            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2">
-              <input
-                autoFocus
-                className="w-full bg-white/5 text-[13px] text-gray-200 rounded-md px-2 py-1 outline-none border border-accent/50 focus:border-accent"
-                placeholder="Título da página…"
-                value={newTitle}
-                onChange={e => setNewTitle(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    void handleAddPage('note');
-                  }
-                  if (e.key === 'Escape') {
-                    e.preventDefault();
-                    setAdding(false);
-                    setNewTitle('');
-                  }
-                }}
-              />
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  className="rounded-md bg-white/8 px-2.5 py-1 text-[11px] text-gray-200 hover:bg-white/12 transition-colors"
-                  onMouseDown={e => e.preventDefault()}
-                  onClick={() => { void handleAddPage('note'); }}
-                >
-                  Nota
-                </button>
-                <button
-                  type="button"
-                  className="rounded-md bg-white/8 px-2.5 py-1 text-[11px] text-gray-200 hover:bg-white/12 transition-colors"
-                  onMouseDown={e => e.preventDefault()}
-                  onClick={() => { void handleAddPage('infinite'); }}
-                >
-                  Infinite
-                </button>
-                <button type="button" className="flex min-h-11 items-center gap-1 rounded-md px-2.5 py-1 text-[11px] text-gray-200 hover:bg-white/10" onMouseDown={e => e.preventDefault()} onClick={() => { void handleAddPage('notebook'); }}><NotebookIcon width={16} height={16} /> Caderno</button>
-                <button
-                  type="button"
-                  className="ml-auto rounded-md px-2 py-1 text-[11px] text-gray-500 hover:text-gray-300 transition-colors"
-                  onMouseDown={e => e.preventDefault()}
-                  onClick={() => {
-                    setAdding(false);
-                    setNewTitle('');
-                  }}
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
+            <NewPageForm title={newTitle} onTitleChange={setNewTitle} onCreate={handleAddPage}
+              onCancel={() => { setAdding(false); setNewTitle(''); }} />
           </div>
         )}
         <div className="mx-2 my-2 border-t border-[#1f1f1f]" />

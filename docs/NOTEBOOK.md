@@ -1,6 +1,6 @@
 # Notebook: handwriting and paper
 
-Create a page and choose **Caderno / Notebook**, below Infinite. The same option is available for subpages. Notebooks live in the existing page tree and use the same account ownership, sharing, revision checks, trash and backups as other pages.
+Create a page and choose **Caderno / Notebook**, below Infinite. The same bordered format choices are available for subpages. Enter a title, then choose the format; pressing Enter in the title retains the default text-note shortcut. Creation errors keep the title available for retry, and pending requests disable duplicate submissions. Notebooks live in the existing page tree and use the same account ownership, sharing, revision checks, trash and backups as other pages.
 
 ## Writing
 
