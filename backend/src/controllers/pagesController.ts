@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
+import { defaultNotebook, isNotebookDoc, InvalidNotebook } from '../services/notebookDocument';
 import { createHash } from 'crypto';
 import { pool, query } from '../config/database';
-import { InfiniteDoc, Page, PageSummary, PageVersion, TiptapDoc, TiptapNode } from '../types';
+import { InfiniteDoc, NotebookDoc, Page, PageSummary, PageVersion, TiptapDoc, TiptapNode } from '../types';
 import { AuthRequest } from '../middleware/auth';
 import { logError, logInfo } from '../utils/logger';
 import { recordUploadedAsset } from '../services/uploadOwnership';
@@ -116,7 +117,7 @@ function collectPageRefs(nodes: TiptapNode[], out: Set<string>) {
   }
 }
 
-function hideSubpageLabels(content: TiptapDoc | InfiniteDoc): TiptapDoc | InfiniteDoc {
+function hideSubpageLabels(content: TiptapDoc | InfiniteDoc | NotebookDoc): TiptapDoc | InfiniteDoc | NotebookDoc {
   const clean = JSON.parse(JSON.stringify(content));
   function scrub(nodes: TiptapNode[]) {
     for (const node of nodes) {
@@ -164,20 +165,20 @@ function normalizeInfiniteContent(content: unknown): InfiniteDoc {
   };
 }
 
-function computeSnapshotHash(title: string, content: TiptapDoc | InfiniteDoc): string {
+function computeSnapshotHash(title: string, content: TiptapDoc | InfiniteDoc | NotebookDoc): string {
   return createHash('sha1').update(JSON.stringify({ title, content })).digest('hex');
 }
 
 export async function createVersionSnapshot(
   pageId: string,
   reason: string,
-  explicit?: { title: string; content: TiptapDoc | InfiniteDoc }
+  explicit?: { title: string; content: TiptapDoc | InfiniteDoc | NotebookDoc }
 ): Promise<void> {
   let title = explicit?.title;
   let content = explicit?.content;
 
   if (!title || !content) {
-    const rows = await query<{ title: string; content: TiptapDoc | InfiniteDoc }>(
+    const rows = await query<{ title: string; content: TiptapDoc | InfiniteDoc | NotebookDoc }>(
       `SELECT title, content FROM pages WHERE id = $1 AND deleted_at IS NULL`,
       [pageId]
     );
@@ -214,7 +215,7 @@ export async function getPage(req: Request, res: Response): Promise<void> {
     if (role !== 'owner') {
       // Embedded subpage labels and local working directories are private to
       // the owning account. A grant never implies access to descendants.
-      res.json(redactPageForRole(page as unknown as Record<string, unknown>, role)); return;
+      res.json({ ...redactPageForRole(page as unknown as Record<string, unknown>, role), access_role: role }); return;
     }
 
     if (page.type === 'infinite' && !isInfiniteDoc(page.content)) {
@@ -227,7 +228,7 @@ export async function getPage(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    res.json(page);
+    res.json({ ...page, access_role: role });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch page', detail: String(err) });
   }
@@ -240,10 +241,16 @@ export async function createPage(req: Request, res: Response): Promise<void> {
     return;
   }
   
-  let defaultContent: any = { type: 'doc', content: [] };
+  if (!['note', 'infinite', 'notebook'].includes(type)) { res.status(400).json({ error: 'Unsupported page type' }); return; }
+  if (type === 'notebook' && content !== undefined && !isNotebookDoc(content)) {
+    res.status(400).json({ error: 'Invalid notebook document' }); return;
+  }
+  let defaultContent: TiptapDoc | InfiniteDoc | NotebookDoc = { type: 'doc', content: [] };
   if (type === 'infinite') {
     defaultContent = { tldraw: true, version: 1, data: null };
   }
+
+  if (type === 'notebook') defaultContent = defaultNotebook();
 
   const normalizedTags = normalizeTags(tags);
   try {
@@ -425,7 +432,8 @@ export async function savePage(req: Request, res: Response): Promise<void> {
     const userId = (req as AuthRequest).userId!;
     res.json(redactPageForRole(row, await pageRole(String(req.params.id), userId)));
   } catch (error) {
-    if (error instanceof PageConflict) res.status(409).json({ error: 'Page revision conflict' });
+    if (error instanceof InvalidNotebook) res.status(400).json({ error: 'Invalid notebook document' });
+    else if (error instanceof PageConflict) res.status(409).json({ error: 'Page revision conflict' });
     else if (error instanceof PageMissing) res.status(404).json({ error: 'Page not found' });
     else res.status(503).json({ error: 'Failed to save page' });
   }
@@ -443,7 +451,8 @@ export async function patchPage(req: Request, res: Response): Promise<void> {
     const userId = (req as AuthRequest).userId!;
     res.json(redactPageForRole(row, await pageRole(String(req.params.id), userId)));
   } catch (error) {
-    if (error instanceof PageConflict) res.status(409).json({ error: 'Page revision conflict' });
+    if (error instanceof InvalidNotebook) res.status(400).json({ error: 'Invalid notebook document' });
+    else if (error instanceof PageConflict) res.status(409).json({ error: 'Page revision conflict' });
     else if (error instanceof PageMissing) res.status(404).json({ error: 'Page not found' });
     else res.status(503).json({ error: 'Failed to patch page' });
   }

@@ -1,3 +1,4 @@
+import { isNotebookDoc, InvalidNotebook } from './notebookDocument';
 import { PoolClient } from 'pg';
 import { pool, query } from '../config/database';
 import { createHash } from 'crypto';
@@ -68,6 +69,7 @@ export async function savePageRevision(pageId: string, userId: string, revision:
     const role = current ? await pageRole(pageId, userId, client) : null;
     if (!current || !canEdit(role)) throw new PageMissing();
     if (!Number.isSafeInteger(revision) || revision !== Number(current.revision)) throw new PageConflict();
+    if (current.type === 'notebook' && 'content' in changes && !isNotebookDoc(changes.content)) throw new InvalidNotebook();
     if (Object.prototype.hasOwnProperty.call(changes, 'parent_page_id')) {
       if (current.owner_user_id !== userId) throw new PageMissing();
       const parent = changes.parent_page_id;

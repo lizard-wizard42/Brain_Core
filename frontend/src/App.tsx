@@ -16,6 +16,7 @@ import type { TerminalRequest } from './components/Terminal/TerminalDrawer';
 import type { Page } from './types';
 import terminalIconUrl from './assets/icons/terminal.svg';
 import notesIconUrl from './assets/icons/notes.svg';
+import notebookIconUrl from './assets/icons/notebook.svg';
 
 function buildPagePath(id: string): string {
   return `/page/${id}`;
@@ -32,12 +33,12 @@ function buildTerminalPath(request: TerminalRequest): string {
   return `/terminal/${encodeURIComponent(request.key)}?${params.toString()}`;
 }
 
-function createPageTab(page: { id: string; title: string; icon?: string | null }, separateTab = false): Tab {
+function createPageTab(page: { id: string; title: string; icon?: string | null; type?: string }, separateTab = false): Tab {
   const tabId = separateTab ? page.id + ':' + Date.now() : page.id;
   return {
     id: tabId,
     title: page.title,
-    icon: page.icon,
+    icon: page.icon || (page.type === 'notebook' ? notebookIconUrl : undefined),
     path: separateTab ? buildPagePath(page.id) + '?tab=' + encodeURIComponent(tabId) : buildPagePath(page.id),
   };
 }
@@ -71,6 +72,7 @@ const isTerminalEnabled = () => import.meta.env.VITE_TERMINAL_ENABLED === 'true'
 // first paint on mobile/Tailnet does not pay for code the user may never open.
 const RememberPage = lazy(() => import('./pages/RememberPage').then((module) => ({ default: module.RememberPage })));
 const Editor = lazy(() => import('./components/Editor/Editor').then((module) => ({ default: module.Editor })));
+const NotebookEditor = lazy(() => import('./components/Notebook/NotebookEditor').then((module) => ({ default: module.NotebookEditor })));
 const InfiniteRenderer = lazy(() => import('./components/Infinite/InfiniteRenderer').then((module) => ({ default: module.InfiniteRenderer })));
 const TerminalDrawer = lazy(() => import('./components/Terminal/TerminalDrawer').then((module) => ({ default: module.TerminalDrawer })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then((module) => ({ default: module.SettingsPage })));
@@ -192,6 +194,10 @@ function PageView({ onRefresh, onPageOpen, tabs, onOpenTab, onPageNavigate }: Pa
   if (loading) return <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">Carregando…</div>;
   if (error) return <div className="flex-1 flex items-center justify-center text-red-400 text-sm">{error}</div>;
   if (!page) return null;
+
+  if (page.type === 'notebook') {
+    return <Suspense fallback={<RouteFallback />}><NotebookEditor key={page.id} page={page} onRefresh={onRefresh} /></Suspense>;
+  }
 
   if (page.type === 'infinite') {
     return (

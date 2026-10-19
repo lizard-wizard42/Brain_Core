@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — handwriting notebooks
+
+- Add Notebook (Caderno) as a third page format, with an original notebook icon and entry below Infinite in the page/subpage creation flow.
+- Write editable vector ink with pen/highlighter, erase whole strokes, select/move ink and text, undo/redo, add typed boxes and navigate multiple sheets.
+- Preview and apply blank, ruled, grid, dotted or Oxford paper, independent of writing. Fit/zoom and finger-pan controls support small screens.
+- Save with serialized revision-aware writes, account-scoped local drafts, visible error/conflict recovery and downloadable/importable editable copies. Existing page trash, sharing and backup boundaries apply.
+- Document bounded version-1 snapshots, browser/device limitations and pending physical S Pen validation. No new database migration or APK is required.
+
 ## Unreleased — interactive checklists, note trash and local dates
 
 - Mark/unmark checklist items directly on note cards. A dedicated atomic API preserves other items, content, tags and reminder state.

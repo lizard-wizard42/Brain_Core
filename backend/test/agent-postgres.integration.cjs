@@ -603,3 +603,41 @@ test('trash persists, isolates accounts and hides notes from search, MCP and rem
   assert.ok(!(await quickNote('GET', '/trash')).data.notes.some(n => n.id === id));
   assert.equal((await quickNote('POST', `/${id}/restore`, {})).status, 404);
 });
+
+test('notebooks persist editable sheets with revision history and preserve account and viewer boundaries', async () => {
+  const headers = user => ({ 'content-type': 'application/json', authorization: `Bearer ${jwt.sign({ sub:user, sv:1, type:'access' }, process.env.JWT_SECRET)}` });
+  const request = async (route, method='GET', body, user=owner) => {
+    const r = await fetch(`${origin}/api/pages${route}`, { method, headers:headers(user), ...(body === undefined ? {} : {body:JSON.stringify(body)}) });
+    return {status:r.status,data:await r.json()};
+  };
+  const created = await request('', 'POST', {title:'Synthetic handwriting notebook',slug:'synthetic-notebook',type:'notebook'});
+  assert.equal(created.status,201);
+  const page=created.data;
+  assert.equal(page.type,'notebook'); assert.equal(page.content.notebook,true); assert.equal(page.content.sheets.length,1);
+  const doc=structuredClone(page.content);
+  doc.sheets[0].strokes.push({id:'ink',tool:'pen',color:'#24344b',width:2,points:[{x:100,y:100,pressure:.2},{x:250,y:160,pressure:.8}]});
+  doc.sheets[0].texts.push({id:'text',x:100,y:200,width:320,text:'Fictional lesson',color:'#24344b',fontSize:20});
+  doc.sheets[0].paper='dots';
+  const saved=await request(`/${page.id}`,'PATCH',{revision:0,content:doc});
+  assert.equal(saved.status,200); assert.equal(saved.data.revision,1);
+  assert.deepEqual((await request(`/${page.id}`)).data.content,doc);
+  assert.equal((await request(`/${page.id}`,'PATCH',{revision:0,content:doc})).status,409);
+  assert.equal((await request(`/${page.id}`,'GET',undefined,other)).status,404);
+  assert.equal((await request(`/${page.id}`,'PATCH',{revision:1,content:doc},other)).status,404);
+  await query("INSERT INTO page_grants(page_id,user_id,role) VALUES ($1,$2,'viewer')",[page.id,other]);
+  const viewed=await request(`/${page.id}`,'GET',undefined,other);
+  assert.equal(viewed.status,200); assert.equal(viewed.data.access_role,'viewer'); assert.deepEqual(viewed.data.content,doc);
+  assert.equal((await request(`/${page.id}`,'PATCH',{revision:1,content:doc},other)).status,404);
+  const bad=structuredClone(doc);bad.sheets[0].strokes[0].points[0].x=900;
+  assert.equal((await request(`/${page.id}`,'PATCH',{revision:1,content:bad})).status,400);
+  assert.equal((await request(`/${page.id}`,'PUT',{revision:1,content:{type:'doc',content:[]}})).status,400);
+  assert.equal((await request('', 'POST', {title:'Invalid notebook',slug:'invalid',type:'notebook',content:bad})).status,400);
+  const unchanged=await request(`/${page.id}`); assert.equal(unchanged.data.revision,1);assert.deepEqual(unchanged.data.content,doc);
+  const versions=(await request(`/${page.id}/versions`)).data.versions;
+  assert.equal(versions.length,2);assert.deepEqual(versions[0].content,doc);
+  assert.equal((await call('pages','get',{id:page.id})).status,404,'MCP text operations cannot overwrite notebook ink');
+  assert.equal((await request(`/${page.id}`,'DELETE')).status,200);
+  assert.equal((await request(`/${page.id}`)).status,404);
+  assert.equal((await request(`/${page.id}/restore`,'POST',{})).status,200);
+  assert.deepEqual((await request(`/${page.id}`)).data.content,doc);
+});

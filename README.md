@@ -6,6 +6,8 @@ Brain Core runs on a computer you control. Its database, uploads, and optional
 recordings live in persistent local volumes. The standard Docker installation
 needs no cloud account, API key, GPU, or external sync service.
 
+**Notebook** adds handwriting-focused pages alongside rich-text notes and Infinite: editable pen/highlighter strokes, typed text boxes, multiple sheets and selectable paper. See the [Notebook guide](docs/NOTEBOOK.md) for controls, saving and device limits.
+
 Android **1.1.5** also preserves automatic voice suggestions in the native timeline and reuses confirmed voice references. Android 1.1.4 introduced native reminder and transcription notifications, a white status-bar icon, and background startup preparation. Notes supports direct checklist toggles, recoverable deletion with Undo and Trash, and default reminder dates in your device timezone. Note editing preserves existing tags and reminder labels, and keeps your draft if saving fails. See the [Notes guide](docs/NOTES.md). See [notification behavior and limits](android/README.md#android-114-native-notifications).
 
 Recording reliability update: Android **1.1.2** preserves recording end times during delayed uploads; the updated server keeps valid phone links when signing out on the web and displays history in the viewer’s timezone. See the [Android update guide](docs/ANDROID.md#recording-reliability-in-android-112).
