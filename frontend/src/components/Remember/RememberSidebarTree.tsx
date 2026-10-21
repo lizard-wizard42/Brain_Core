@@ -68,18 +68,18 @@ export function RememberSidebarTree({ onOpen }: { onOpen: (date?: string) => voi
 
   const today = localDate();
   return <div className="mb-2">
-    <button type="button" aria-expanded={expanded} onClick={() => void toggleRoot()} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-gray-200 hover:bg-white/[0.04]">
+    <button type="button" aria-expanded={expanded} onClick={() => void toggleRoot()} className="sidebar-nav-link">
       <span aria-hidden="true" className="w-3 text-gray-500">{expanded ? '▾' : '▸'}</span><span>🧠</span><span className="flex-1 font-medium">Linha do tempo</span><span className={recording ? 'text-red-400' : 'text-gray-600'} aria-label={recording ? 'PC gravando' : 'PC sem gravação'}>●</span>
     </button>
-    {expanded && <div className="ml-5 border-l border-white/5 pl-1">
+    {expanded && <div className="sidebar-memory-children">
       {years === null && !error && <p className="px-2 py-1 text-[11px] text-gray-600">Carregando…</p>}
       {error && <p role="alert" className="px-2 py-1 text-[11px] text-red-400">{error}</p>}
       {years?.length === 0 && !error && <p className="px-2 py-2 text-[11px] leading-4 text-gray-500">Nenhuma memória sincronizada ainda.</p>}
-      {years?.map((year) => <div key={year}><button type="button" aria-expanded={Boolean(months[year])} onClick={() => void toggleYear(year)} className="w-full rounded px-2 py-1 text-left text-xs text-gray-400 hover:bg-white/[0.03]">{months[year] ? '▾' : '▸'} {year}</button>
+      {years?.map((year) => <div key={year}><button type="button" aria-expanded={Boolean(months[year])} onClick={() => void toggleYear(year)} className="sidebar-memory-branch">{months[year] ? '▾' : '▸'} {year}</button>
         {loadingKey === `year-${year}` && <p className="ml-5 px-2 py-1 text-[11px] text-gray-600">Carregando meses…</p>}
-        {months[year]?.map((month) => { const key = `${year}-${month}`; return <div key={month} className="ml-3"><button type="button" aria-expanded={Boolean(days[key])} onClick={() => void toggleMonth(year, month)} className="w-full rounded px-2 py-1 text-left text-xs text-gray-400 hover:bg-white/[0.03]">{days[key] ? '▾' : '▸'} {monthNames[month - 1]}</button>
+        {months[year]?.map((month) => { const key = `${year}-${month}`; return <div key={month} className="ml-3"><button type="button" aria-expanded={Boolean(days[key])} onClick={() => void toggleMonth(year, month)} className="sidebar-memory-branch">{days[key] ? '▾' : '▸'} {monthNames[month - 1]}</button>
           {loadingKey === `month-${key}` && <p className="ml-5 px-2 py-1 text-[11px] text-gray-600">Carregando dias…</p>}
-          {days[key]?.map((date) => <button type="button" key={date} onClick={() => onOpen(date)} className="ml-5 block rounded px-2 py-1 text-xs text-gray-500 hover:bg-white/[0.03] hover:text-gray-300">{Number(date.slice(8))}{date === today ? ' — Hoje' : ''}</button>)}</div>; })}
+          {days[key]?.map((date) => <button type="button" key={date} onClick={() => onOpen(date)} className="sidebar-memory-branch sidebar-memory-day">{Number(date.slice(8))}{date === today ? ' — Hoje' : ''}</button>)}</div>; })}
       </div>)}
     </div>}
   </div>;
