@@ -86,3 +86,6 @@
   .notebook-paper-dialog { padding: 18px; } .notebook-paper-options { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
   .notebook-modal-backdrop { padding: 12px; } .notebook-dialog-heading h2 { font-size: 19px; }
 }
+.notebook-input-chip { flex-shrink: 0; padding: 3px 10px; border-radius: 999px; font-size: 12px; color: var(--theme-muted); border: 1px solid var(--theme-border); white-space: nowrap; }
+.notebook-input-pen { color: #166534; border-color: #16a34a66; background: #16a34a1a; }
+.notebook-input-warn { color: #92400e; border-color: #d9770666; background: #d977061a; }

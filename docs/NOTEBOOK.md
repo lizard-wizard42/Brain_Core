@@ -10,6 +10,8 @@ Create a page and choose **Caderno / Notebook**, below Infinite. The same border
 - Choose Text and tap a sheet to add a typed text box. Use Text again to edit it, or Select to move/delete it.
 - Mouse drawing works on desktop. On touch devices, a finger moves the sheet by default; enable **Draw with finger** explicitly to draw without a pen. The Hand tool always pans. Zoom buttons and Fit to width remain available.
 
+**Checking that the pen is recognized.** Hover the pen over the sheet: a small blue ring follows it, and the options bar shows **Caneta detectada** (pen detected). If the bar shows **Toque fino** instead, the browser or WebView is reporting the S Pen as a touch contact; enable **Desenhar com dedo** to write with it. If a gesture ever loses its release event, the next pen touch now recovers instead of being ignored.
+
 The implementation uses pointer capture, available coalesced pointer samples, pressure-aware outlines and animation-frame drawing. Touch contacts received during/recently after pen input are ignored as a best-effort precaution. Hardware palm rejection, pen latency and pressure quality depend on the device and browser; they are not guaranteed or certified. Finger pan and button zoom are supported; custom two-finger pinch/rotation is not implemented.
 
 ## Sheets and paper

@@ -3,6 +3,8 @@ import type { InkPoint, NotebookSheet, NotebookStroke } from '../../types';
 import { clamp, moveSelection, paperBackground, SHEET_HEIGHT, SHEET_WIDTH, strokeHit, strokeIntersectsRect, strokePath, textHeight } from './notebookModel';
 
 export type NotebookTool = 'pen' | 'highlighter' | 'eraser' | 'select' | 'text' | 'hand';
+/** What kind of pointer was last seen on the sheet; lets the editor show whether the pen is recognized. */
+export type NotebookInput = { kind: 'pen' | 'touch' | 'mouse'; pressure: number; smallTouch: boolean };
 type Gesture = { pointerId: number; start: InkPoint; current: InkPoint } & (
   { kind: 'ink'; stroke: NotebookStroke } | { kind: 'erase'; sheet: NotebookSheet } |
   { kind: 'select' } | { kind: 'move'; original: NotebookSheet } |
@@ -17,12 +19,14 @@ const Ink = memo(function Ink({ stroke, selected }: { stroke: NotebookStroke; se
     style={selected ? { filter: 'drop-shadow(0 0 2px #2563eb)' } : undefined} />;
 });
 
-export function NotebookCanvas({ sheet, tool, color, width, fingerDrawing, zoom, locked, onChange, onLimit }: {
+export function NotebookCanvas({ sheet, tool, color, width, fingerDrawing, zoom, locked, onChange, onLimit, onInput }: {
   sheet: NotebookSheet; tool: NotebookTool; color: string; width: number; fingerDrawing: boolean;
   zoom: number; locked: boolean; onChange: (sheet: NotebookSheet) => boolean; onLimit: () => void;
+  onInput?: (input: NotebookInput) => void;
 }) {
   const surface = useRef<SVGSVGElement>(null), livePath = useRef<SVGPathElement>(null);
   const gesture = useRef<Gesture | null>(null), frame = useRef<number>(0), penAt = useRef(0);
+  const lastEvent = useRef(0), lastKind = useRef(''), ring = useRef<SVGCircleElement>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [preview, setPreview] = useState<NotebookSheet | null>(null);
   const [selection, setSelection] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
@@ -52,8 +56,34 @@ export function NotebookCanvas({ sheet, tool, color, width, fingerDrawing, zoom,
     const current = gesture.current;
     if (current?.kind === 'ink') livePath.current?.setAttribute('d', strokePath(current.stroke));
   };
+  // Report the pointer kind only when it changes, so the editor can say "pen detected" without re-rendering on every move.
+  const report = (e: ReactPointerEvent<SVGSVGElement>) => {
+    const kind = e.pointerType === 'pen' || e.pointerType === 'touch' ? e.pointerType : 'mouse';
+    const smallTouch = kind === 'touch' && e.width <= 4 && e.height <= 4;
+    const key = `${kind}${smallTouch ? '-small' : ''}`;
+    if (lastKind.current !== key) { lastKind.current = key; onInput?.({ kind, pressure: e.pressure, smallTouch }); }
+  };
+  // A gesture whose pointerup/cancel never arrived (lost capture, re-render, browser quirk) must not block the pen forever.
+  const dropGesture = () => {
+    const held = gesture.current;
+    if (!held) return;
+    if (held.kind === 'ink' && held.stroke.points.length > 1 && !onChange({ ...sheet, strokes: [...sheet.strokes, held.stroke] })) onLimit();
+    gesture.current = null; setPreview(null); setSelection(null);
+    cancelAnimationFrame(frame.current); frame.current = 0;
+    livePath.current?.setAttribute('d', '');
+  };
+  const moveRing = (e: ReactPointerEvent<SVGSVGElement>) => {
+    const dot = ring.current;
+    if (!dot) return;
+    if (e.pointerType !== 'pen' || e.buttons !== 0 || gesture.current) { dot.style.visibility = 'hidden'; return; }
+    const p = point(e);
+    dot.setAttribute('cx', String(p.x)); dot.setAttribute('cy', String(p.y)); dot.style.visibility = 'visible';
+  };
   const pointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
     if ((e.target as Element).closest('foreignObject')) return;
+    report(e);
+    if (gesture.current && (e.pointerType === 'pen' || Date.now() - lastEvent.current > 1500)) dropGesture();
+    lastEvent.current = Date.now();
     if (e.pointerType === 'pen') penAt.current = Date.now();
     if (gesture.current || (e.pointerType === 'touch' && (Date.now() - penAt.current < 700 || e.width > 45 || e.height > 45))) return;
     if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 1) return;
@@ -88,6 +118,7 @@ export function NotebookCanvas({ sheet, tool, color, width, fingerDrawing, zoom,
   };
   const pointerMove = (e: ReactPointerEvent<SVGSVGElement>) => {
     if (e.pointerType === 'pen') penAt.current = Date.now();
+    report(e); lastEvent.current = Date.now(); moveRing(e);
     const current = gesture.current;
     if (!current || current.pointerId !== e.pointerId) return;
     const p = point(e); current.current = p;
@@ -147,9 +178,11 @@ export function NotebookCanvas({ sheet, tool, color, width, fingerDrawing, zoom,
         role="img" aria-label="Folha do caderno: escreva com caneta ou mouse; use Texto para digitar"
         style={{ touchAction: 'none', cursor: locked || tool === 'hand' ? 'grab' : tool === 'text' ? 'text' : 'crosshair' }}
         onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish}
+        onPointerLeave={() => { if (ring.current) ring.current.style.visibility = 'hidden'; }}
         onContextMenu={e => e.preventDefault()}>
         {visible.strokes.map(stroke => <Ink key={stroke.id} stroke={stroke} selected={selected.has(stroke.id) && tool === 'select'} />)}
         <path ref={livePath} strokeLinecap="round" strokeLinejoin="round" />
+        <circle ref={ring} r="7" fill="none" stroke="#2563eb" strokeWidth="1.5" opacity=".75" pointerEvents="none" style={{ visibility: 'hidden' }} />
         {visible.texts.map(text => <foreignObject key={text.id} x={text.x} y={text.y} width={text.width} height={textHeight(text)}
           style={{ pointerEvents: tool === 'text' && !locked ? 'auto' : 'none' }}>
           <textarea aria-label="Texto na folha" autoFocus={editing === text.id} value={text.text} readOnly={locked || tool !== 'text'}

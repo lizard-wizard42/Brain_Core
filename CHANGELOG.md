@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — notebook pen recognition
+
+- The notebook sheet recovers when an earlier touch or pen gesture never received its release event: before, that stuck gesture made the sheet ignore the pen until the page was reloaded. A pen touch now always takes over, keeping any ink already received.
+- The options bar shows what the sheet receives (**Caneta detectada**, **Toque**, **Mouse**, or a **Toque fino** hint to enable "Desenhar com dedo" when a stylus is reported as touch), and a blue ring follows the pen while it hovers, so an S Pen that is not recognized is visible at once.
+
 ## Unreleased — one size standard for the sidebar and page tree
 
 - Sidebar and tree sizes now come from shared tokens in `theme.css` (`--tree-row-height`, `--tree-indent`, `--tree-icon-size`, `--tree-font-size`, `--touch-target`, `--sidebar-footer-height`, `--sidebar-width`). Desktop with a mouse is compact (28 px rows, 14 px indent, 13 px titles, 32 px controls, 224 px sidebar); phones, tablets and touch screens keep 44 px touch targets.

@@ -17,8 +17,9 @@ beforeEach(() => {
 });
 function setup(options: { tool?: NotebookTool; sheet?: NotebookSheet; locked?: boolean; finger?: boolean } = {}) {
   const onChange = vi.fn<(sheet: NotebookSheet) => boolean>(() => true);
-  render(<NotebookCanvas sheet={options.sheet ?? newNotebook().sheets[0]} tool={options.tool ?? 'pen'} color="#24344b" width={2} fingerDrawing={options.finger ?? false} zoom={1} locked={options.locked ?? false} onChange={onChange} onLimit={vi.fn()} />);
-  return { svg: screen.getByRole('img'), onChange };
+  const onInput = vi.fn();
+  render(<NotebookCanvas sheet={options.sheet ?? newNotebook().sheets[0]} tool={options.tool ?? 'pen'} color="#24344b" width={2} fingerDrawing={options.finger ?? false} zoom={1} locked={options.locked ?? false} onChange={onChange} onLimit={vi.fn()} onInput={onInput} />);
+  return { svg: screen.getByRole('img'), onChange, onInput };
 }
 const pen = { pointerId: 1, pointerType: 'pen', clientX: 20, clientY: 30, pressure: .7, button: 0 };
 it('preserves received ink when pointer is cancelled and ignores duplicate capture loss', () => {
@@ -64,4 +65,49 @@ it('selects a long stroke crossing the selection rectangle even when samples lie
   fireEvent.pointerUp(svg, { ...pen, clientX: 250, clientY: 120 });
   fireEvent.click(screen.getByRole('button', { name: 'Apagar seleção' }));
   expect(onChange.mock.calls[0][0].strokes).toEqual([]);
+});
+
+it('lets the pen draw even when an earlier touch gesture never received its pointerup', () => {
+  const { svg, onChange } = setup();
+  fireEvent.pointerDown(svg, { ...pen, pointerId: 7, pointerType: 'touch' }); // pans, and the release is lost
+  fireEvent.pointerDown(svg, pen);
+  fireEvent.pointerMove(svg, { ...pen, clientX: 90, clientY: 100 });
+  fireEvent.pointerUp(svg, pen);
+  expect(onChange).toHaveBeenCalledTimes(1);
+  expect((onChange.mock.calls[0][0] as NotebookSheet).strokes[0].points.length).toBeGreaterThan(1);
+});
+
+it('keeps the ink of a pen stroke whose end was lost when the next pen stroke starts', () => {
+  const { svg, onChange } = setup();
+  fireEvent.pointerDown(svg, pen);
+  fireEvent.pointerMove(svg, { ...pen, clientX: 90, clientY: 100 });
+  fireEvent.pointerDown(svg, { ...pen, pointerId: 2, clientX: 300, clientY: 300 }); // no up/cancel for pointer 1
+  fireEvent.pointerMove(svg, { ...pen, pointerId: 2, clientX: 340, clientY: 340 });
+  fireEvent.pointerUp(svg, { ...pen, pointerId: 2 });
+  expect(onChange).toHaveBeenCalledTimes(2);
+  expect((onChange.mock.calls[0][0] as NotebookSheet).strokes[0].points[1]).toMatchObject({ x: 90, y: 100 });
+});
+
+it('reports the kind of pointer it receives so the editor can show whether the pen is recognized', () => {
+  const { svg, onInput } = setup();
+  fireEvent.pointerMove(svg, { ...pen, buttons: 0 });
+  fireEvent.pointerMove(svg, { ...pen, clientX: 50 });
+  expect(onInput).toHaveBeenCalledTimes(1);
+  expect(onInput.mock.calls[0][0]).toMatchObject({ kind: 'pen', smallTouch: false });
+  fireEvent.pointerDown(svg, { ...pen, pointerId: 5, pointerType: 'touch', width: 2, height: 2 });
+  expect(onInput.mock.calls[1][0]).toMatchObject({ kind: 'touch', smallTouch: true });
+  fireEvent.pointerDown(svg, { ...pen, pointerId: 6, pointerType: 'mouse', pressure: 0 });
+  expect(onInput.mock.calls[2][0]).toMatchObject({ kind: 'mouse' });
+});
+
+it('shows a hover ring only while a pen hovers without touching the sheet', () => {
+  const { svg } = setup();
+  const ring = svg.querySelector('circle') as SVGCircleElement;
+  expect(ring.style.visibility).toBe('hidden');
+  fireEvent.pointerMove(svg, { ...pen, buttons: 0, clientX: 120, clientY: 140 });
+  expect(ring.style.visibility).toBe('visible');
+  expect(ring.getAttribute('cx')).toBe('120');
+  fireEvent.pointerDown(svg, pen);
+  fireEvent.pointerMove(svg, { ...pen, buttons: 1, clientX: 130, clientY: 150 });
+  expect(ring.style.visibility).toBe('hidden');
 });

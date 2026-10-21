@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { NotebookDoc, NotebookSheet, Page } from '../../types';
-import { NotebookCanvas, type NotebookTool } from './NotebookCanvas';
+import { NotebookCanvas, type NotebookInput, type NotebookTool } from './NotebookCanvas';
 import { NotebookIcon } from './NotebookIcon';
 import { NotebookToolIcon } from './NotebookToolIcon';
 import { NotebookPaperDialog } from './NotebookPaperDialog';
@@ -27,7 +27,7 @@ export function NotebookEditor({ page, onRefresh }: { page: Page; onRefresh?: ()
   const [tool, setTool] = useState<NotebookTool>('pen'), [color, setColor] = useState(INK_COLORS[0]);
   const [width, setWidth] = useState(2), [zoom, setZoom] = useState(.85), [finger, setFinger] = useState(false);
   const [showPaper, setShowPaper] = useState(false), [showPages, setShowPages] = useState(false);
-  const [notice, setNotice] = useState('');
+  const [notice, setNotice] = useState(''), [input, setInput] = useState<NotebookInput | null>(null);
   const scroller = useRef<HTMLDivElement>(null), importInput = useRef<HTMLInputElement>(null);
   const manualZoom = useRef(false);
   useEffect(() => {
@@ -94,6 +94,11 @@ export function NotebookEditor({ page, onRefresh }: { page: Page; onRefresh?: ()
       <label>Traço<select aria-label="Espessura do traço" value={width} disabled={state.locked} onChange={e => setWidth(Number(e.target.value))}>{[1, 2, 4, 6].map(w => <option key={w} value={w}>{w} px</option>)}</select></label>
       <label className="notebook-checkbox"><input type="checkbox" checked={finger} disabled={state.locked} onChange={e => setFinger(e.target.checked)} />Desenhar com dedo</label>
       <span className="notebook-options-hint">{tool === 'text' ? 'Toque na folha para inserir texto' : tool === 'select' ? 'Contorne e arraste para mover' : tool === 'eraser' ? 'Apaga traços inteiros' : 'Caneta escreve · dedo move a folha'}</span>
+      <span role="status" aria-live="polite" className={`notebook-input-chip notebook-input-${input ? (input.smallTouch ? 'warn' : input.kind) : 'idle'}`}
+        title="Mostra o último tipo de entrada recebido pela folha. Passar a caneta sobre a folha mostra um círculo azul.">
+        {!input ? 'Passe a caneta sobre a folha para testar' : input.kind === 'pen' ? 'Caneta detectada'
+          : input.kind === 'mouse' ? 'Mouse detectado' : input.smallTouch ? 'Toque fino: se for a S Pen, ative "Desenhar com dedo"' : 'Toque: o dedo move a folha'}
+      </span>
     </div>
 
     <div className="notebook-body">
@@ -106,7 +111,7 @@ export function NotebookEditor({ page, onRefresh }: { page: Page; onRefresh?: ()
       </nav>}
       <div ref={scroller} className="notebook-workspace">
         <NotebookCanvas key={sheet.id} sheet={sheet} tool={tool} color={color} width={width} fingerDrawing={finger} zoom={zoom}
-          locked={state.locked} onChange={changeSheet} onLimit={limit} />
+          locked={state.locked} onChange={changeSheet} onLimit={limit} onInput={setInput} />
       </div>
     </div>
 
