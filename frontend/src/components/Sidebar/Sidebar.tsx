@@ -302,7 +302,8 @@ function PageNodeComponent({
     }
   };
 
-  const indent = 2 + Math.min(depth, 3) * 12;
+  // Recuo por nível vem do token --tree-indent (PC 14 px, celular 12 px); limite de 6 níveis para não esmagar o título
+  const indent = `calc(2px + ${Math.min(depth, 6)} * var(--tree-indent))`;
 
   // Compute drop position from mouse Y relative to the row
   const rowRef = useRef<HTMLDivElement>(null);
@@ -360,14 +361,14 @@ function PageNodeComponent({
     >
       {/* Drop indicator — BEFORE */}
       {isOver && dropPos === 'before' && (
-        <div style={{ marginLeft: `${indent}px` }} className="h-[2px] bg-blue-500 rounded-full mx-1 -mb-px" />
+        <div style={{ marginLeft: indent }} className="h-[2px] bg-blue-500 rounded-full mx-1 -mb-px" />
       )}
 
       <div
         ref={rowRef}
         className={`group sidebar-page-row ${isOver && dropPos === 'inside' ? 'ring-1 ring-blue-500/60 bg-blue-500/5' : ''}`}
         data-active={isActive || undefined}
-        style={{ paddingLeft: `${indent}px`, paddingRight: '0' }}
+        style={{ paddingLeft: indent, paddingRight: '0' }}
         onMouseDown={e => {
           if (e.button !== 1 || renaming) return;
           e.preventDefault();
@@ -438,7 +439,7 @@ function PageNodeComponent({
           <input
             autoFocus
             ref={renameInputRef}
-            className="flex-1 min-w-0 bg-white/5 text-[13px] text-gray-200 rounded px-1 py-0 outline-none border border-accent/70"
+            className="flex-1 min-w-0 bg-white/5 text-[length:var(--tree-font-size)] text-gray-200 rounded px-1 py-0 outline-none border border-accent/70"
             value={title}
             onChange={e => setTitle(e.target.value)}
             onClick={e => e.stopPropagation()}
@@ -488,7 +489,7 @@ function PageNodeComponent({
 
       {/* Drop indicator — AFTER */}
       {isOver && dropPos === 'after' && (
-        <div style={{ marginLeft: `${indent}px` }} className="h-[2px] bg-blue-500 rounded-full mx-1 -mt-px" />
+        <div style={{ marginLeft: indent }} className="h-[2px] bg-blue-500 rounded-full mx-1 -mt-px" />
       )}
 
       {/* Modal de confirmação */}
@@ -710,7 +711,7 @@ export const Sidebar = memo(function Sidebar({
   };
 
   return (
-    <aside className="brain-sidebar w-[min(86vw,320px)] md:w-56 h-full flex flex-col shrink-0" style={{ height: 'var(--app-viewport-height, 100%)' }}>
+    <aside className="brain-sidebar w-[var(--sidebar-width)] h-full flex flex-col shrink-0" style={{ height: 'var(--app-viewport-height, 100%)' }}>
       {/* Header */}
       <div className="sidebar-brand-row">
         <button type="button"

@@ -209,3 +209,28 @@ html, body, #root { background-color: var(--theme-background); color: var(--them
 .conversation-voice-setup p { margin-block: .5rem .75rem; color: var(--theme-muted); }
 .conversation-error { margin-top: .6rem; font-size: .75rem; color: var(--theme-text); }
 @media (max-width: 640px) { .conversation-bubble { max-width: 94%; padding-inline: .7rem; } .conversation-button, .conversation-input { min-height: 2.75rem; } .conversation-disclosure { padding-block: .65rem; } }
+
+/* Medidas da barra lateral e da árvore: uma fonte só para PC e celular.
+   PC (mouse): compacto. Celular, tablet e telas de toque: alvos de 44 px. */
+:root {
+  --sidebar-width: 224px;
+  --touch-target: 32px;
+  --tree-row-height: 28px;
+  --tree-indent: 14px;
+  --tree-icon-size: 18px;
+  --tree-font-size: 13px;
+  --sidebar-footer-height: 36px;
+}
+@media (max-width: 767px) {
+  :root { --sidebar-width: min(86vw, 320px); }
+}
+@media (max-width: 767px), (pointer: coarse) {
+  :root {
+    --touch-target: 44px;
+    --tree-row-height: 44px;
+    --tree-indent: 12px;
+    --tree-icon-size: 24px;
+    --tree-font-size: 14px;
+    --sidebar-footer-height: 44px;
+  }
+}
