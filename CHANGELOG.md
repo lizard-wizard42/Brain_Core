@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — notebook zoom and narrow-screen layout
+
+- Notebook zoom: two-finger pinch, double tap (fit/100%), Ctrl+wheel and Ctrl/Cmd +/-/0, multiplicative footer buttons, up to 300%, focal point preserved, manual zoom remembered per notebook. The initial zoom and "fit" now share one rule, so a phone in portrait opens with the sheet edge to edge instead of 43%.
+- Compact layout up to 550 px: one-row toolbar, one-row options (colors plus width popover), one-row footer under 56 px, "More" popovers (Escape and outside press close them), touch-sized controls, and a selection action bar that stays visible. Focus mode (F / menu / Escape) hides all bars.
+- A finger can place text boxes with the Text tool; empty text boxes are removed on blur; title and text typing is one undo step; Ctrl+Y redoes; the S Pen side button erases while held (not verified on a device).
+- Not done: two/three-finger undo and redo, custom colors, lasso/shapes, PDF export, continuous scroll, pixel eraser, performance work.
+
+## Unreleased — notebook pen recognition
+
+- The notebook sheet recovers when an earlier touch or pen gesture never received its release event: before, that stuck gesture made the sheet ignore the pen until the page was reloaded. A pen touch now always takes over, keeping any ink already received.
+- The options bar shows what the sheet receives (**Caneta detectada**, **Toque**, **Mouse**, or a **Toque fino** hint to enable "Desenhar com dedo" when a stylus is reported as touch), and a blue ring follows the pen while it hovers, so an S Pen that is not recognized is visible at once.
+
 ## Unreleased — one size standard for the sidebar and page tree
 
 - Sidebar and tree sizes now come from shared tokens in `theme.css` (`--tree-row-height`, `--tree-indent`, `--tree-icon-size`, `--tree-font-size`, `--touch-target`, `--sidebar-footer-height`, `--sidebar-width`). Desktop with a mouse is compact (28 px rows, 14 px indent, 13 px titles, 32 px controls, 224 px sidebar); phones, tablets and touch screens keep 44 px touch targets.

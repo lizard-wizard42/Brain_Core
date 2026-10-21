@@ -1,6 +1,6 @@
 import type { NotebookTool } from './NotebookCanvas';
 
-export function NotebookToolIcon({ tool }: { tool: NotebookTool | 'undo' | 'redo' | 'paper' | 'download' }) {
+export function NotebookToolIcon({ tool }: { tool: NotebookTool | 'undo' | 'redo' | 'paper' | 'download' | 'more' | 'focus' | 'restore' | 'width' }) {
   const paths: Record<typeof tool, string> = {
     pen: 'M4 20l1-5L16 4a2.2 2.2 0 013 3L8 18l-4 2zM14 6l4 4M5 15l3 3',
     highlighter: 'M4 20h8M6 16l3-5 5 5-5 2-3-2zM9 11l6-7 5 5-6 7',
@@ -12,6 +12,12 @@ export function NotebookToolIcon({ tool }: { tool: NotebookTool | 'undo' | 'redo
     redo: 'M16 5l5 5-5 5M21 10H11a6 6 0 00-6 6v3',
     paper: 'M6 3h9l4 4v14H6V3zM15 3v5h4M9 12h7M9 16h7',
     download: 'M12 3v12M7 10l5 5 5-5M4 17v4h16v-4',
+    more: '',
+    focus: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5',
+    restore: 'M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5',
+    width: '',
   };
+  if (tool === 'more') return <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.9" /><circle cx="12" cy="12" r="1.9" /><circle cx="19" cy="12" r="1.9" /></svg>;
+  if (tool === 'width') return <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16" strokeWidth="1" /><path d="M4 11h16" strokeWidth="2" /><path d="M4 17h16" strokeWidth="4" /></svg>;
   return <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[tool]} /></svg>;
 }
