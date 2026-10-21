@@ -1,3 +1,4 @@
+import { NotebookIcon } from '../Notebook/NotebookIcon';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -168,7 +169,7 @@ export function TypeSelectorModal({
   onSelect,
   onClose,
 }: {
-  onSelect: (type: 'note' | 'infinite') => void;
+  onSelect: (type: 'note' | 'infinite' | 'notebook') => void;
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -214,6 +215,10 @@ export function TypeSelectorModal({
               <div className="text-sm font-medium text-[var(--theme-text)]">Infinite</div>
               <div className="text-[11px] text-[var(--theme-muted)]">Espaço livre para ideias sem limites.</div>
             </div>
+          </button>
+          <button className="flex items-center gap-3 w-full p-3 rounded-xl bg-[var(--theme-card)] border border-[var(--theme-border)] hover:bg-[var(--theme-hover)] text-left" onClick={() => onSelect('notebook')}>
+            <div className="w-10 h-10 rounded-lg bg-emerald-500/15 flex items-center justify-center text-emerald-600"><NotebookIcon width={24} height={24} /></div>
+            <div className="flex-1"><div className="text-sm font-medium text-[var(--theme-text)]">Caderno</div><div className="text-[11px] text-[var(--theme-muted)]">Escreva à mão, desenhe e organize suas folhas.</div></div>
           </button>
         </div>
         <div className="flex gap-2 justify-end">

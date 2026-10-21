@@ -103,19 +103,24 @@ export function NotasComposer({
 }) {
   const [draft, setDraft] = useState<NoteDraft>(emptyDraft());
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const composerColor = noteColor(draft.color);
 
   useEffect(() => {
     if (!open) return;
     setDraft(initialDraft);
+    setSaveError(null);
   }, [initialDraft, open]);
 
   const handleCreate = async () => {
     setSaving(true);
+    setSaveError(null);
     try {
       await onCreate(draft);
       setDraft(emptyDraft());
       onClose();
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Não foi possível criar a nota. Tente novamente.');
     } finally {
       setSaving(false);
     }
@@ -123,22 +128,24 @@ export function NotasComposer({
 
   if (!open) {
     return (
-      <section className="rounded-2xl border border-[#2a2a2a] bg-[#1e1e1e] p-4">
+      <section className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-surface)] p-4">
         <div className="flex flex-col gap-4 rounded-xl bg-white/[0.03] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <button type="button" onClick={() => onOpen('note')} className="min-w-0 flex flex-1 items-center gap-3 text-left">
             <img src={NOTAS_ICON_URL} alt="Notas" className="h-10 w-10 shrink-0 rounded-xl bg-white/10 p-2 object-contain" draggable={false} />
             <span className="min-w-0">
-              <p className="text-[11px] uppercase tracking-[0.22em] text-gray-500">Notas</p>
-              <p className="mt-1.5 text-[15px] text-gray-300">Escreva uma nota…</p>
+              <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--theme-muted)]">Notas</p>
+              <p className="mt-1.5 text-[15px] text-[var(--theme-text)]">Escreva uma nota…</p>
             </span>
           </button>
           {onSearchChange && (
             <div className="w-full shrink-0 sm:max-w-[300px]">
               <input
+                type="search"
+                aria-label="Buscar notas"
                 value={search ?? ''}
                 onChange={(e) => onSearchChange(e.target.value)}
                 placeholder="Buscar notas..."
-                className="w-full rounded-xl border border-[#242424] bg-[#161616] px-4 py-2.5 text-[13px] text-white outline-none placeholder:text-gray-600 focus:border-[#3a3a3a]"
+                className="w-full rounded-xl border border-[var(--theme-border)] bg-[var(--theme-background)] px-4 py-2.5 text-[13px] text-[var(--theme-text)] outline-none placeholder:text-[var(--theme-muted)] focus:border-[var(--theme-primary)]"
               />
             </div>
           )}
@@ -157,7 +164,7 @@ export function NotasComposer({
           <img src={NOTAS_ICON_URL} alt="Notas" className="h-10 w-10 rounded-2xl bg-white/35 p-2 object-contain" draggable={false} />
           <p className="text-[12px] uppercase tracking-[0.22em] text-[#6e5d47]">Notas</p>
         </div>
-        <button type="button" onClick={onClose} className="h-9 w-9 rounded-full bg-black/5 text-[20px] leading-none text-[#5a4c39] hover:bg-black/10">×</button>
+        <button type="button" aria-label="Fechar nova nota" onClick={onClose} className="h-9 w-9 rounded-full bg-black/5 text-[20px] leading-none text-[#5a4c39] hover:bg-black/10">×</button>
       </div>
 
       <div className="mt-5 flex flex-col gap-4">
@@ -209,6 +216,7 @@ export function NotasComposer({
           )}
         </div>
 
+        {saveError && <p role="alert" className="rounded-xl border border-red-800/30 bg-red-100 px-3 py-2 text-sm text-red-900">{saveError}</p>}
         <div className="flex items-center justify-end gap-3">
           <button type="button" disabled={saving} onClick={handleCreate} className="rounded-2xl bg-[#17120d] px-4 py-3 text-[13px] font-medium text-white hover:bg-black transition-colors disabled:opacity-50">
             {saving ? 'Salvando…' : '📝 Criar nota'}

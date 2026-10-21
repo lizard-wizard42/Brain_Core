@@ -7,15 +7,18 @@ export function NotasCard({
   note,
   onSave,
   onDelete,
+  onToggleChecklist,
 }: {
   note: RememberNote;
   onSave: (note: RememberNote, draft: NoteDraft) => Promise<void>;
   onDelete: (note: RememberNote) => Promise<void>;
+  onToggleChecklist?: (note: RememberNote, itemId: string, checked: boolean) => Promise<void>;
 }) {
   const color = noteColor(note.color);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<NoteDraft>(() => toDraft(note));
   const [busy, setBusy] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const editColor = noteColor(draft.color);
 
   useEffect(() => {
@@ -26,9 +29,12 @@ export function NotasCard({
 
   const save = async () => {
     setBusy(true);
+    setSaveError(null);
     try {
       await onSave(note, draft);
       setEditing(false);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Não foi possível salvar a nota. Tente novamente.');
     } finally {
       setBusy(false);
     }
@@ -36,15 +42,18 @@ export function NotasCard({
 
   const remove = async () => {
     setBusy(true);
+    setSaveError(null);
     try {
       await onDelete(note);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Não foi possível mover a nota para a lixeira.');
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <article
+    <article aria-busy={busy}
       className="group rounded-[18px] border p-4 transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_18px_28px_rgba(0,0,0,0.18)]"
       style={{ background: color.card, borderColor: color.border, boxShadow: '0 10px 24px rgba(0,0,0,0.18)' }}
     >
@@ -57,7 +66,8 @@ export function NotasCard({
         </div>
         <button
           type="button"
-          onClick={() => setEditing((current) => !current)}
+          disabled={busy}
+          onClick={() => { setSaveError(null); setEditing((current) => !current); }}
           aria-label={editing ? 'Fechar edição' : 'Editar nota'}
           title={editing ? 'Fechar edição' : 'Editar nota'}
           className="shrink-0 rounded-xl bg-black/6 px-2.5 py-2 text-[15px] text-[#241b12] hover:bg-black/10"
@@ -71,8 +81,16 @@ export function NotasCard({
       {!!note.checklist.length && (
         <div className="mt-3 flex flex-col gap-2">
           {note.checklist.map((item) => (
-            <label key={item.id} className="flex items-start gap-2 text-[12px] text-[#33271b]">
-              <input type="checkbox" checked={item.checked} readOnly className="mt-0.5 accent-[#241b12]" />
+            <label key={item.id} className="flex min-h-11 items-start gap-2 py-2 text-[12px] text-[#33271b]">
+              <input type="checkbox" checked={item.checked} disabled={busy || editing || !onToggleChecklist}
+                onChange={async event => {
+                  if (!onToggleChecklist) return;
+                  const checked = event.target.checked;
+                  setBusy(true); setSaveError(null);
+                  try { await onToggleChecklist(note, item.id, checked); }
+                  catch (error) { setSaveError(error instanceof Error ? error.message : 'Não foi possível atualizar o item. Tente novamente.'); }
+                  finally { setBusy(false); }
+                }} className="mt-0.5 accent-[#241b12]" />
               <span className={item.checked ? 'line-through opacity-60' : ''}>{item.text}</span>
             </label>
           ))}
@@ -80,6 +98,7 @@ export function NotasCard({
         </div>
       )}
 
+      {!editing && saveError && <p role="alert" className="mt-3 rounded-xl bg-red-100 p-3 text-sm text-red-900">{saveError}</p>}
       {editing && (
         <div className="mt-4 rounded-[18px] border p-3 animate-[composer-pop_160ms_ease-out]" style={{ background: editColor.card, borderColor: editColor.border }}>
           <div className="flex flex-col gap-3">
@@ -124,8 +143,9 @@ export function NotasCard({
                 </label>
               </div>
             )}
+            {saveError && <p role="alert" className="rounded-xl border border-red-800/30 bg-red-100 px-3 py-2 text-sm text-red-900">{saveError}</p>}
             <div className="flex items-center justify-between gap-3 pt-1">
-              <button type="button" onClick={remove} disabled={busy} className="rounded-xl px-3 py-2 text-[12px] text-[#8a2b2b] hover:bg-red-500/10">Apagar</button>
+              <button type="button" onClick={remove} disabled={busy} className="rounded-xl px-3 py-2 text-[12px] text-[#8a2b2b] hover:bg-red-500/10">Mover para lixeira</button>
               <button type="button" onClick={save} disabled={busy} className="rounded-xl bg-white px-3 py-2 text-[12px] font-medium text-black">{busy ? 'Salvando…' : 'Salvar'}</button>
             </div>
           </div>

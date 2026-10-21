@@ -1,6 +1,6 @@
 // BASE_URL é o base path do Vite (/ em LAN e Tailnet)
 // Garante prefixo correto tanto para API quanto para redirects
-import type { InfiniteDoc, TiptapDoc } from '../types';
+import type { InfiniteDoc, NotebookDoc, TiptapDoc } from '../types';
 import { clearBrowserSession, prepareBrowserSession } from './browserSession';
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, ''); // ex: "" ou "/brain"
@@ -348,10 +348,10 @@ export const api = {
   restorePageVersion: (id: string, versionId: string) =>
     request<import('../types').Page>(`/api/pages/${id}/versions/${versionId}/restore`, { method: 'POST' }),
 
-  createPage: (body: { content?: TiptapDoc; parent_page_id?: string | null; title: string; slug: string; is_section?: boolean; type?: 'note' | 'infinite' }) =>
+  createPage: (body: { content?: TiptapDoc | InfiniteDoc | NotebookDoc; parent_page_id?: string | null; title: string; slug: string; is_section?: boolean; type?: 'note' | 'infinite' | 'notebook' }) =>
     request<import('../types').Page>('/api/pages', { method: 'POST', body: JSON.stringify(body) }),
 
-  savePage: (id: string, body: { content: TiptapDoc | InfiniteDoc; title?: string }, options?: { keepalive?: boolean }) =>
+  savePage: (id: string, body: { content: TiptapDoc | InfiniteDoc | NotebookDoc; title?: string }, options?: { keepalive?: boolean }) =>
     writePageRevision(id, 'PUT', body, options?.keepalive),
 
   deletePage: (id: string) =>
@@ -359,7 +359,7 @@ export const api = {
 
   renamePage: (id: string, title: string) => writePageRevision(id, 'PATCH', { title }),
 
-  patchPage: (id: string, data: { icon?: string; cover_url?: string | null; cover_position_y?: number; title?: string; sort_order?: number; parent_page_id?: string | null; status?: string | null; due_date?: string | null; tags?: string[]; working_directory?: string | null; content?: TiptapDoc | InfiniteDoc }, options?: { keepalive?: boolean }) =>
+  patchPage: (id: string, data: { icon?: string; cover_url?: string | null; cover_position_y?: number; title?: string; sort_order?: number; parent_page_id?: string | null; status?: string | null; due_date?: string | null; tags?: string[]; working_directory?: string | null; content?: TiptapDoc | InfiniteDoc | NotebookDoc }, options?: { keepalive?: boolean }) =>
     writePageRevision(id, 'PATCH', data, options?.keepalive),
 
   uploadCover: async (id: string, file: File): Promise<import('../types').Page> => {
@@ -510,7 +510,7 @@ export const api = {
     request<import('../types').RememberNote>('/api/remember', {
       method: 'POST',
       body: JSON.stringify(body),
-    }),
+    }).then(refreshNativeReminders),
 
   updateRememberNote: (id: string, body: {
     title: string;
@@ -526,10 +526,27 @@ export const api = {
     request<import('../types').RememberNote>(`/api/remember/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(body),
+    }).then(refreshNativeReminders),
+
+  listTrashedRememberNotes: () =>
+    request<{ notes: import('../types').RememberNote[] }>('/api/remember/trash'),
+
+  restoreRememberNote: (id: string) =>
+    request<import('../types').RememberNote>(`/api/remember/${id}/restore`, { method: 'POST' }).then(refreshNativeReminders),
+
+  checkRememberNoteItem: (id: string, itemId: string, checked: boolean) =>
+    request<import('../types').RememberNote>(`/api/remember/${id}/checklist/${encodeURIComponent(itemId)}`, {
+      method: 'PATCH', body: JSON.stringify({ checked }),
     }),
 
   deleteRememberNote: (id: string) =>
     request<{ deleted: boolean }>(`/api/remember/${id}`, {
       method: 'DELETE',
-    }),
+    }).then(refreshNativeReminders),
 };
+
+function refreshNativeReminders<T>(result: T): T {
+  // Android fetches account-scoped metadata; no note content crosses the bridge.
+  try { window.brainCoreNativeBridge?.postMessage(JSON.stringify({ action: 'syncReminders' })); } catch { /* Older APKs can ignore this optional action. */ }
+  return result;
+}

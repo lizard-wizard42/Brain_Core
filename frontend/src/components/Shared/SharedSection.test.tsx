@@ -32,10 +32,10 @@ function shared(id: string, title: string, role: SharedPageSummary['role']): Sha
 const received = [shared('r1', 'Planta da casa', 'viewer')];
 const sent = [shared('s1', 'Orçamento da reforma', 'owner'), shared('r1', 'Duplicada', 'owner')];
 
-function renderSection() {
+function renderSection(props: React.ComponentProps<typeof SharedSection> = {}) {
   return render(
     <SharedPagesProvider>
-      <SharedSection />
+      <SharedSection {...props} />
     </SharedPagesProvider>,
   );
 }
@@ -71,6 +71,50 @@ describe('SharedSection', () => {
 
     fireEvent.change(screen.getByLabelText('Buscar páginas compartilhadas'), { target: { value: 'inexistente' } });
     expect(screen.getByText('Nada encontrado em Compartilhados.')).toBeInTheDocument();
+  });
+
+  it('clears search without leaving the field and keeps the shared section collapsible', async () => {
+    renderSection();
+    await screen.findByText('Planta da casa');
+    const search = screen.getByLabelText('Buscar páginas compartilhadas');
+    fireEvent.change(search, { target: { value: 'orçamento' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar busca de compartilhados' }));
+    expect(search).toHaveValue('');
+    expect(search).toHaveFocus();
+    expect(screen.getByText('Planta da casa')).toBeInTheDocument();
+
+    const toggle = screen.getByRole('button', { name: /Compartilhados/ });
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByLabelText('Buscar páginas compartilhadas')).not.toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(screen.getByText('Planta da casa')).toBeInTheDocument();
+  });
+
+  it('opens the selected page and exposes management only for its owner', async () => {
+    const onOpenPage = vi.fn();
+    renderSection({ activePage: 'r1', onOpenPage });
+    await screen.findByText('Planta da casa');
+    const open = screen.getByRole('button', { name: /Planta da casa/ });
+    expect(open).toHaveAttribute('aria-current', 'page');
+    expect(open).toHaveAttribute('title', 'Planta da casa');
+    fireEvent.click(open);
+    expect(onOpenPage).toHaveBeenCalledWith(received[0]);
+    expect(screen.queryByRole('button', { name: 'Gerenciar acesso a Planta da casa' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Gerenciar acesso a Orçamento da reforma' })).toBeVisible();
+    expect(api.setPageGrant).not.toHaveBeenCalled();
+    expect(api.removePageGrant).not.toHaveBeenCalled();
+  });
+
+  it('keeps a received-scope failure visible when sent pages load', async () => {
+    vi.mocked(api.getSharedPages).mockImplementation(async (scope) => {
+      if (scope === 'received') throw new Error('offline');
+      return [sent[0]];
+    });
+    renderSection();
+    expect(await screen.findByText('Orçamento da reforma')).toBeInTheDocument();
+    expect(screen.getByText('Não foi possível carregar os compartilhados')).toBeInTheDocument();
   });
 
   it('shows understandable empty states when nothing is shared', async () => {

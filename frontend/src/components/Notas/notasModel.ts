@@ -1,3 +1,4 @@
+import { localDate } from '../../services/localDate';
 import type { RememberChecklistItem, RememberNote } from '../../types';
 
 import notesIconUrl from '../../assets/icons/notes.svg';
@@ -33,7 +34,7 @@ export type NoteDraft = {
 };
 
 export function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return localDate();
 }
 
 export function emptyDraft(): NoteDraft {
