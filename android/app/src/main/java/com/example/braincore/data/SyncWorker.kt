@@ -97,19 +97,10 @@ class SyncWorker(context: Context, parameters: WorkerParameters) : CoroutineWork
                 val total = progress?.optInt("total") ?: 0
                 when (status) {
                     "ready" -> {
-                        val parsedTurns = mutableListOf<Turn>()
-                        val turns = result.optJSONArray("turns")
-                        if (turns != null) for (index in 0 until turns.length()) {
-                            val turn = turns.optJSONObject(index) ?: continue
-                            val text = turn.optString("text").trim()
-                            val spokenAt = turn.optString("start_at").takeIf { it.isNotBlank() && it != "null" }
-                                ?.let { runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull() }
-                            if (text.isNotEmpty()) parsedTurns.add(Turn(
-                                sessionId = sessionId, speaker = turn.optString("speaker", "unknown"),
-                                text = text, timestamp = spokenAt ?: 0L,
-                                remoteSegmentId = turn.optLong("id").takeIf { it > 0L }
-                            ))
-                        }
+                        val parsedTurns = parseTranscriptTurns(sessionId, result)
+                        com.example.braincore.notifications.NativeNotifications.show(
+                            applicationContext, com.example.braincore.notifications.NativeNotifications.TRANSCRIPTS,
+                            "transcript:$sessionId", "Transcrição pronta", "Sua gravação já está disponível na Linha do Tempo.", "/remember", ownerUserId)
                         db.updateTranscript(sessionId, "ready", result.optString("text", ""), parsedTurns, done, total)
                         for (turn in parsedTurns) {
                             val segmentId = turn.remoteSegmentId ?: continue
@@ -147,6 +138,7 @@ object SyncScheduler {
         .build()
 
     fun start(context: Context) {
+        com.example.braincore.notifications.ReminderScheduler.start(context)
         val manager = WorkManager.getInstance(context)
         if (MobileCredentials.get(context) != null && ServerSettings.get(context).isNotBlank()) {
             manager.enqueueUniqueWork(

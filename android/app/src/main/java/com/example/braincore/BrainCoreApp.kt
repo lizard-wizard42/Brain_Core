@@ -4,21 +4,28 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import com.example.braincore.data.BrainCoreDatabase
 import com.example.braincore.data.SyncScheduler
 import com.example.braincore.data.AudioRetentionScheduler
 
 class BrainCoreApp : Application() {
 
-    lateinit var database: BrainCoreDatabase
-        private set
+    val database: BrainCoreDatabase by lazy { BrainCoreDatabase.getInstance(this) }
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()
-        database = BrainCoreDatabase.getInstance(this)
         createNotificationChannel()
-        SyncScheduler.start(this)
-        AudioRetentionScheduler.update(this)
+        // Database recovery may inspect audio files; never delay the first frame for it.
+        applicationScope.launch {
+            database
+            SyncScheduler.start(this@BrainCoreApp)
+            AudioRetentionScheduler.update(this@BrainCoreApp)
+        }
     }
 
     private fun createNotificationChannel() {

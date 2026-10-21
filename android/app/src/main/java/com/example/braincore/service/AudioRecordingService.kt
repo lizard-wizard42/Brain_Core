@@ -241,7 +241,7 @@ class AudioRecordingService : Service() {
         return NotificationCompat.Builder(this, BrainCoreApp.CHANNEL_ID)
             .setContentTitle("Brain Core — gravando áudio")
             .setContentText("Toque para acompanhar a sessão")
-            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setSmallIcon(com.example.braincore.R.drawable.ic_notification_brain_core)
             .setContentIntent(openAppIntent)
             .setOngoing(true)
             .addAction(android.R.drawable.ic_media_pause, "Parar", stopIntent)

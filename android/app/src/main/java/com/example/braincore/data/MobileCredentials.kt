@@ -35,6 +35,7 @@ object MobileCredentials {
 
     fun save(context: Context, deviceId: String, token: String, userId: String) {
         require(userId.isNotBlank())
+        if (this.userId(context) != userId) com.example.braincore.notifications.ReminderScheduler.clear(context)
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, key())
         val encrypted = cipher.doFinal(token.toByteArray(Charsets.UTF_8))
@@ -76,6 +77,7 @@ object MobileCredentials {
     }
 
     fun clear(context: Context) {
+        com.example.braincore.notifications.ReminderScheduler.clear(context)
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().apply()
     }
 }
