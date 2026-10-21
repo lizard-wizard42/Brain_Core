@@ -8,11 +8,25 @@ Create a page and choose **Caderno / Notebook**, below Infinite. The same border
 - The eraser removes whole strokes. Undo/redo applies to ink, text, paper and sheet changes while the editor remains open (up to 40 undo steps).
 - Select with a rectangle, then drag to move ink and text. Delete a selection with its action button.
 - Choose Text and tap a sheet to add a typed text box. Use Text again to edit it, or Select to move/delete it.
-- Mouse drawing works on desktop. On touch devices, a finger moves the sheet by default; enable **Draw with finger** explicitly to draw without a pen. The Hand tool always pans. Zoom buttons and Fit to width remain available.
+- Mouse drawing works on desktop. On touch devices, a finger moves the sheet by default; enable **Draw with finger** explicitly to draw without a pen. The Hand tool always pans. With the Text tool a finger tap adds a text box even when finger drawing is off; a box left empty is removed when it loses focus.
+- While the S Pen side button is held, the pen erases whole strokes; releasing it returns to the current tool. This depends on the device reporting the button and is not verified on hardware.
+
+## Zoom and view
+
+- Two-finger pinch zooms around the point between the fingers (25% to 300%); the sheet follows the fingers while pinching and the zoom is applied once when they lift. A pen touching during a pinch cancels it so writing is never interrupted; a finger that lands right after the pen is ignored as a palm.
+- Double tap with a finger toggles between fit-to-width and 100% (not in the Text tool, nor while finger drawing is on).
+- Desktop: Ctrl+wheel zooms around the cursor; Ctrl/Cmd `+`, `-` and `0` zoom in, out and fit (ignored while typing in a field). The footer `-`/`+` buttons multiply by 1.2 around the center of the view; the percentage button fits the sheet.
+- Opening, rotating or resizing fits the sheet to the width (in landscape the fit is capped by the height, never below 80%) until you zoom manually. A manual zoom is remembered per notebook in this browser.
+- **Focus mode** (More menu, or F outside text fields) hides the bars and leaves a small exit button; Escape also exits.
+- Ctrl+Y or Ctrl+Shift+Z redoes. Typing in the title or in one text box is grouped into a single undo step (about 0.8 s).
+
+## Narrow screens
+
+Up to 550 px wide the toolbar is one row (undo, redo, pen, highlighter, eraser, select, text, More); Hand, Paper, **Desenhar com dedo** and the input indicator are in the More menu, stroke width is a popover next to the colors, and the footer is one row (add sheet, import, remove and focus mode are in its menu). Colors are disabled for eraser, hand and select. In short landscape (height up to 500 px) the header is hidden and the title is in the footer menu.
 
 **Checking that the pen is recognized.** Hover the pen over the sheet: a small blue ring follows it, and the options bar shows **Caneta detectada** (pen detected). If the bar shows **Toque fino** instead, the browser or WebView is reporting the S Pen as a touch contact; enable **Desenhar com dedo** to write with it. If a gesture ever loses its release event, the next pen touch now recovers instead of being ignored.
 
-The implementation uses pointer capture, available coalesced pointer samples, pressure-aware outlines and animation-frame drawing. Touch contacts received during/recently after pen input are ignored as a best-effort precaution. Hardware palm rejection, pen latency and pressure quality depend on the device and browser; they are not guaranteed or certified. Finger pan and button zoom are supported; custom two-finger pinch/rotation is not implemented.
+The implementation uses pointer capture, available coalesced pointer samples, pressure-aware outlines and animation-frame drawing. Touch contacts received during/recently after pen input are ignored as a best-effort precaution. Hardware palm rejection, pen latency and pressure quality depend on the device and browser; they are not guaranteed or certified. Finger pan, pinch zoom and button zoom are supported; two-finger rotation is not. Pinch and the pen button have only been tested with simulated events, not on a physical tablet.
 
 ## Sheets and paper
 
