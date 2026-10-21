@@ -5,6 +5,9 @@ import type { NotebookDoc, Page } from '../../types';
 import { isNotebookDoc } from './notebookModel';
 import { notebookDrafts, type NotebookDraft } from './notebookDrafts';
 
+/** Edits of the same group closer than this are a single undo step (typing a title or a text box). */
+export const UNDO_GROUP_MS = 800;
+
 export function useNotebookDocument(page: Page, readOnly: boolean, onTitleSaved?: () => void) {
   const initial = isNotebookDoc(page.content) ? page.content : null;
   const [document, setDocument] = useState<NotebookDoc | null>(initial);
@@ -23,6 +26,7 @@ export function useNotebookDocument(page: Page, readOnly: boolean, onTitleSaved?
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const history = useRef<Array<{ document: NotebookDoc; title: string }>>([]);
   const future = useRef<Array<{ document: NotebookDoc; title: string }>>([]);
+  const lastGroup = useRef<{ key: string; at: number } | null>(null);
   const userId = activeBrowserUserId();
   const draftKey = `${userId ?? 'unavailable'}:${page.id}`;
 
@@ -102,13 +106,17 @@ export function useNotebookDocument(page: Page, readOnly: boolean, onTitleSaved?
     };
   }, [flush]);
 
-  const apply = useCallback((next: NotebookDoc, nextTitle = latest.current.title, remember = true) => {
+  const apply = useCallback((next: NotebookDoc, nextTitle = latest.current.title, remember = true, group?: string) => {
     if (readOnly || blocked.current || conflict.current || !isNotebookDoc(next)) return false;
     const previous = latest.current;
+    const now = Date.now();
+    const continues = !!group && lastGroup.current?.key === group && now - lastGroup.current.at < UNDO_GROUP_MS;
     if (remember && previous.document) {
-      history.current = [...history.current.slice(-39), { document: previous.document, title: previous.title }];
+      // Consecutive keystrokes of one field extend the step already on the stack instead of adding one each.
+      if (!continues) history.current = [...history.current.slice(-39), { document: previous.document, title: previous.title }];
       future.current = [];
     }
+    lastGroup.current = remember && group ? { key: group, at: now } : null;
     latest.current = { document: next, title: nextTitle };
     dirty.current = true;
     setDocument(next); setTitle(nextTitle); setStatus('saving');
@@ -120,12 +128,14 @@ export function useNotebookDocument(page: Page, readOnly: boolean, onTitleSaved?
 
   const undo = () => {
     const previous = history.current.pop();
+    lastGroup.current = null;
     if (!previous || !latest.current.document) return;
     future.current.push({ document: latest.current.document, title: latest.current.title });
     apply(previous.document, previous.title, false);
   };
   const redo = () => {
     const next = future.current.pop();
+    lastGroup.current = null;
     if (!next || !latest.current.document) return;
     history.current.push({ document: latest.current.document, title: latest.current.title });
     apply(next.document, next.title, false);

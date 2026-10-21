@@ -108,4 +108,30 @@ describe('Notebook autosave and recovery', () => {
     act(() => { result.current.undo(); }); expect(result.current.document).toEqual(p.content);
     act(() => { result.current.redo(); }); expect(result.current.document).toEqual(doc);
   });
+
+  it('merges quick consecutive edits of one field into a single undo step', async () => {
+    const p = page(); const { result } = renderHook(() => useNotebookDocument(p, false));
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    let now = 1_000_000; const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    const doc = result.current.document!;
+    for (const text of ['A', 'Ab', 'Abc']) { act(() => { result.current.apply(doc, text, true, 'title'); }); now += 200; }
+    expect(result.current.title).toBe('Abc');
+    act(() => { result.current.undo(); });
+    expect(result.current.title).toBe('Study');
+    expect(result.current.canUndo).toBe(false);
+    act(() => { result.current.redo(); }); expect(result.current.title).toBe('Abc');
+    // A pause longer than the window, or another field, starts a new step.
+    now += 2000; act(() => { result.current.apply(doc, 'Abcd', true, 'title'); });
+    act(() => { result.current.apply(doc, 'Abcd!', true, 'other'); });
+    act(() => { result.current.undo(); }); expect(result.current.title).toBe('Abcd');
+    act(() => { result.current.undo(); }); expect(result.current.title).toBe('Abc');
+    clock.mockRestore();
+  });
+
+  it('does not leave an undo step for changes made with remember=false', async () => {
+    const p = page(); const { result } = renderHook(() => useNotebookDocument(p, false));
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    act(() => { result.current.apply(changed(), undefined, false); });
+    expect(result.current.canUndo).toBe(false);
+  });
 });

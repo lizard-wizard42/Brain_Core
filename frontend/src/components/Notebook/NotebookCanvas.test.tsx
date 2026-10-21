@@ -111,3 +111,128 @@ it('shows a hover ring only while a pen hovers without touching the sheet', () =
   fireEvent.pointerMove(svg, { ...pen, buttons: 1, clientX: 130, clientY: 150 });
   expect(ring.style.visibility).toBe('hidden');
 });
+
+// --- zoom gestures, touch text and the pen side button ---
+const finger = (id: number, x: number, y: number, extra: Record<string, unknown> = {}) => ({ pointerId: id, pointerType: 'touch', clientX: x, clientY: y, width: 20, height: 20, button: 0, ...extra });
+function setupZoom(options: { tool?: NotebookTool; finger?: boolean } = {}) {
+  const onZoom = vi.fn(), onDoubleTap = vi.fn(), onChange = vi.fn<(sheet: NotebookSheet, o?: unknown) => boolean>(() => true);
+  render(<NotebookCanvas sheet={newNotebook().sheets[0]} tool={options.tool ?? 'pen'} color="#24344b" width={2} fingerDrawing={options.finger ?? false}
+    zoom={1} locked={false} onChange={onChange} onLimit={vi.fn()} onZoom={onZoom} onDoubleTap={onDoubleTap} />);
+  return { svg: screen.getByRole('img'), onZoom, onDoubleTap, onChange };
+}
+beforeEach(() => { vi.stubGlobal('requestAnimationFrame', (fn: FrameRequestCallback) => { fn(0); return 1; }); vi.stubGlobal('cancelAnimationFrame', vi.fn()); });
+
+it('pinches with two fingers: one onZoom call with the distance ratio, focused on the midpoint', () => {
+  const { svg, onZoom, onChange } = setupZoom();
+  fireEvent.pointerDown(svg, finger(1, 100, 300)); fireEvent.pointerDown(svg, finger(2, 200, 300));
+  fireEvent.pointerMove(svg, finger(2, 300, 300));
+  expect(onZoom).not.toHaveBeenCalled();
+  const wrap = svg.closest('.notebook-paper-wrap') as HTMLElement;
+  expect(wrap.style.transform).toContain('scale(2)');
+  fireEvent.pointerUp(svg, finger(2, 300, 300));
+  expect(onZoom).toHaveBeenCalledTimes(1);
+  expect(onZoom.mock.calls[0][0]).toBeCloseTo(2, 5);
+  expect(onZoom.mock.calls[0][1]).toMatchObject({ clientX: 200, clientY: 300, fromX: 150, fromY: 300 });
+  expect(wrap.style.transform).toBe('');
+  fireEvent.pointerUp(svg, finger(1, 100, 300));
+  expect(onZoom).toHaveBeenCalledTimes(1); expect(onChange).not.toHaveBeenCalled();
+});
+it('clamps the pinch result to the zoom limits', () => {
+  const { svg, onZoom } = setupZoom();
+  fireEvent.pointerDown(svg, finger(1, 100, 300)); fireEvent.pointerDown(svg, finger(2, 110, 300));
+  fireEvent.pointerMove(svg, finger(2, 700, 300)); fireEvent.pointerUp(svg, finger(2, 700, 300));
+  expect(onZoom.mock.calls[0][0]).toBe(3);
+});
+it('cancels the pinch without zooming when the pen shows up, and lets the pen write', () => {
+  const { svg, onZoom, onChange } = setupZoom();
+  fireEvent.pointerDown(svg, finger(1, 100, 300)); fireEvent.pointerDown(svg, finger(2, 200, 300));
+  fireEvent.pointerMove(svg, finger(2, 300, 300));
+  fireEvent.pointerDown(svg, pen);
+  expect((svg.closest('.notebook-paper-wrap') as HTMLElement).style.transform).toBe('');
+  fireEvent.pointerMove(svg, { ...pen, clientX: 90, clientY: 100 }); fireEvent.pointerUp(svg, pen);
+  fireEvent.pointerUp(svg, finger(2, 300, 300));
+  expect(onZoom).not.toHaveBeenCalled();
+  expect(onChange).toHaveBeenCalledTimes(1);
+});
+it('does not pinch when a finger lands right after the pen, nor with a palm contact', () => {
+  const first = setupZoom();
+  fireEvent.pointerDown(first.svg, pen); fireEvent.pointerUp(first.svg, pen);
+  fireEvent.pointerDown(first.svg, finger(1, 100, 300)); fireEvent.pointerDown(first.svg, finger(2, 200, 300));
+  fireEvent.pointerMove(first.svg, finger(2, 300, 300)); fireEvent.pointerUp(first.svg, finger(2, 300, 300));
+  expect(first.onZoom).not.toHaveBeenCalled();
+  cleanup();
+  const palm = setupZoom();
+  fireEvent.pointerDown(palm.svg, finger(1, 100, 300, { width: 80, height: 80 })); fireEvent.pointerDown(palm.svg, finger(2, 200, 300));
+  fireEvent.pointerMove(palm.svg, finger(2, 300, 300)); fireEvent.pointerUp(palm.svg, finger(2, 300, 300));
+  expect(palm.onZoom).not.toHaveBeenCalled();
+});
+it('does not start a pinch during an active pen stroke', () => {
+  const { svg, onZoom } = setupZoom();
+  fireEvent.pointerDown(svg, pen); fireEvent.pointerMove(svg, { ...pen, clientX: 60, clientY: 60 });
+  fireEvent.pointerDown(svg, finger(1, 100, 300)); fireEvent.pointerDown(svg, finger(2, 200, 300));
+  fireEvent.pointerMove(svg, finger(2, 300, 300)); fireEvent.pointerUp(svg, finger(2, 300, 300));
+  expect(onZoom).not.toHaveBeenCalled();
+});
+it('keeps real finger ink when the second finger arrives but drops a tiny touch', () => {
+  const { svg, onChange } = setupZoom({ finger: true });
+  fireEvent.pointerDown(svg, finger(1, 50, 50));
+  for (let i = 1; i <= 4; i++) fireEvent.pointerMove(svg, finger(1, 50 + i * 10, 50));
+  fireEvent.pointerDown(svg, finger(2, 300, 300));
+  expect(onChange).toHaveBeenCalledTimes(1);
+  cleanup();
+  const tiny = setupZoom({ finger: true });
+  fireEvent.pointerDown(tiny.svg, finger(1, 50, 50)); fireEvent.pointerDown(tiny.svg, finger(2, 300, 300));
+  expect(tiny.onChange).not.toHaveBeenCalled();
+});
+it('toggles with a double tap and ignores a slow or distant second tap', () => {
+  vi.useFakeTimers();
+  try {
+    const { svg, onDoubleTap } = setupZoom();
+    const tap = (id: number, x: number, y: number) => { fireEvent.pointerDown(svg, finger(id, x, y)); vi.advanceTimersByTime(80); fireEvent.pointerUp(svg, finger(id, x, y)); };
+    tap(1, 100, 100); vi.advanceTimersByTime(100); tap(2, 105, 102);
+    expect(onDoubleTap).toHaveBeenCalledTimes(1);
+    expect(onDoubleTap.mock.calls[0][0]).toMatchObject({ clientX: 105, clientY: 102 });
+    tap(3, 100, 100); vi.advanceTimersByTime(500); tap(4, 100, 100); vi.advanceTimersByTime(1000);
+    tap(5, 100, 100); vi.advanceTimersByTime(100); tap(6, 300, 300);
+    expect(onDoubleTap).toHaveBeenCalledTimes(1);
+  } finally { vi.useRealTimers(); }
+});
+it('does not treat a double tap as zoom in the text tool', () => {
+  const { svg, onDoubleTap } = setupZoom({ tool: 'text' });
+  fireEvent.pointerDown(svg, finger(1, 100, 100)); fireEvent.pointerUp(svg, finger(1, 100, 100));
+  fireEvent.pointerDown(svg, finger(2, 102, 100)); fireEvent.pointerUp(svg, finger(2, 102, 100));
+  expect(onDoubleTap).not.toHaveBeenCalled();
+});
+it('creates a text box by touch even when finger drawing is off', () => {
+  const { svg, onChange } = setupZoom({ tool: 'text' });
+  fireEvent.pointerDown(svg, finger(1, 120, 140));
+  expect(onChange).toHaveBeenCalledTimes(1);
+  expect((onChange.mock.calls[0][0] as NotebookSheet).texts[0]).toMatchObject({ x: 120, y: 140, text: '' });
+  expect(onChange.mock.calls[0][1]).toEqual({ track: false });
+});
+it('removes a text box that is still empty when it loses focus, but keeps one with text', () => {
+  const base = newNotebook().sheets[0];
+  const box = { id: 't1', x: 10, y: 10, width: 200, text: '', color: '#24344b', fontSize: 20 };
+  const { onChange } = (() => {
+    const onChange = vi.fn<(sheet: NotebookSheet, o?: unknown) => boolean>(() => true);
+    render(<NotebookCanvas sheet={{ ...base, texts: [box, { ...box, id: 't2', text: 'oi' }] }} tool="text" color="#24344b" width={2} fingerDrawing={false} zoom={1} locked={false} onChange={onChange} onLimit={vi.fn()} />);
+    return { onChange };
+  })();
+  const [empty, filled] = screen.getAllByLabelText('Texto na folha');
+  fireEvent.blur(filled); expect(onChange).not.toHaveBeenCalled();
+  fireEvent.blur(empty);
+  expect((onChange.mock.calls[0][0] as NotebookSheet).texts.map(t => t.id)).toEqual(['t2']);
+  expect(onChange.mock.calls[0][1]).toEqual({ track: false });
+});
+it('erases while the S Pen side button is held, then goes back to the selected tool', () => {
+  const ink = { id: 'a', tool: 'pen' as const, color: '#24344b', width: 2, points: [{ x: 100, y: 10, pressure: .5 }, { x: 100, y: 200, pressure: .5 }] };
+  const sheet = { ...newNotebook().sheets[0], strokes: [ink] };
+  const onChange = vi.fn<(sheet: NotebookSheet) => boolean>(() => true);
+  render(<NotebookCanvas sheet={sheet} tool="pen" color="#24344b" width={2} fingerDrawing={false} zoom={1} locked={false} onChange={onChange} onLimit={vi.fn()} />);
+  const svg = screen.getByRole('img');
+  fireEvent.pointerDown(svg, { ...pen, buttons: 3, clientX: 100, clientY: 100 }); fireEvent.pointerUp(svg, pen);
+  expect((onChange.mock.calls[0][0] as NotebookSheet).strokes).toEqual([]);
+  fireEvent.pointerDown(svg, { ...pen, buttons: 1, clientX: 300, clientY: 300 });
+  fireEvent.pointerMove(svg, { ...pen, buttons: 1, clientX: 340, clientY: 340 }); fireEvent.pointerUp(svg, pen);
+  expect((onChange.mock.calls[1][0] as NotebookSheet).strokes).toHaveLength(2);
+});

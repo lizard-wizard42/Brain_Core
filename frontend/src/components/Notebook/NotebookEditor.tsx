@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import type { NotebookDoc, NotebookSheet, Page } from '../../types';
-import { NotebookCanvas, type NotebookInput, type NotebookTool } from './NotebookCanvas';
+import { NotebookCanvas, type NotebookChangeOptions, type NotebookInput, type NotebookTool } from './NotebookCanvas';
 import { NotebookIcon } from './NotebookIcon';
 import { NotebookToolIcon } from './NotebookToolIcon';
 import { NotebookPaperDialog } from './NotebookPaperDialog';
 import { INK_COLORS, isNotebookDoc, newSheet, paperBackground } from './notebookModel';
+import { useNotebookZoom, ZOOM_STEP } from './useNotebookZoom';
 import { useNotebookDocument } from './useNotebookDocument';
 import './notebook.css';
 
@@ -25,41 +26,34 @@ export function NotebookEditor({ page, onRefresh }: { page: Page; onRefresh?: ()
   const state = useNotebookDocument(page, readOnly, onRefresh);
   const [sheetId, setSheetId] = useState<string | null>(null);
   const [tool, setTool] = useState<NotebookTool>('pen'), [color, setColor] = useState(INK_COLORS[0]);
-  const [width, setWidth] = useState(2), [zoom, setZoom] = useState(.85), [finger, setFinger] = useState(false);
+  const [width, setWidth] = useState(2), [finger, setFinger] = useState(false);
   const [showPaper, setShowPaper] = useState(false), [showPages, setShowPages] = useState(false);
   const [notice, setNotice] = useState(''), [input, setInput] = useState<NotebookInput | null>(null);
   const scroller = useRef<HTMLDivElement>(null), importInput = useRef<HTMLInputElement>(null);
-  const manualZoom = useRef(false);
-  useEffect(() => {
-    const element = scroller.current;
-    if (!element) return;
-    const resize = () => { if (!manualZoom.current) setZoom(Math.max(.25, Math.min(.85, (element.clientWidth - 40) / 800))); };
-    resize();
-    if (typeof ResizeObserver === 'undefined') { window.addEventListener('resize', resize); return () => window.removeEventListener('resize', resize); }
-    const observer = new ResizeObserver(resize); observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
+  const { zoom, zoomTo, zoomBy, fit, toggleFit } = useNotebookZoom(scroller, page.id);
   const doc = state.document;
   if (!doc) return <div className="notebook-error" role="alert">Não foi possível abrir este caderno. O conteúdo foi preservado; recarregue a página ou use um backup compatível.</div>;
   const index = Math.max(0, doc.sheets.findIndex(s => s.id === sheetId));
   const sheet = doc.sheets[index];
-  const changeSheet = (next: NotebookSheet) => state.apply({ ...doc, sheets: doc.sheets.map(s => s.id === next.id ? next : s) });
+  const changeSheet = (next: NotebookSheet, options?: NotebookChangeOptions) => state.apply({ ...doc, sheets: doc.sheets.map(s => s.id === next.id ? next : s) }, undefined, options?.track !== false, options?.group);
   const limit = () => setNotice('Este caderno atingiu o limite de tamanho. Baixe uma cópia e continue em um novo caderno.');
   const chooseSheet = (id: string) => { setSheetId(id); scroller.current?.scrollTo(0, 0); };
   const addSheet = () => {
     const next = { ...newSheet(), paper: sheet.paper, spacing: sheet.spacing, tint: sheet.tint };
     if (state.apply({ ...doc, sheets: [...doc.sheets, next] })) chooseSheet(next.id); else limit();
   };
-  const fit = () => { manualZoom.current = false; if (scroller.current) setZoom(Math.max(.25, Math.min(1.5, (scroller.current.clientWidth - 40) / 800))); };
   return <section className="notebook-editor" aria-label="Caderno" onKeyDown={e => {
     if ((e.target as HTMLElement).matches('textarea,input,select') || state.locked) return;
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) state.redo(); else state.undo(); }
+    if (!(e.ctrlKey || e.metaKey)) return;
+    const key = e.key.toLowerCase();
+    if (key === 'z') { e.preventDefault(); if (e.shiftKey) state.redo(); else state.undo(); }
+    else if (key === 'y') { e.preventDefault(); state.redo(); }
   }}>
     <header className="notebook-header">
       <div className="notebook-heading-icon"><NotebookIcon width={24} height={24} /></div>
       <div className="notebook-heading"><span>CADERNO</span>
         <input aria-label="Título do caderno" value={state.title} maxLength={160} disabled={state.locked}
-          onChange={e => { state.apply(doc, e.target.value); }}
+          onChange={e => { state.apply(doc, e.target.value, true, 'title'); }}
           onBlur={() => { if (!state.title.trim()) state.apply(doc, 'Caderno sem título'); void state.flush(); }} />
       </div>
       <div className="notebook-header-actions"><span role="status" aria-live="polite" className={`notebook-save notebook-save-${state.status}`}>
@@ -111,7 +105,7 @@ export function NotebookEditor({ page, onRefresh }: { page: Page; onRefresh?: ()
       </nav>}
       <div ref={scroller} className="notebook-workspace">
         <NotebookCanvas key={sheet.id} sheet={sheet} tool={tool} color={color} width={width} fingerDrawing={finger} zoom={zoom}
-          locked={state.locked} onChange={changeSheet} onLimit={limit} onInput={setInput} />
+          locked={state.locked} onChange={changeSheet} onLimit={limit} onInput={setInput} onZoom={zoomTo} onDoubleTap={toggleFit} />
       </div>
     </div>
 
@@ -121,7 +115,7 @@ export function NotebookEditor({ page, onRefresh }: { page: Page; onRefresh?: ()
         <span className="notebook-page-counter">{index + 1} / {doc.sheets.length}</span>
         <button type="button" className="notebook-button" aria-label="Próxima folha" disabled={index === doc.sheets.length - 1} onClick={() => chooseSheet(doc.sheets[index + 1].id)}>›</button>
         <button type="button" className="notebook-button" aria-label="Adicionar folha" disabled={state.locked || doc.sheets.length >= 100} onClick={addSheet}>+</button></div>
-      <div className="notebook-zoom"><button type="button" className="notebook-button" aria-label="Diminuir zoom" onClick={() => { manualZoom.current = true; setZoom(z => Math.max(.25, z - .15)); }}>−</button><button type="button" className="notebook-button" aria-label="Ajustar folha à largura" onClick={fit}>{Math.round(zoom * 100)}%</button><button type="button" className="notebook-button" aria-label="Aumentar zoom" onClick={() => { manualZoom.current = true; setZoom(z => Math.min(2, z + .15)); }}>+</button></div>
+      <div className="notebook-zoom"><button type="button" className="notebook-button" aria-label="Diminuir zoom" onClick={() => zoomBy(1 / ZOOM_STEP)}>−</button><button type="button" className="notebook-button" aria-label="Ajustar folha à largura" onClick={() => fit()}>{Math.round(zoom * 100)}%</button><button type="button" className="notebook-button" aria-label="Aumentar zoom" onClick={() => zoomBy(ZOOM_STEP)}>+</button></div>
       <details className="notebook-more"><summary>Mais</summary><div>
         <button type="button" disabled={state.locked} onClick={() => importInput.current?.click()}>Adicionar folhas de uma cópia</button>
         <button type="button" disabled={state.locked || doc.sheets.length === 1} onClick={() => {

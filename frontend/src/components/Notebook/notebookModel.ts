@@ -11,6 +11,26 @@ export const PAPER_COLORS = ['#fffdf7', '#ffffff', '#eaf4ee', '#edf3fb'];
 export const newSheet = (): NotebookSheet => ({ id: crypto.randomUUID(), paper: 'ruled', spacing: 32, tint: '#fffdf7', strokes: [], texts: [] });
 export const newNotebook = (): NotebookDoc => ({ notebook: true, version: 1, sheets: [newSheet()] });
 export const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
+export const ZOOM_MIN = .25;
+export const ZOOM_MAX = 3;
+/** Horizontal padding of the workspace (both sides together) that the fitted sheet must leave free. */
+export const WORKSPACE_PADDING_X = 40;
+/** Vertical room kept around a sheet when fitting it by height. */
+const WORKSPACE_PADDING_Y = 56;
+/** Smallest zoom a landscape fit may pick because of height, so a wide screen never shows a tiny sheet. */
+const LANDSCAPE_MIN_FIT = .8;
+
+/**
+ * Zoom that makes the sheet fill the workspace width. In landscape (wider than tall) the sheet would
+ * become huge, so the fit is capped by the height, but never below LANDSCAPE_MIN_FIT to stay readable.
+ */
+export function fitZoom(containerWidth: number, containerHeight?: number): number {
+  let zoom = (containerWidth - WORKSPACE_PADDING_X) / SHEET_WIDTH;
+  if (containerHeight !== undefined && containerHeight > 0 && containerWidth > containerHeight) {
+    zoom = Math.min(zoom, Math.max((containerHeight - WORKSPACE_PADDING_Y) / SHEET_HEIGHT, LANDSCAPE_MIN_FIT));
+  }
+  return clamp(Number.isFinite(zoom) ? zoom : ZOOM_MIN, ZOOM_MIN, ZOOM_MAX);
+}
 export const textHeight = (text: NotebookText) => Math.min(SHEET_HEIGHT - text.y,
   Math.max(84, (text.text.split('\n').length + Math.ceil(text.text.length / Math.max(1, text.width / (text.fontSize * .6)))) * text.fontSize * 1.5 + 16));
 
