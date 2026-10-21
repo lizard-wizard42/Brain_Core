@@ -3,6 +3,9 @@ node_modules/
 *.log
 
 # Per-instance data (never publish)
+.idea/
+/data/
+/ops/
 /uploads/
 /backups/
 /docs/private/
