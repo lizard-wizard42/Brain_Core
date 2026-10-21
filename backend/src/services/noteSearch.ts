@@ -20,7 +20,7 @@ const fold = (column: string) => `translate(lower(${column}), 'áàâãäéèê�
 
 export async function searchNotes(userId: string, needle: string, kind: string, offset: number, limit = 20) {
   // Traverse only editor content/text: attachment URLs, marks and canvas internals are not searchable text.
-  const rows = await query<{ id: string; title: string; kind: 'page' | 'note'; type: 'note' | 'infinite'; icon: string | null;
+  const rows = await query<{ id: string; title: string; kind: 'page' | 'note'; type: 'note' | 'infinite' | 'notebook'; icon: string | null;
     updated_at: string; snippet: string; parent_page_id: string | null }>(`
     WITH RECURSIVE nodes AS (
       SELECT id, content AS node, ARRAY[]::bigint[] AS position FROM pages
@@ -39,7 +39,7 @@ export async function searchNotes(userId: string, needle: string, kind: string, 
       UNION ALL
       SELECT id, title, 'note', 'note', NULL, updated_at, NULL::uuid,
         concat_ws(' ', body, (SELECT string_agg(item->>'text', ' ') FROM jsonb_array_elements(checklist) item)) FROM remember_notes
-      WHERE user_id = $1::text AND $3 != 'pages'
+      WHERE user_id = $1::text AND deleted_at IS NULL AND $3 != 'pages'
     ), matches AS (
       SELECT *, strpos(${fold('body')}, ${fold('$2')}) AS location,
         strpos(${fold('title')}, ${fold('$2')}) AS title_location FROM documents

@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS remember_notes (
   reminder_label TEXT,
   reminder_repeat_daily BOOLEAN NOT NULL DEFAULT FALSE,
   reminder_sent_at TIMESTAMPTZ,
+  deleted_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

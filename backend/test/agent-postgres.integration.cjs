@@ -43,6 +43,8 @@ before(async () => {
   readToken = await token(['pages:read', 'notes:read']);
   const app = express(); app.use(express.json({ limit: '1mb' })); app.use('/api/agent', router);
   app.use('/api/integrations', authMiddleware, integrations);
+  app.use('/api/remember', authMiddleware, require('../dist/routes/remember').default);
+  app.use('/api/mobile', require('../dist/routes/mobile').default);
   app.use('/api/pages', authMiddleware, require('../dist/routes/pages').default);
   app.post('/api/auth/login-2fa', require('../dist/controllers/authController').verifyLoginTwoFactor);
   app.use('/uploads', authMiddleware, require('../dist/services/uploadOwnership').requireUploadedAssetOwner, (_req, res) => res.send('synthetic asset'));
@@ -342,9 +344,12 @@ test('failed reminders from one account do not monopolize Telegram batches', asy
     await query("INSERT INTO remember_notes (user_id,title,body,reminder_date) VALUES ($1,'synthetic failing','', '2000-01-01')", [other]);
   }
   await query("INSERT INTO remember_notes (user_id,title,body,reminder_date) VALUES ($1,'synthetic good','', '2001-01-01')", [owner]);
+  await query("INSERT INTO remember_notes (user_id,title,body,reminder_date,deleted_at) VALUES ($1,'synthetic trashed','', '2001-01-01', NOW())", [owner]);
   global.fetch = async (_url, options) => {
     assert.ok(options.signal instanceof AbortSignal);
-    const body = JSON.parse(options.body); sent.push(body.chat_id);
+    const body = JSON.parse(options.body);
+    assert.ok(!body.text.includes('synthetic trashed'), 'trashed notes must not trigger Telegram delivery');
+    sent.push(body.chat_id);
     return new Response('', { status: body.chat_id === 'good' ? 200 : 400 });
   };
   try {
@@ -528,4 +533,111 @@ test('history tree groups each account by the requested local calendar day', asy
   assert.ok((await ownedDates(owner, 'America/Sao_Paulo')).includes('2025-12-31'));
   assert.ok((await ownedDates(owner, 'UTC')).includes('2026-01-01'));
   assert.ok(!(await ownedDates(other, 'America/Sao_Paulo')).includes('2025-12-31'));
+});
+
+
+async function quickNote(method, suffix = '', body, user = owner) {
+  const access = user ? jwt.sign({ sub: user, sv: 1, type: 'access' }, process.env.JWT_SECRET) : '';
+  const response = await fetch(`${origin}/api/remember${suffix}`, {
+    method, headers: { 'content-type': 'application/json', ...(user ? { authorization: `Bearer ${access}` } : {}) },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  return { status: response.status, data: await response.json() };
+}
+
+test('quick-note checklist updates one item atomically and preserves metadata and other changes', async () => {
+  const created = await quickNote('POST', '', { title: 'Synthetic checklist', body: 'Keep body', color: 'sage', tags: ['keep'],
+    checklist: [{ id: 'a', text: 'First', checked: false }, { id: 'b', text: 'Second', checked: false }],
+    reminder_date: '2099-11-01', reminder_time: '09:30', reminder_label: 'Keep label', reminder_repeat_daily: true });
+  assert.equal(created.status, 201);
+  const id = created.data.id;
+  await query("UPDATE remember_notes SET reminder_sent_at='2026-10-18T12:00:00Z' WHERE id=$1", [id]);
+  assert.equal((await quickNote('PATCH', `/${id}/checklist/a`, { checked: true }, null)).status, 401);
+  assert.equal((await quickNote('PATCH', `/${id}/checklist/a`, { checked: true }, other)).status, 404);
+  assert.equal((await quickNote('PATCH', `/${id}/checklist/a`, { checked: 'true' })).status, 400);
+  assert.equal((await quickNote('PATCH', `/${id}/checklist/missing`, { checked: true })).status, 404);
+  const results = await Promise.all(['a', 'b'].map(item => quickNote('PATCH', `/${id}/checklist/${item}`, { checked: true })));
+  assert.ok(results.every(r => r.status === 200));
+  let row = (await query('SELECT * FROM remember_notes WHERE id=$1', [id]))[0];
+  assert.ok(row.checklist.every(i => i.checked)); assert.deepEqual(row.tags, ['#keep']);
+  assert.equal(row.body, 'Keep body'); assert.equal(row.reminder_label, 'Keep label');
+  assert.equal(new Date(row.reminder_sent_at).toISOString(), '2026-10-18T12:00:00.000Z');
+  assert.equal((await quickNote('PATCH', `/${id}/checklist/a`, { checked: false })).data.checklist[0].checked, false);
+});
+
+test('trash persists, isolates accounts and hides notes from search, MCP and reminder feeds until restore', async () => {
+  const created = await quickNote('POST', '', { title: 'Synthetic recoverable', body: 'uniquetrashfixture', color: 'sky', tags: ['keep'],
+    checklist: [{ id: 'a', text: 'Preserved item', checked: true }], reminder_date: '2099-11-01', reminder_label: 'Preserved reminder' });
+  const original = created.data, id = original.id;
+  const deviceSecret = `bcmd_${randomBytes(32).toString('base64url')}`;
+  await query(`INSERT INTO mobile_devices(user_id,name,token_hash,session_version) VALUES ($1,'Synthetic device',$2,1)`,
+    [owner, createHash('sha256').update(deviceSecret).digest('hex')]);
+  const reminderFeed = async () => {
+    const response = await fetch(`${origin}/api/mobile/reminders`, { headers: { authorization: `Bearer ${deviceSecret}` } });
+    assert.equal(response.status, 200); return (await response.json()).reminders;
+  };
+  assert.ok((await reminderFeed()).some(n => n.id === id));
+
+  assert.equal((await quickNote('DELETE', `/${id}`, undefined, other)).status, 404);
+  assert.equal((await quickNote('DELETE', `/${id}`)).status, 200);
+  assert.ok(!(await quickNote('GET')).data.notes.some(n => n.id === id));
+  const trash = (await quickNote('GET', '/trash')).data.notes.find(n => n.id === id);
+  assert.ok(trash.deleted_at); assert.deepEqual(trash.checklist, original.checklist);
+  assert.ok(!(await reminderFeed()).some(n => n.id === id));
+  assert.ok(!(await quickNote('GET', '/trash', undefined, other)).data.notes.some(n => n.id === id));
+  assert.equal((await quickNote('GET', '/trash', undefined, null)).status, 401);
+  assert.equal((await quickNote('POST', `/${id}/restore`, {}, other)).status, 404);
+  assert.equal((await quickNote('PATCH', `/${id}/checklist/a`, { checked: false })).status, 404);
+  assert.equal((await quickNote('PATCH', `/${id}`, { title: 'Must not edit', body: '' })).status, 404);
+  assert.equal((await call('notes', 'get', { id })).status, 404);
+  assert.ok(!(await call('notes', 'list', { query: 'uniquetrashfixture' })).data.items.some(n => n.id === id));
+  const { searchNotes } = require('../dist/services/noteSearch');
+  assert.ok(!(await searchNotes(owner, 'uniquetrashfixture', 'notes', 0)).items.some(n => n.id === id));
+  // Restart-safe: restore is backed by the database, not an in-memory undo snapshot.
+  const restored = await quickNote('POST', `/${id}/restore`, {});
+  assert.equal(restored.status, 200); assert.equal(restored.data.deleted_at, null);
+  assert.ok((await reminderFeed()).some(n => n.id === id));
+  for (const key of ['title', 'body', 'color', 'tags', 'checklist', 'reminder_date', 'reminder_label'])
+    assert.deepEqual(restored.data[key], original[key]);
+  assert.ok((await quickNote('GET')).data.notes.some(n => n.id === id));
+  assert.ok(!(await quickNote('GET', '/trash')).data.notes.some(n => n.id === id));
+  assert.equal((await quickNote('POST', `/${id}/restore`, {})).status, 404);
+});
+
+test('notebooks persist editable sheets with revision history and preserve account and viewer boundaries', async () => {
+  const headers = user => ({ 'content-type': 'application/json', authorization: `Bearer ${jwt.sign({ sub:user, sv:1, type:'access' }, process.env.JWT_SECRET)}` });
+  const request = async (route, method='GET', body, user=owner) => {
+    const r = await fetch(`${origin}/api/pages${route}`, { method, headers:headers(user), ...(body === undefined ? {} : {body:JSON.stringify(body)}) });
+    return {status:r.status,data:await r.json()};
+  };
+  const created = await request('', 'POST', {title:'Synthetic handwriting notebook',slug:'synthetic-notebook',type:'notebook'});
+  assert.equal(created.status,201);
+  const page=created.data;
+  assert.equal(page.type,'notebook'); assert.equal(page.content.notebook,true); assert.equal(page.content.sheets.length,1);
+  const doc=structuredClone(page.content);
+  doc.sheets[0].strokes.push({id:'ink',tool:'pen',color:'#24344b',width:2,points:[{x:100,y:100,pressure:.2},{x:250,y:160,pressure:.8}]});
+  doc.sheets[0].texts.push({id:'text',x:100,y:200,width:320,text:'Fictional lesson',color:'#24344b',fontSize:20});
+  doc.sheets[0].paper='dots';
+  const saved=await request(`/${page.id}`,'PATCH',{revision:0,content:doc});
+  assert.equal(saved.status,200); assert.equal(saved.data.revision,1);
+  assert.deepEqual((await request(`/${page.id}`)).data.content,doc);
+  assert.equal((await request(`/${page.id}`,'PATCH',{revision:0,content:doc})).status,409);
+  assert.equal((await request(`/${page.id}`,'GET',undefined,other)).status,404);
+  assert.equal((await request(`/${page.id}`,'PATCH',{revision:1,content:doc},other)).status,404);
+  await query("INSERT INTO page_grants(page_id,user_id,role) VALUES ($1,$2,'viewer')",[page.id,other]);
+  const viewed=await request(`/${page.id}`,'GET',undefined,other);
+  assert.equal(viewed.status,200); assert.equal(viewed.data.access_role,'viewer'); assert.deepEqual(viewed.data.content,doc);
+  assert.equal((await request(`/${page.id}`,'PATCH',{revision:1,content:doc},other)).status,404);
+  const bad=structuredClone(doc);bad.sheets[0].strokes[0].points[0].x=900;
+  assert.equal((await request(`/${page.id}`,'PATCH',{revision:1,content:bad})).status,400);
+  assert.equal((await request(`/${page.id}`,'PUT',{revision:1,content:{type:'doc',content:[]}})).status,400);
+  assert.equal((await request('', 'POST', {title:'Invalid notebook',slug:'invalid',type:'notebook',content:bad})).status,400);
+  const unchanged=await request(`/${page.id}`); assert.equal(unchanged.data.revision,1);assert.deepEqual(unchanged.data.content,doc);
+  const versions=(await request(`/${page.id}/versions`)).data.versions;
+  assert.equal(versions.length,2);assert.deepEqual(versions[0].content,doc);
+  assert.equal((await call('pages','get',{id:page.id})).status,404,'MCP text operations cannot overwrite notebook ink');
+  assert.equal((await request(`/${page.id}`,'DELETE')).status,200);
+  assert.equal((await request(`/${page.id}`)).status,404);
+  assert.equal((await request(`/${page.id}/restore`,'POST',{})).status,200);
+  assert.deepEqual((await request(`/${page.id}`)).data.content,doc);
 });

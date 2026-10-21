@@ -93,7 +93,7 @@ export async function dispatchDueReminders(): Promise<void> {
          rn.id, rn.title, rn.body, rn.checklist, rn.reminder_label, rn.reminder_date::text, rn.reminder_time::text, rn.reminder_repeat_daily, u.telegram_chat_id
        FROM remember_notes rn
        JOIN users u ON u.id::text = rn.user_id
-       WHERE rn.reminder_date IS NOT NULL
+       WHERE rn.deleted_at IS NULL AND rn.reminder_date IS NOT NULL
          AND rn.reminder_date <= $1::date
          AND (rn.reminder_time IS NULL OR rn.reminder_time <= $2::time)
          AND rn.reminder_sent_at IS NULL
