@@ -51,3 +51,33 @@ Update the server and install the signed 1.1.2 APK over the existing release; do
 Signing out of the web app preserves valid Android device links. Password/security changes and explicitly unlinking a device still revoke access. If an earlier server version already invalidated a link, sign in to the same account in **PC** and link recordings again in **Ajustes**. Pending audio remains assigned to its original account. Check the upload and transcription settings and keep the computer available until processing finishes.
 
 Web history, search links and the dashboard now follow the browser timezone instead of UTC calendar dates.
+
+## Notifications and startup in Android 1.1.4
+
+Install the signed release APK over the existing release app; keep app storage and pending recordings. Release and development builds have different package IDs, so a development APK does not update the release app. Update the server too, using the normal backup and deployment procedure.
+
+Version 1.1.4 moves startup recovery and scheduling off the main thread and displays loading feedback in the PC tab. It adds native reminder and completed-transcription notifications with a white Brain Core status-bar icon and a monochrome themed launcher icon.
+
+1. Sign in and link recordings to the intended account in **Ajustes**. Reminder synchronization uses this same device link, independently of audio-upload preferences.
+2. Allow notifications on Android 13 or newer. In web Settings → **This device**, or native **Ajustes**, test a notification and open Android notification settings to manage channels and sounds.
+3. Create a reminder in Notes. The app downloads only scheduling metadata and shows a generic notification that opens Notes. Completed mobile-transcription alerts open the Timeline.
+
+Downloaded reminders are scheduled locally, including daily repeats. Date-only reminders use 09:00 in the phone's timezone. Schedules are restored after reboot, app updates and clock/timezone changes. Unlinking the account cancels its cached alarms and notifications.
+
+Delivery is **inexact**: Android battery restrictions can delay alarms. Background synchronization runs periodically when connected (at least 15 minutes between periodic runs); opening the app and changing notes in its PC tab also requests a refresh. Edits and deletions made on another device take effect after synchronization. Existing downloaded alarms can work offline, but force-stopping the app requires reopening it. This is not an exact-alarm or remote push service.
+
+## Home and Notes organization
+
+The home page offers direct shortcuts, clickable summaries and recent pages. Notes supports All, Lists and Reminders filters, accent-insensitive search (including tags and checklist items), title or update sorting, and progressive loading. A linked note remains reachable even when it is outside the initial batch. These improvements come from the updated server's web frontend.
+
+## Voice identification in Android 1.1.5
+
+Update both the server and the app. The native timeline now preserves the server's voice groups and owner-match indication instead of displaying every unconfirmed group as unidentified. It refreshes completed transcripts when opened; **Atualizar vozes** retries without recording or transcribing again. Cached identification remains available offline, and correction controls open on demand.
+
+The server compares each voice group with the account's enrolled sample and its active, manually confirmed voice references. Several groups may match the same owner; groups no longer compete against each other for a single owner slot. References for other participants can block an ambiguous match. A group with six seconds of speech can be displayed even when ASR produced fewer than three sentences.
+
+**Eu (provável)** is an automatic suggestion, not a confirmed identity or a calibrated probability. Manual corrections take priority, and deleted/revoked references stop contributing. Short, noisy or mixed-speaker audio can still remain unidentified. Naming a whole voice in the web conversation applies to that session; correcting a suitable individual segment can supply a reusable reference. No accuracy percentage is claimed from synthetic tests.
+
+### Short recordings
+
+The server also evaluates quality-gated short voice groups against the account's references before applying the general multi-sentence display gate. A matching short group can appear as **Eu (provável)**; a weak or ambiguous match remains unidentified. This server-side fix works with Android 1.1.5 and needs no new APK.

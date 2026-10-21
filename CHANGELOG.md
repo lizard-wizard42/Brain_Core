@@ -6,6 +6,66 @@
 - The page "..." button appears over the end of the row on hover, keyboard focus or for the open page on desktop, so it no longer takes title width; on touch screens it stays visible.
 - Tree indentation is no longer capped at 3 levels (now 6) so deeper pages keep their hierarchy.
 
+## Unreleased — consistent compact sidebar
+
+- Align Memory, Knowledge, page rows and Shared navigation around compact 44 px controls, theme colors and visible keyboard focus.
+- Group page actions behind a discreet overflow control, with Escape/outside dismissal, while preserving rename, subpage creation, trash and drag-and-drop. Page titles now support keyboard navigation and direct dragging.
+- Simplify footer icons, mobile tab controls and search-result presentation. Clarify that page deletion moves it to recoverable Trash.
+
+
+## Unreleased — compact shared page list
+
+- Replace tall shared-page cards with single-line 44px rows; remove repeated owner badges and edit metadata from sidebar navigation.
+- Keep owner management visible as a discreet borderless icon with a full touch target and keyboard focus.
+
+
+## Unreleased — clearer shared navigation
+
+- Give shared pages readable two-line titles, separate metadata and permission badges, visible owner controls, and theme-aware search and empty states.
+- Add bordered touch-friendly sidebar footer buttons for page creation, settings and trash. Existing sharing and page actions are preserved.
+
+
+## Unreleased — clearer page creation
+
+- Replace unframed page-format links with consistent bordered options, icons and short descriptions for Note, Infinite and Notebook. Keep Cancel in a separate footer and share the same form for root pages and subpages.
+- Disable empty-title submissions, prevent duplicate creation while a request is pending, and preserve the title with inline error feedback for retry. A tree refresh failure no longer makes an acknowledged creation look unsuccessful.
+
+## Unreleased — handwriting notebooks
+
+- Add Notebook (Caderno) as a third page format, with an original notebook icon and entry below Infinite in the page/subpage creation flow.
+- Write editable vector ink with pen/highlighter, erase whole strokes, select/move ink and text, undo/redo, add typed boxes and navigate multiple sheets.
+- Preview and apply blank, ruled, grid, dotted or Oxford paper, independent of writing. Fit/zoom and finger-pan controls support small screens.
+- Save with serialized revision-aware writes, account-scoped local drafts, visible error/conflict recovery and downloadable/importable editable copies. Existing page trash, sharing and backup boundaries apply.
+- Document bounded version-1 snapshots, browser/device limitations and pending physical S Pen validation. No new database migration or APK is required.
+
+## Unreleased — interactive checklists, note trash and local dates
+
+- Mark/unmark checklist items directly on note cards. A dedicated atomic API preserves other items, content, tags and reminder state.
+- Move deleted quick notes to persistent account-scoped trash, with immediate Undo and a Trash view to restore them after reopening the app. Preserve content, metadata and note IDs; exclude trashed notes from normal lists, search, MCP and reminder delivery feeds.
+- Use the device's local calendar for default reminder dates, including late evening and year boundaries.
+- Additive database change: nullable `remember_notes.deleted_at`, initialized automatically on backend startup. Existing notes remain active. Previously hard-deleted notes cannot be recovered by this change.
+
+## Unreleased — short recording recognition and note editing
+
+- Keep a reference-matched owner group visible in short recordings without weakening the similarity or competing-identity thresholds. Unmatched short groups remain unidentified.
+- Preserve tags and reminder labels when editing notes; show create/save failures and retain the draft for retry.
+
+## 2026-10-18 — Android 1.1.5 voice identification
+
+- Preserve server voice groups, probable-owner matches and manual corrections in the native timeline; use “Eu” consistently in speaker headers.
+- Reuse confirmed account voice references across groups without making two groups of the same speaker compete. Preserve competing-identity ambiguity checks and manual decisions.
+- Show groups with enough speech duration even when ASR produces few sentences; refresh existing transcripts on opening and offer a retry control.
+- Open per-segment correction tools on demand instead of requesting voice suggestions for every visible bubble.
+
+
+## 2026-10-18 — Android: abertura e notificações nativas
+
+- Recuperação de gravações e preparação do banco fora da thread de interface, indicador de carregamento e navegação inicial sem duplicação.
+- Android 1.1.4: canais para lembretes e transcrições prontas, teste de notificação e acesso às configurações do Android.
+- Lembretes sincronizados por conta, agendados no aparelho e restaurados após reinício; sincronização periódica e alarmes inexatos sujeitos às restrições de bateria do Android.
+- Logo branco vetorial para notificações e ícone temático do launcher.
+- Página inicial com atalhos e prévia de seis notas; Notas com filtros, busca sem acentos, ordenação e carregamento em lotes de 24.
+
 ## 2026-10-14 — Confiabilidade da sincronização e histórico
 
 - Sair da conta no navegador mantém os aparelhos Android já vinculados; troca de senha e revogação continuam invalidando credenciais. Vínculos antigos inválidos não são reativados.

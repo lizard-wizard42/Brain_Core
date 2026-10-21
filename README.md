@@ -6,13 +6,29 @@ Brain Core runs on a computer you control. Its database, uploads, and optional
 recordings live in persistent local volumes. The standard Docker installation
 needs no cloud account, API key, GPU, or external sync service.
 
+**Notebook** adds handwriting-focused pages alongside rich-text notes and Infinite: editable pen/highlighter strokes, typed text boxes, multiple sheets and selectable paper. See the [Notebook guide](docs/NOTEBOOK.md) for controls, saving and device limits.
+
+Android **1.1.5** also preserves automatic voice suggestions in the native timeline and reuses confirmed voice references. Android 1.1.4 introduced native reminder and transcription notifications, a white status-bar icon, and background startup preparation. Notes supports direct checklist toggles, recoverable deletion with Undo and Trash, and default reminder dates in your device timezone. Note editing preserves existing tags and reminder labels, and keeps your draft if saving fails. See the [Notes guide](docs/NOTES.md). See [notification behavior and limits](android/README.md#android-114-native-notifications).
+
 Recording reliability update: Android **1.1.2** preserves recording end times during delayed uploads; the updated server keeps valid phone links when signing out on the web and displays history in the viewer’s timezone. See the [Android update guide](docs/ANDROID.md#recording-reliability-in-android-112).
 
 ![Brain Core logo](docs/images/brain-core.png)
 
+### Compact navigation
+
+The sidebar uses consistent, compact rows across Memory, Notes, Knowledge and
+Shared pages. Page actions live under a discreet overflow control; titles can be
+opened by keyboard or dragged into another branch. The overview, expand/collapse,
+search filters and recoverable Trash remain available. See the [navigation guide](docs/EDITOR_E_PAINEL.md#consistent-sidebar-controls).
+
 ### Screenshots
 
-These screenshots use fictional content.
+These screenshots use fictional content. Navigation previews use English demonstration labels.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/sidebar-navigation-dark-demo.jpg">
+  <img src="docs/images/sidebar-navigation-light-demo.jpg" alt="Compact sidebar and Knowledge overview with fictional pages and English demonstration labels">
+</picture>
 
 ![Brain Core dashboard with fictional notes and pages](docs/images/dashboard-demo.png)
 

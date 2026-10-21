@@ -65,3 +65,14 @@ If a credential was ever present in a private dump or configuration, rotate it
 at its issuing system. At minimum review database credentials, JWT signing
 secret, API tokens, messaging-bot tokens, and server/SSH access. Never place a
 replacement credential in a commit or pull-request discussion.
+
+## Android release and private distribution
+
+1. Update README, CHANGELOG and Android guides alongside the implementation. Increment Android versionName and versionCode for each distributed build.
+2. Complete the contribution checks above and the Android unit tests. Use a disposable emulator for instrumentation tests that create or reset a database; never run destructive test fixtures on a personal installation.
+3. Build the release APK from the reviewed public source with the existing release signing key, kept outside Git. Do not distribute a development APK as a release update.
+4. Verify package ID, version, signing-certificate continuity, and APK contents. Exclude private instance addresses, credentials, recordings, notes, databases, logs and signing material from both commits and artifacts. Compute a SHA-256 checksum.
+5. Merge only after CI passes, tag the reviewed commit and publish the APK as `brain-core-android.apk` with `brain-core-android.apk.sha256` on GitHub Releases. Describe tested behavior and known delivery limits accurately.
+6. When private distribution is requested, upload the same verified APK to the designated Drive folder under a versioned filename. Preserve previous files and existing access permissions; verify uploaded size and checksum. Keep private folder IDs and installation paths out of public documentation.
+7. Back up before updating the runtime, publish web/server bundles with `./build.sh`, and update the Android app in place without uninstalling or clearing data. Report any checks that could not be completed.
+8. Save verified release links, commit/tag, artifact checksum, validation results and remaining work in project memory. Keep reusable rules here and private operational destinations in scoped project memory.
