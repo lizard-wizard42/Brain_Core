@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — one size standard for the sidebar and page tree
+
+- Sidebar and tree sizes now come from shared tokens in `theme.css` (`--tree-row-height`, `--tree-indent`, `--tree-icon-size`, `--tree-font-size`, `--touch-target`, `--sidebar-footer-height`, `--sidebar-width`). Desktop with a mouse is compact (28 px rows, 14 px indent, 13 px titles, 32 px controls, 224 px sidebar); phones, tablets and touch screens keep 44 px touch targets.
+- The page "..." button appears over the end of the row on hover, keyboard focus or for the open page on desktop, so it no longer takes title width; on touch screens it stays visible.
+- Tree indentation is no longer capped at 3 levels (now 6) so deeper pages keep their hierarchy.
+
 ## Unreleased — consistent compact sidebar
 
 - Align Memory, Knowledge, page rows and Shared navigation around compact 44 px controls, theme colors and visible keyboard focus.
