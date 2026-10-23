@@ -235,5 +235,18 @@ export async function ensureAppSchema(): Promise<void> {
   await query(`CREATE INDEX IF NOT EXISTS idx_trusted_devices_user_expires ON trusted_devices(user_id, expires_at DESC)`);
   await query(`CREATE INDEX IF NOT EXISTS idx_mobile_devices_user ON mobile_devices(user_id, revoked_at)`);
   await query(`CREATE INDEX IF NOT EXISTS idx_mobile_sessions_user ON mobile_sessions(user_id, started_at DESC)`);
+  await query(`CREATE TABLE IF NOT EXISTS page_embeddings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    item_id UUID NOT NULL,
+    item_kind VARCHAR(20) NOT NULL,
+    owner_user_id UUID NOT NULL,
+    chunk_index INT NOT NULL,
+    chunk_text TEXT NOT NULL,
+    embedding JSONB NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(item_id, item_kind, chunk_index)
+  )`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_page_embeddings_owner ON page_embeddings(owner_user_id)`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_page_embeddings_item ON page_embeddings(item_id)`);
   await ensureAgentSchema();
 }
