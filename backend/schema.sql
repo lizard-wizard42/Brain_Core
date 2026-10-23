@@ -116,3 +116,18 @@ CREATE INDEX IF NOT EXISTS idx_terminal_tabs_user_seen ON terminal_tabs(user_id,
 CREATE INDEX IF NOT EXISTS idx_remember_notes_user_updated ON remember_notes(user_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_remember_notes_user_reminder ON remember_notes(user_id, reminder_date ASC NULLS LAST);
 CREATE INDEX IF NOT EXISTS idx_trusted_devices_user_expires ON trusted_devices(user_id, expires_at DESC);
+
+CREATE TABLE IF NOT EXISTS page_embeddings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  item_id UUID NOT NULL,
+  item_kind VARCHAR(20) NOT NULL,
+  owner_user_id UUID NOT NULL,
+  chunk_index INT NOT NULL,
+  chunk_text TEXT NOT NULL,
+  embedding JSONB NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(item_id, item_kind, chunk_index)
+);
+
+CREATE INDEX IF NOT EXISTS idx_page_embeddings_owner ON page_embeddings(owner_user_id);
+CREATE INDEX IF NOT EXISTS idx_page_embeddings_item ON page_embeddings(item_id);

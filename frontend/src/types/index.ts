@@ -211,6 +211,7 @@ export interface SearchResult {
   id: string; title: string; kind: 'page' | 'note'; type: 'note' | 'infinite' | 'notebook';
   icon: string | null; updated_at: string; parent_page_id: string | null;
   snippet: string; path: { id: string; title: string }[];
+  score?: number;
 }
 export interface NoteSearchResponse { items: SearchResult[]; next_offset: number | null }
 

@@ -172,8 +172,8 @@ export const api = {
   getPageTemplate: (id: string) => request<import('../types').PageTemplate>(`/api/pages/templates/${id}`),
   savePageTemplate: (name: string, content: TiptapDoc) => request<import('../types').PageTemplateSummary>('/api/pages/templates', { method: 'POST', body: JSON.stringify({ name, content }) }),
   getPagePath: (id: string) => request<{ id: string; title: string }[]>(`/api/pages/${id}/path`),
-  searchNotes: (query: string, kind = 'all', offset = 0, signal?: AbortSignal) =>
-    request<import('../types').NoteSearchResponse>(`/api/pages/search?${new URLSearchParams({ q: query, kind, offset: String(offset) })}`, { signal }),
+  searchNotes: (query: string, kind = 'all', offset = 0, signal?: AbortSignal, mode = 'text') =>
+    request<import('../types').NoteSearchResponse>(`/api/pages/search?${new URLSearchParams({ q: query, kind, offset: String(offset), mode })}`, { signal }),
   // ── Auth ────────────────────────────────────────────────────────────────
   login: async (email: string, password: string): Promise<LoginSuccessResponse | LoginTwoFactorPendingResponse> => {
     const res = await fetch(`${API_HOST}${BASE_URL}/api/auth/login`, {
