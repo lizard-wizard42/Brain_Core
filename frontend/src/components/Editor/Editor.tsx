@@ -24,6 +24,7 @@ import { describeLastEdit, grantsToNameMap } from '../Shared/sharedModel';
 import type { PageGrant } from '../../types';
 import { SubPageBlock } from './SubPageBlock';
 import { SubPageBlockView } from './SubPageBlockView';
+import { SubPagesKanban } from './SubPagesKanban';
 import { AttachmentBlock } from './AttachmentBlock';
 import { AttachmentBlockView } from './AttachmentBlockView';
 import { SlashMenu, type SlashCommand } from './SlashMenu';
@@ -58,6 +59,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
   const [icon, setIcon] = useState<string>(page.icon ?? '');
   const [coverUrl, setCoverUrl] = useState<string | null>(page.cover_url ?? null);
   const [coverPositionY, setCoverPositionY] = useState<number>(page.cover_position_y ?? 50);
+  const [viewMode, setViewMode] = useState<'document' | 'kanban'>('document');
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const latestContentRef = useRef<unknown>(page.content);
   const lastQueuedSaveHashRef = useRef<string>('');
@@ -829,7 +831,44 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
               )}
             </div>
           )}
-          <EditorContent editor={editor} className="mt-2 min-h-[50vh]" />
+
+          {/* View mode switcher: Document vs Kanban Board */}
+          <div className="mt-3 flex items-center justify-between border-b border-[var(--theme-border)] pb-2">
+            <div className="flex items-center gap-1 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-card)] p-1 text-xs">
+              <button
+                type="button"
+                onClick={() => setViewMode('document')}
+                className={`rounded px-2.5 py-1 font-medium transition-colors ${
+                  viewMode === 'document'
+                    ? 'bg-[var(--theme-primary)] text-white shadow-sm'
+                    : 'text-[var(--theme-muted)] hover:text-[var(--theme-text)]'
+                }`}
+              >
+                📄 Documento
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('kanban')}
+                className={`rounded px-2.5 py-1 font-medium transition-colors ${
+                  viewMode === 'kanban'
+                    ? 'bg-[var(--theme-primary)] text-white shadow-sm'
+                    : 'text-[var(--theme-muted)] hover:text-[var(--theme-text)]'
+                }`}
+              >
+                📋 Quadro Kanban
+              </button>
+            </div>
+          </div>
+
+          {viewMode === 'document' ? (
+            <EditorContent editor={editor} className="mt-2 min-h-[50vh]" />
+          ) : (
+            <SubPagesKanban
+              pageId={page.id}
+              onNavigatePage={onNavigatePage}
+              onRefreshParent={onRefresh}
+            />
+          )}
         </div>
       </div>
 

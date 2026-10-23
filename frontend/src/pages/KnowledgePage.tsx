@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import type { TreePage } from '../types';
-import { KnowledgeGraph } from '../components/Graph/KnowledgeGraph';
+
+const KnowledgeGraph = lazy(() => import('../components/Graph/KnowledgeGraph').then(m => ({ default: m.KnowledgeGraph })));
 
 export function KnowledgePage({
   tree,
@@ -39,7 +40,9 @@ export function KnowledgePage({
             </button>
           </div>
         </div>
-        <KnowledgeGraph onOpenPage={onOpenPage} />
+        <Suspense fallback={<div className="flex-1 flex items-center justify-center text-sm text-gray-500">Carregando grafo…</div>}>
+          <KnowledgeGraph onOpenPage={onOpenPage} />
+        </Suspense>
       </div>
     );
   }
