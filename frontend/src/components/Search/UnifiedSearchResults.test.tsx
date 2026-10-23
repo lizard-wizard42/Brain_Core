@@ -31,7 +31,18 @@ it('filters collections, loads further results and opens the specific quick note
   fireEvent.change(screen.getByLabelText('Pesquisar em'), { target: { value: 'notes' } });
   fireEvent.click(await screen.findByRole('button', { name: /Nota rápida/ }));
   expect(navigate).toHaveBeenCalledWith('/notes?note=synthetic');
-  expect(api.searchNotes).toHaveBeenLastCalledWith('lunar', 'notes', 0, expect.any(AbortSignal));
+  expect(api.searchNotes).toHaveBeenLastCalledWith('lunar', 'notes', 0, expect.any(AbortSignal), 'text');
+});
+
+it('switches between standard and semantic search modes', async () => {
+  vi.mocked(api.searchNotes).mockResolvedValue({ items: [{ ...item, score: 0.85 }], next_offset: null });
+  render(<UnifiedSearchResults query="inteligencia" />);
+  expect(await screen.findByText('Investigação')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: /Semântica/ }));
+  await waitFor(() => {
+    expect(api.searchNotes).toHaveBeenLastCalledWith('inteligencia', 'all', 0, expect.any(AbortSignal), 'semantic');
+  });
+  expect(await screen.findByText('85%')).toBeInTheDocument();
 });
 
 it('distinguishes failed searches from empty results and retries', async () => {

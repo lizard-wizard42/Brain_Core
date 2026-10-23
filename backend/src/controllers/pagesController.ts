@@ -7,6 +7,20 @@ import { AuthRequest } from '../middleware/auth';
 import { logError, logInfo } from '../utils/logger';
 import { recordUploadedAsset } from '../services/uploadOwnership';
 import { savePageRevision, PageConflict, PageMissing, pageRole } from '../services/pageAccess';
+import { indexItemEmbeddings, clearItemEmbeddings } from '../services/embeddingService';
+
+export function extractDocPlainText(node: unknown): string {
+  if (!node || typeof node !== 'object') return '';
+  const obj = node as { text?: unknown; content?: unknown[] };
+  let result = typeof obj.text === 'string' ? obj.text : '';
+  if (Array.isArray(obj.content)) {
+    for (const child of obj.content) {
+      const childText = extractDocPlainText(child);
+      if (childText) result += (result ? ' ' : '') + childText;
+    }
+  }
+  return result;
+}
 
 /**
  * Propagates a page's title and/or icon change to all subPageBlock nodes
@@ -430,6 +444,9 @@ export async function savePage(req: Request, res: Response): Promise<void> {
       propagateSubPageBlockAttrs(row.id as string, null, null).catch(() => {});
     }
     const userId = (req as AuthRequest).userId!;
+    // Trigger background embedding indexing
+    const pagePlainText = extractDocPlainText(row.content);
+    indexItemEmbeddings(String(row.id), 'page', String(row.owner_user_id || userId), String(row.title || ''), pagePlainText).catch(() => {});
     res.json(redactPageForRole(row, await pageRole(String(req.params.id), userId)));
   } catch (error) {
     if (error instanceof InvalidNotebook) res.status(400).json({ error: 'Invalid notebook document' });
@@ -626,6 +643,7 @@ export async function permanentDeletePage(req: Request, res: Response): Promise<
         pageId: row.id,
         userId,
       });
+      clearItemEmbeddings(row.id).catch(() => {});
     }
     res.json({ deleted: true, count: rows.length });
   } catch (err) {

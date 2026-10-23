@@ -83,4 +83,6 @@ export const config = {
   TRASH_RETENTION_DAYS: parseInt(process.env.TRASH_RETENTION_DAYS || '30', 10),
   TRASH_CLEANUP_INTERVAL_MS: parseInt(process.env.TRASH_CLEANUP_INTERVAL_MS || '3600000', 10),
   PAGE_VERSION_RETENTION: parseInt(process.env.PAGE_VERSION_RETENTION || '100', 10),
+  OLLAMA_URL: process.env.OLLAMA_URL || 'http://127.0.0.1:11434',
+  OLLAMA_EMBED_MODEL: process.env.OLLAMA_EMBED_MODEL || 'nomic-embed-text',
 };
