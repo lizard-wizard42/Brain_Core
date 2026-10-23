@@ -465,3 +465,63 @@ test('PUT/PATCH responses for an editor redact owner-only fields like GET', asyn
     }
   } finally { database.query = originalQuery; pool.connect = originalConnect; await new Promise(resolve => server.close(resolve)); }
 });
+
+test('deletePage, restorePage, and permanentDeletePage cascade recursively to descendants', async () => {
+  const originalQuery = database.query;
+  const executedSqls = [];
+  database.query = async (sql, params = []) => {
+    executedSqls.push({ sql, params });
+    if (sql.includes('SELECT id FROM pages WHERE id = $1 AND owner_user_id = $2')) {
+      return [{ id: params[0] }];
+    }
+    if (sql.includes('WITH RECURSIVE page_tree AS') && sql.includes('UPDATE pages') && sql.includes('deleted_at = NOW()')) {
+      return [{ id: params[0] }, { id: 'child-1' }, { id: 'child-2' }];
+    }
+    if (sql.includes('WITH RECURSIVE page_tree AS') && sql.includes('UPDATE pages') && sql.includes('deleted_at = NULL')) {
+      return [{ id: params[0], title: 'Restored Parent' }, { id: 'child-1', title: 'Restored Child' }];
+    }
+    if (sql.includes('WITH RECURSIVE page_tree AS') && sql.includes('DELETE FROM pages')) {
+      return [{ id: params[0] }, { id: 'child-1' }];
+    }
+    return [];
+  };
+
+  const { server, origin } = await serve();
+  try {
+    // 1. Soft-delete
+    const delRes = await fetch(`${origin}/${pageId}`, {
+      method: 'DELETE',
+      headers: { 'x-test-user': 'A' },
+    });
+    assert.equal(delRes.status, 200);
+    const delJson = await delRes.json();
+    assert.equal(delJson.deleted, true);
+    assert.equal(delJson.count, 3);
+
+    // 2. Restore
+    const restoreRes = await fetch(`${origin}/${pageId}/restore`, {
+      method: 'POST',
+      headers: { 'x-test-user': 'A' },
+    });
+    assert.equal(restoreRes.status, 200);
+    const restoreJson = await restoreRes.json();
+    assert.equal(restoreJson.id, pageId);
+
+    // 3. Permanent delete
+    const permRes = await fetch(`${origin}/${pageId}/permanent`, {
+      method: 'DELETE',
+      headers: { 'x-test-user': 'A' },
+    });
+    assert.equal(permRes.status, 200);
+    const permJson = await permRes.json();
+    assert.equal(permJson.deleted, true);
+    assert.equal(permJson.count, 2);
+
+    // Verify all queries utilized recursive CTE
+    const recursiveQueries = executedSqls.filter(e => e.sql.includes('WITH RECURSIVE page_tree AS'));
+    assert.equal(recursiveQueries.length, 3);
+  } finally {
+    database.query = originalQuery;
+    await new Promise(resolve => server.close(resolve));
+  }
+});
