@@ -66,7 +66,7 @@ function Results({ query, kind, mode, onPageClick, onClose }: { query: string; k
     {loading && <p role="status" className="p-2 text-xs">Pesquisando…</p>}
     {error && <div role="alert" className="p-2 text-xs">Não foi possível pesquisar. <button type="button" className="min-h-11 underline" onClick={() => { setLoading(true); setError(false); setRetry(r => r + 1); }}>Tentar novamente</button></div>}
     {!loading && !error && !items.length && <p role="status" className="p-2 text-xs">Nenhuma correspondência em {kind === 'pages' ? 'páginas' : kind === 'notes' ? 'notas rápidas' : 'páginas e notas rápidas'}.</p>}
-    {next !== null && !error && <button type="button" disabled={loading} className="min-h-11 rounded-lg border border-[var(--theme-border)] text-xs disabled:opacity-50" onClick={() => { setLoading(true); setOffset(next); }}>Carregar mais resultados</button>}
+    {typeof next === 'number' && !error && <button type="button" disabled={loading} className="min-h-11 rounded-lg border border-[var(--theme-border)] text-xs disabled:opacity-50" onClick={() => { setLoading(true); setOffset(next); }}>Carregar mais resultados</button>}
   </div>;
 }
 

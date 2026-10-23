@@ -15,7 +15,7 @@ export async function search(req: AuthRequest, res: Response) {
   try {
     if (mode === 'semantic') {
       const semanticResults = await searchSemantic(req.userId!, text, String(kind));
-      res.json(semanticResults);
+      res.json({ ...semanticResults, next_offset: null });
       return;
     }
     res.json(await searchNotes(req.userId!, text, String(kind), Number(rawOffset)));

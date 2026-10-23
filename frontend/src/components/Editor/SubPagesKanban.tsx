@@ -138,7 +138,7 @@ export function SubPagesKanban({ pageId, onNavigatePage, onRefreshParent }: SubP
                       </p>
                       {p.due_date && (
                         <p className="mt-1 text-[10px] text-amber-500">
-                          📅 {new Date(p.due_date).toLocaleDateString()}
+                          📅 {p.due_date.includes('-') ? p.due_date.slice(0, 10).split('-').reverse().join('/') : p.due_date}
                         </p>
                       )}
                       {p.tags && p.tags.length > 0 && (
