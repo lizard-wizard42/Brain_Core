@@ -41,7 +41,10 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: coverImageFilter });
 
+import { getGraph } from '../controllers/graphController';
+
 const router = Router();
+router.get('/graph', getGraph);
 router.get('/search', search);
 router.use('/templates', templatesRouter);
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
