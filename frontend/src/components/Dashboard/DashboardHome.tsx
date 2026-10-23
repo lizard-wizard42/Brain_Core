@@ -8,6 +8,9 @@ import { rememberService } from '../../services/rememberService';
 import { defaultLabelForSpeaker, groupedSpeakerKey } from '../Remember/speakerAliases';
 import { NotasBoard } from '../Notas/NotasBoard';
 import { useNotas } from '../Notas/useNotas';
+import { emptyDraft } from '../Notas/notasModel';
+import { ActivityHeatmap } from './ActivityHeatmap';
+import { QuickDailyCapture } from './QuickDailyCapture';
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -176,6 +179,31 @@ export function DashboardHome({ onOpenPage }: { onOpenPage: (page: { id: string;
 
   const recall = useMemo(() => pickRecall(notes), [notes]);
 
+  // Aggregate activity across pages, notes, and sessions for the 90-day heatmap
+  const activityData = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of pages) {
+      if (p.updated_at) {
+        const d = p.updated_at.slice(0, 10);
+        counts.set(d, (counts.get(d) || 0) + 1);
+      }
+    }
+    for (const n of notes) {
+      if (n.created_at) {
+        const d = n.created_at.slice(0, 10);
+        counts.set(d, (counts.get(d) || 0) + 1);
+      }
+    }
+    return Array.from(counts.entries()).map(([date, count]) => ({ date, count }));
+  }, [pages, notes]);
+
+  const handleQuickCapture = async (text: string) => {
+    await createNote({
+      ...emptyDraft(),
+      body: text,
+    });
+  };
+
   return (
     <div className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-[var(--theme-background)]">
       <div className="mx-auto w-full max-w-[1240px] px-4 py-6 sm:px-8 sm:py-8">
@@ -185,6 +213,11 @@ export function DashboardHome({ onOpenPage }: { onOpenPage: (page: { id: string;
           </h1>
           <p className="mt-1 text-sm text-[var(--theme-muted)]">Aqui está o resumo do seu dia no Brain Core.</p>
         </header>
+
+        {/* Quick 1-click capture input */}
+        <div className="mb-6">
+          <QuickDailyCapture onCaptureNote={handleQuickCapture} />
+        </div>
 
         <nav aria-label="Acessos rápidos" className="mb-6 grid grid-cols-3 gap-2 sm:gap-3">
           {[{ label: 'Notas', path: '/notes', icon: '✎' }, { label: 'Linha do tempo', path: '/remember', icon: '◷' }, { label: 'Conhecimento', path: '/knowledge', icon: '▦' }].map(item => (
@@ -210,6 +243,11 @@ export function DashboardHome({ onOpenPage }: { onOpenPage: (page: { id: string;
             hint={memoriesLoading ? 'Carregando gravações…' : memoriesError ? 'Gravações indisponíveis' : today?.total_seconds ? `${formatDuration(today.total_seconds)} gravados` : 'nenhuma gravação concluída'}
           />
           <StatCard onClick={() => navigate('/notes')} label="Notas" value={loading || error ? '—' : notes.length.toLocaleString('pt-BR')} hint={loading ? 'Carregando notas…' : error ? 'Notas indisponíveis' : 'no seu quadro'} />
+        </div>
+
+        {/* 90-day consistency heatmap */}
+        <div className="mt-6">
+          <ActivityHeatmap activityData={activityData} />
         </div>
 
         <div className="mt-6 grid gap-4 lg:grid-cols-2">
