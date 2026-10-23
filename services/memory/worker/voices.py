@@ -100,10 +100,16 @@ def assign_voices(session_id: str, chunk_num: int, embedder=None) -> dict[int, i
             voices[idx] = {"centroid": vec, "n": 1}
         picked.append(idx)
 
-    # Short or unclear segments inherit a voice only when both neighbours agree.
+    # Short or unclear segments inherit a voice only when both neighbours agree,
+    # mas nunca se o trecho tiver duração razoável (>= 800ms) ou pontuação terminal,
+    # para evitar que respostas curtas ou interrupções sejam absorvidas pelo outro falante.
+    from services.memory.worker.transcriber import _TERMINAL
     for i, idx in enumerate(picked):
         if idx is None and 0 < i < len(picked) - 1 and picked[i - 1] is not None \
                 and picked[i - 1] == picked[i + 1]:
+            seg_text = segments[i].get("text", "") or ""
+            if _TERMINAL.search(seg_text):
+                continue
             if (segments[i]["start_ms"] - segments[i - 1]["end_ms"] <= 1500
                     and segments[i + 1]["start_ms"] - segments[i]["end_ms"] <= 1500):
                 picked[i] = picked[i - 1]

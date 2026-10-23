@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Header, HTTPException
 
+from services.memory.analytics.conversation import analyze_conversation_dynamics
 from services.memory.api.chunks import require_token, valid_owner
-
 from services.memory.storage import database
 
 router = APIRouter()
@@ -15,10 +15,27 @@ def get_session_transcript(
     if not database.session_owned_by(session_id, valid_owner(owner_user_id)):
         raise HTTPException(status_code=404, detail="session not found")
 
+    turns = database.compute_turns(session_id)
     return {
         "session_id": session_id,
         "status": database.compute_session_status(session_id),
         "text": database.get_session_text(session_id),
-        "turns": database.compute_turns(session_id),
+        "turns": turns,
+        "dynamics": analyze_conversation_dynamics(turns),
         "progress": database.get_job_progress(session_id),
+    }
+
+
+@router.get("/sessions/{session_id}/dynamics")
+def get_session_dynamics(
+    session_id: str, owner_user_id: str, authorization: str | None = Header(default=None)
+) -> dict:
+    require_token(authorization)
+    if not database.session_owned_by(session_id, valid_owner(owner_user_id)):
+        raise HTTPException(status_code=404, detail="session not found")
+
+    turns = database.compute_turns(session_id)
+    return {
+        "session_id": session_id,
+        "dynamics": analyze_conversation_dynamics(turns),
     }

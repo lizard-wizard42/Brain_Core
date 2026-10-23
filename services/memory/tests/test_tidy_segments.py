@@ -39,6 +39,15 @@ def test_merge_respects_maximum_duration():
     assert all(s.end_ms - s.start_ms <= 20000 for s in out) and len(out) > 1
 
 
+def test_conversational_turns_stay_separate():
+    # Frases completas separadas por uma pausa natural (> 200ms) não devem ser fundidas
+    turn_1 = S(0, 1500, "Você foi lá hoje?")
+    turn_2 = S(1850, 2400, "Fui.")
+    out = tidy_segments([turn_1, turn_2])
+    assert len(out) == 2
+    assert texts(out) == ["Você foi lá hoje?", "Fui."]
+
+
 def test_empty_and_blank_inputs():
     assert tidy_segments([]) == []
     assert tidy_segments([S(0, 100, "  ")]) == []

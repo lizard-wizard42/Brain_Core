@@ -14,12 +14,49 @@ class TranscribedSegment:
 
 
 def build_initial_prompt(session_id: str, chunk_num: int) -> str | None:
-    """Glossário (CELTWO_MEMORY_WHISPER_PROMPT) + cauda do chunk anterior — o
-    initial_prompt do whisper. Usado tanto pelo worker do servidor quanto
-    devolvido pelo endpoint /jobs/claim pro worker da GPU."""
+    """Glossário (CELTWO_MEMORY_WHISPER_PROMPT + vocabulary.txt + identidades) +
+    cauda do chunk anterior — o initial_prompt do whisper. Usado tanto pelo worker
+    do servidor quanto devolvido pelo endpoint /jobs/claim pro worker da GPU."""
     from services.memory.storage import database
 
-    glossary = os.environ.get("CELTWO_MEMORY_WHISPER_PROMPT", "").strip()
+    parts: list[str] = []
+
+    # 1. Variável de ambiente explícita
+    env_prompt = os.environ.get("CELTWO_MEMORY_WHISPER_PROMPT", "").strip()
+    if env_prompt:
+        parts.append(env_prompt)
+
+    # 2. Arquivo de vocabulário customizado se existir (data/memory/vocabulary.txt)
+    try:
+        vocab_path = database.get_data_dir() / "vocabulary.txt"
+        if vocab_path.is_file():
+            vocab_content = vocab_path.read_text(encoding="utf-8").strip()
+            if vocab_content:
+                clean_vocab = ", ".join(line.strip() for line in vocab_content.splitlines() if line.strip())
+                if clean_vocab:
+                    parts.append(clean_vocab)
+    except Exception:
+        pass
+
+    # 3. Nomes de participantes cadastrados no banco
+    try:
+        conn = database.get_connection()
+        try:
+            rows = conn.execute(
+                "SELECT display_name FROM voice_identities WHERE deleted_at IS NULL"
+            ).fetchall()
+            names = [r["display_name"].strip() for r in rows if r["display_name"] and r["display_name"].strip()]
+            if names:
+                parts.append(", ".join(names))
+        finally:
+            conn.close()
+    except Exception:
+        pass
+
+    glossary = "; ".join(p for p in parts if p)
+    if len(glossary) > 500:
+        glossary = glossary[:500]
+
     tail = ""
     if chunk_num > 0:
         prev = database.get_segments_for_chunk(session_id, chunk_num - 1)
@@ -69,6 +106,7 @@ def tidy_segments(
     gap_ms: int | None = None,
     short_ms: int | None = None,
     max_ms: int | None = None,
+    preserve_turns: bool = True,
 ) -> list[TranscribedSegment]:
     """Reduz a fragmentação do Whisper sem perder texto de fala.
 
@@ -77,8 +115,9 @@ def tidy_segments(
     - Trechos vizinhos são unidos quando o intervalo é curto e o anterior não
       terminou uma frase, ou quando qualquer um dos dois é curto demais para
       ser um turno de fala. Nunca ultrapassa ``max_ms`` por trecho.
-    A união é conservadora (intervalo pequeno): turnos de pessoas diferentes
-    costumam ter pausa maior, e a separação por voz acontece depois.
+    - Preserva turnos conversacionais: quando o segmento anterior e o atual são
+      frases completas com pontuação terminal e o intervalo excede 200ms,
+      eles não são unidos para não contaminar locutores diferentes.
     """
     gap_ms = _env_ms("CELTWO_MEMORY_MERGE_GAP_MS", 600) if gap_ms is None else gap_ms
     short_ms = _env_ms("CELTWO_MEMORY_MERGE_SHORT_MS", 1500) if short_ms is None else short_ms
@@ -98,8 +137,17 @@ def tidy_segments(
         if prev is not None:
             gap = seg.start_ms - prev.end_ms
             joined = seg.end_ms - prev.start_ms
+
+            prev_terminal = bool(_TERMINAL.search(prev.text))
+            seg_terminal = bool(_TERMINAL.search(text))
+
+            # Duas frases completas com pausa clara (> 200ms) não devem ser fundidas
+            if preserve_turns and prev_terminal and seg_terminal and gap > 200:
+                out.append(TranscribedSegment(seg.start_ms, seg.end_ms, text))
+                continue
+
             fragment = (prev.end_ms - prev.start_ms) < short_ms or (seg.end_ms - seg.start_ms) < short_ms
-            if gap <= gap_ms and joined <= max_ms and (fragment or not _TERMINAL.search(prev.text)):
+            if gap <= gap_ms and joined <= max_ms and (fragment or not prev_terminal):
                 out[-1] = TranscribedSegment(prev.start_ms, max(prev.end_ms, seg.end_ms),
                                              f"{prev.text} {text}")
                 continue
@@ -134,12 +182,17 @@ def get_model():
     return _model
 
 
-def transcribe_chunk(path: str) -> list[TranscribedSegment]:
+def transcribe_chunk(path: str, initial_prompt: str | None = None) -> list[TranscribedSegment]:
     model = get_model()
     language = os.environ.get("CELTWO_MEMORY_WHISPER_LANGUAGE", "pt")
     vad_filter = os.environ.get("CELTWO_MEMORY_WHISPER_VAD", "1") == "1"
 
-    segments, _info = model.transcribe(path, language=language, vad_filter=vad_filter)
+    segments, _info = model.transcribe(
+        path,
+        language=language,
+        vad_filter=vad_filter,
+        initial_prompt=initial_prompt,
+    )
 
     return [
         TranscribedSegment(
