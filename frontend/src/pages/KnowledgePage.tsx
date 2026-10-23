@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import type { TreePage } from '../types';
+import { KnowledgeGraph } from '../components/Graph/KnowledgeGraph';
 
 export function KnowledgePage({
   tree,
@@ -9,12 +11,65 @@ export function KnowledgePage({
   onOpenPage: (page: TreePage) => void;
   onOpenTree: () => void;
 }) {
+  const [viewMode, setViewMode] = useState<'overview' | 'graph'>('overview');
+
+  if (viewMode === 'graph') {
+    return (
+      <div className="flex flex-1 flex-col h-full overflow-hidden bg-[#121212]">
+        <div className="flex items-center justify-between border-b border-[#2a2a2a] bg-[#181818] px-4 py-2 shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#89aef1]">Brain Core</span>
+            <span className="text-gray-600">/</span>
+            <h1 className="text-sm font-medium text-gray-200">Grafo de Conhecimento</h1>
+          </div>
+          <div className="flex items-center gap-1 rounded-lg border border-[#343434] bg-[#222] p-1 text-xs">
+            <button
+              type="button"
+              onClick={() => setViewMode('overview')}
+              className="rounded px-2.5 py-1 text-gray-400 hover:text-white transition-colors"
+            >
+              📄 Visão Geral
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('graph')}
+              className="rounded bg-[#89aef1]/20 font-medium text-[#89aef1] px-2.5 py-1"
+            >
+              🕸️ Grafo Interativo
+            </button>
+          </div>
+        </div>
+        <KnowledgeGraph onOpenPage={onOpenPage} />
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 overflow-y-auto bg-[#191919] px-4 py-6 sm:px-8">
       <div className="mx-auto max-w-4xl">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#89aef1]">Brain Core</p>
-        <h1 className="mt-2 text-2xl font-semibold text-[#f3f4f6]">Conhecimento</h1>
-        <p className="mt-2 text-sm text-gray-400">Suas páginas e ideias, organizadas na mesma árvore do desktop.</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#89aef1]">Brain Core</p>
+            <h1 className="mt-2 text-2xl font-semibold text-[#f3f4f6]">Conhecimento</h1>
+            <p className="mt-2 text-sm text-gray-400">Suas páginas e ideias, organizadas na mesma árvore do desktop.</p>
+          </div>
+          <div className="flex items-center gap-1 rounded-lg border border-[#343434] bg-[#222] p-1 text-xs">
+            <button
+              type="button"
+              onClick={() => setViewMode('overview')}
+              className="rounded bg-[#89aef1]/20 font-medium text-[#89aef1] px-2.5 py-1"
+            >
+              📄 Visão Geral
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('graph')}
+              className="rounded px-2.5 py-1 text-gray-400 hover:text-white transition-colors"
+            >
+              🕸️ Grafo Interativo
+            </button>
+          </div>
+        </div>
         <button type="button" onClick={onOpenTree} className="mt-5 rounded-xl border border-[#343434] bg-[#242424] px-4 py-3 text-sm font-medium text-white md:hidden">
           Abrir árvore de páginas
         </button>

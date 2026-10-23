@@ -232,3 +232,24 @@ export interface NotebookSheet {
   strokes: NotebookStroke[]; texts: NotebookText[];
 }
 export interface NotebookDoc { notebook: true; version: 1; sheets: NotebookSheet[] }
+
+export interface GraphNode {
+  id: string;
+  title: string;
+  type: string;
+  icon: string | null;
+  status: string | null;
+  tags: string[];
+  val: number;
+}
+
+export interface GraphLink {
+  source: string;
+  target: string;
+  kind: 'parent' | 'reference';
+}
+
+export interface GraphData {
+  nodes: GraphNode[];
+  links: GraphLink[];
+}
