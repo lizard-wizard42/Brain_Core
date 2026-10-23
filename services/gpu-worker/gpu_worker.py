@@ -58,19 +58,53 @@ def parse_args(argv):
     return p.parse_args(argv)
 
 
+def _split_segment_by_words(segment, min_pause_ms: int = 250):
+    words = getattr(segment, "words", None)
+    if not words:
+        text = (segment.text or "").strip()
+        return [{
+            "start_ms": int(round(segment.start * 1000)),
+            "end_ms": int(round(segment.end * 1000)),
+            "text": text,
+        }] if text else []
+
+    sub_segments = []
+    curr_words = []
+
+    for i, w in enumerate(words):
+        curr_words.append(w)
+        w_text = (w.word or "").strip()
+        has_terminal = any(w_text.endswith(c) for c in ('.', '!', '?', '…'))
+        if has_terminal and i + 1 < len(words):
+            next_w = words[i + 1]
+            pause_ms = int(round((next_w.start - w.end) * 1000))
+            if pause_ms >= min_pause_ms:
+                sub_text = "".join(x.word for x in curr_words).strip()
+                if sub_text:
+                    sub_segments.append({
+                        "start_ms": int(round(curr_words[0].start * 1000)),
+                        "end_ms": int(round(curr_words[-1].end * 1000)),
+                        "text": sub_text,
+                    })
+                curr_words = []
+
+    if curr_words:
+        sub_text = "".join(x.word for x in curr_words).strip()
+        if sub_text:
+            sub_segments.append({
+                "start_ms": int(round(curr_words[0].start * 1000)),
+                "end_ms": int(round(curr_words[-1].end * 1000)),
+                "text": sub_text,
+            })
+
+    return sub_segments
+
+
 def segments_payload(fw_segments, model):
     out = []
     for s in fw_segments:
-        text = (s.text or "").strip()
-        if not text:
-            continue
-        out.append(
-            {
-                "start_ms": int(round(s.start * 1000)),
-                "end_ms": int(round(s.end * 1000)),
-                "text": text,
-            }
-        )
+        subs = _split_segment_by_words(s)
+        out.extend(subs)
     return {"segments": out, "model": model, "completed": True}
 
 
@@ -78,7 +112,7 @@ def _vad_options():
     return {
         "threshold": float(os.environ.get("CELTWO_GPU_VAD_THRESHOLD", "0.35")),
         "min_silence_duration_ms": int(
-            os.environ.get("CELTWO_GPU_VAD_MIN_SILENCE_MS", "1500")
+            os.environ.get("CELTWO_GPU_VAD_MIN_SILENCE_MS", "350")
         ),
     }
 
@@ -120,6 +154,7 @@ def _transcribe_model(model, name, path, initial_prompt, *, vad_filter):
         ),
         condition_on_previous_text=False,
         initial_prompt=initial_prompt,
+        word_timestamps=True,
     )
     return segments_payload(segs, name)
 
