@@ -21,6 +21,10 @@ export function KnowledgeGraph({ onOpenPage, activePageId }: KnowledgeGraphProps
 
   useEffect(() => {
     let active = true;
+    if (typeof api.getGraph !== 'function') {
+      setLoading(false);
+      return;
+    }
     api.getGraph()
       .then((res: GraphData) => {
         if (!active) return;

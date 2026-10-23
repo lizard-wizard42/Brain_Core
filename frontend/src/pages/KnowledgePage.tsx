@@ -11,7 +11,7 @@ export function KnowledgePage({
   onOpenPage: (page: TreePage) => void;
   onOpenTree: () => void;
 }) {
-  const [viewMode, setViewMode] = useState<'overview' | 'graph'>('graph');
+  const [viewMode, setViewMode] = useState<'overview' | 'graph'>('overview');
 
   if (viewMode === 'graph') {
     return (
