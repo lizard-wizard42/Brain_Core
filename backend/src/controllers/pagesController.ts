@@ -511,25 +511,38 @@ export async function uploadCover(req: Request, res: Response): Promise<void> {
 
 export async function deletePage(req: Request, res: Response): Promise<void> {
   const id = String(req.params.id);
+  const userId = (req as AuthRequest).userId ?? null;
   try {
-    const rows = await query(
-      `UPDATE pages SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
+    const rows = await query<{ id: string }>(
+      `WITH RECURSIVE page_tree AS (
+         SELECT id FROM pages WHERE id = $1 AND deleted_at IS NULL
+         UNION ALL
+         SELECT p.id FROM pages p
+         JOIN page_tree pt ON p.parent_page_id = pt.id
+         WHERE p.deleted_at IS NULL
+       )
+       UPDATE pages
+       SET deleted_at = NOW()
+       WHERE id IN (SELECT id FROM page_tree)
+       RETURNING id`,
       [id]
     );
     if (!rows.length) {
       res.status(404).json({ error: 'Page not found' });
       return;
     }
-    logInfo('page.delete.soft', {
-      pageId: id,
-      userId: (req as AuthRequest).userId ?? null,
-    });
-    res.json({ deleted: true });
+    for (const row of rows) {
+      logInfo('page.delete.soft', {
+        pageId: row.id,
+        userId,
+      });
+    }
+    res.json({ deleted: true, count: rows.length });
   } catch (err) {
     logError('page.delete.soft.error', {
       detail: String(err),
       pageId: id,
-      userId: (req as AuthRequest).userId ?? null,
+      userId,
     });
     res.status(500).json({ error: 'Failed to delete page', detail: String(err) });
   }
@@ -550,25 +563,39 @@ export async function getTrash(req: Request, res: Response): Promise<void> {
 
 export async function restorePage(req: Request, res: Response): Promise<void> {
   const id = String(req.params.id);
+  const userId = (req as AuthRequest).userId ?? null;
   try {
     const rows = await query<Page>(
-      `UPDATE pages SET deleted_at = NULL WHERE id = $1 AND deleted_at IS NOT NULL RETURNING *`,
+      `WITH RECURSIVE page_tree AS (
+         SELECT id FROM pages WHERE id = $1 AND deleted_at IS NOT NULL
+         UNION ALL
+         SELECT p.id FROM pages p
+         JOIN page_tree pt ON p.parent_page_id = pt.id
+         WHERE p.deleted_at IS NOT NULL
+       )
+       UPDATE pages
+       SET deleted_at = NULL
+       WHERE id IN (SELECT id FROM page_tree)
+       RETURNING *`,
       [id]
     );
     if (!rows.length) {
       res.status(404).json({ error: 'Page not found in trash' });
       return;
     }
-    logInfo('page.restore', {
-      pageId: id,
-      userId: (req as AuthRequest).userId ?? null,
-    });
-    res.json(rows[0]);
+    for (const row of rows) {
+      logInfo('page.restore', {
+        pageId: row.id,
+        userId,
+      });
+    }
+    const targetPage = rows.find(r => r.id === id) || rows[0];
+    res.json(targetPage);
   } catch (err) {
     logError('page.restore.error', {
       detail: String(err),
       pageId: id,
-      userId: (req as AuthRequest).userId ?? null,
+      userId,
     });
     res.status(500).json({ error: 'Failed to restore page', detail: String(err) });
   }
@@ -576,25 +603,36 @@ export async function restorePage(req: Request, res: Response): Promise<void> {
 
 export async function permanentDeletePage(req: Request, res: Response): Promise<void> {
   const id = String(req.params.id);
+  const userId = (req as AuthRequest).userId ?? null;
   try {
-    const rows = await query(
-      `DELETE FROM pages WHERE id = $1 AND deleted_at IS NOT NULL RETURNING id`,
+    const rows = await query<{ id: string }>(
+      `WITH RECURSIVE page_tree AS (
+         SELECT id FROM pages WHERE id = $1 AND deleted_at IS NOT NULL
+         UNION ALL
+         SELECT p.id FROM pages p
+         JOIN page_tree pt ON p.parent_page_id = pt.id
+       )
+       DELETE FROM pages
+       WHERE id IN (SELECT id FROM page_tree)
+       RETURNING id`,
       [id]
     );
     if (!rows.length) {
       res.status(404).json({ error: 'Page not found in trash' });
       return;
     }
-    logInfo('page.delete.permanent', {
-      pageId: id,
-      userId: (req as AuthRequest).userId ?? null,
-    });
-    res.json({ deleted: true });
+    for (const row of rows) {
+      logInfo('page.delete.permanent', {
+        pageId: row.id,
+        userId,
+      });
+    }
+    res.json({ deleted: true, count: rows.length });
   } catch (err) {
     logError('page.delete.permanent.error', {
       detail: String(err),
       pageId: id,
-      userId: (req as AuthRequest).userId ?? null,
+      userId,
     });
     res.status(500).json({ error: 'Failed to permanently delete page', detail: String(err) });
   }
