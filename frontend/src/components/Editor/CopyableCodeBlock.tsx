@@ -34,20 +34,19 @@ function CodeBlockView({ node }: NodeViewProps) {
   };
 
   return <NodeViewWrapper className="editor-code-block">
-    <div className="editor-code-header" contentEditable={false}>
+    <div className="editor-code-actions" contentEditable={false}>
       <button type="button" className="editor-code-copy" aria-label="Copiar código"
-        title="Copiar todo o código" disabled={status === 'copying'}
+        title={status === 'copied' ? 'Código copiado' : 'Copiar todo o código'} disabled={status === 'copying'}
         onMouseDown={event => event.preventDefault()} onClick={() => void copy()}>
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           {status === 'copied' ? <path d="m5 12 4 4L19 6" /> : <><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></>}
         </svg>
-        <span>{status === 'copied' ? 'Copiado' : status === 'copying' ? 'Copiando…' : 'Copiar'}</span>
       </button>
-      <span className={status === 'error' ? 'editor-code-error' : 'sr-only'} role="status" aria-live="polite">
-        {status === 'copied' ? 'Código copiado.' : status === 'error' ? 'Não foi possível copiar. Tente novamente.' : ''}
-      </span>
     </div>
     <NodeViewContent<'pre'> as="pre" className={node.attrs.language ? `language-${node.attrs.language}` : undefined} style={{ whiteSpace: 'pre' }} />
+    <span contentEditable={false} className={status === 'error' ? 'editor-code-error' : 'sr-only'} role="status" aria-live="polite">
+      {status === 'copied' ? 'Código copiado.' : status === 'error' ? 'Não foi possível copiar. Tente novamente.' : ''}
+    </span>
   </NodeViewWrapper>;
 }
 

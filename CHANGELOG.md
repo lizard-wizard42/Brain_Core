@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — discreet code copy control
+
+- Replace the code-block header row with an accessible icon in the upper-right corner; copying still confirms with a checkmark and preserves code formatting.
+
 ## Unreleased — copy code blocks
 
 - Add a visible copy action at the top right of each highlighted code block, including read-only pages. Copy preserves indentation, tabs, Unicode and line breaks without changing saved content.
