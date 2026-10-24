@@ -117,4 +117,30 @@ describe('Text editor persistence', () => {
     expect(result.current.recoverable).toBeNull();
     expect(textEditorDrafts.remove).toHaveBeenCalledWith(key);
   });
+  it('retains an edit reverted to the saved text while an older save is in flight', async () => {
+    let resolve!: (p: Page) => void;
+    vi.mocked(api.savePage).mockImplementationOnce(() => new Promise(r => { resolve = r; }));
+    const { result } = await setup();
+    let pending!: Promise<void>;
+    act(() => { pending = result.current.saveNow(doc('In flight'), 'Changed'); });
+    await waitFor(() => expect(api.savePage).toHaveBeenCalledTimes(1));
+    act(() => { result.current.change(doc('Saved'), 'Study'); });
+    await waitFor(() => expect(textEditorDrafts.write).toHaveBeenLastCalledWith(key, { content: doc('Saved'), title: 'Study', baseRevision: 3 }));
+    expect(textEditorDrafts.remove).not.toHaveBeenCalled();
+    await act(async () => { resolve({ ...page(), revision: 4 }); await pending; await result.current.flush(); });
+    expect(api.savePage).toHaveBeenLastCalledWith('fictional-page', expect.objectContaining({ content: doc('Saved') }), expect.anything());
+  });
+  it('does not report saved if another edit arrives during draft cleanup', async () => {
+    let finishCleanup!: () => void;
+    vi.mocked(textEditorDrafts.remove).mockImplementationOnce(() => new Promise<void>(r => { finishCleanup = r; }));
+    const { result } = await setup();
+    let pending!: Promise<void>;
+    act(() => { pending = result.current.saveNow(doc('First'), 'First'); });
+    await waitFor(() => expect(textEditorDrafts.remove).toHaveBeenCalledTimes(1));
+    act(() => { result.current.change(doc('Latest'), 'Latest'); });
+    await act(async () => { finishCleanup(); await pending; });
+    expect(result.current.status).toBe('saving');
+    expect(textEditorDrafts.write).toHaveBeenLastCalledWith(key, { content: doc('Latest'), title: 'Latest', baseRevision: 4 });
+  });
+
 });
