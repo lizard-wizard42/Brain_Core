@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { attachPageDragBridge } from './PageDragBridge';
 import { readPageDrag, PAGE_DRAG_TYPE } from './pageDrag';
 it('writes page identity after an existing native drag handler clears data, including wrapper-retargeted drags', () => {
- const root=document.createElement('div');root.innerHTML='<div data-node-view-wrapper><div data-page-card="alpha" data-page-title="Alpha" data-page-source="child"></div></div>';
+ const root=document.createElement('div');root.innerHTML='<div class="react-renderer node-subPageBlock"><div data-node-view-wrapper><div data-page-card="alpha" data-page-title="Alpha" data-page-source="child"></div></div></div>';
  const values=new Map<string,string>();const dt={getData:(k:string)=>values.get(k)??'',setData:(k:string,v:string)=>values.set(k,v),get types(){return [...values.keys()];},effectAllowed:''} as unknown as DataTransfer;
  root.addEventListener('dragstart',()=>{values.clear();values.set('text/html','native slice');});
  const cleanup=attachPageDragBridge(root,()=>true);
