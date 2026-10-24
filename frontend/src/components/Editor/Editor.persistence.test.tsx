@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Editor as TiptapEditor } from '@tiptap/react';
 import type { Page, TiptapDoc } from '../../types';
 import { Editor } from './Editor';
+import { MemoryRouter } from 'react-router-dom';
+import { writePageDrag } from './pageDrag';
 import { api } from '../../api/client';
 import { textEditorDrafts } from './textEditorDrafts';
 const captured = vi.hoisted(() => ({ editor: null as TiptapEditor | null }));
@@ -95,6 +97,33 @@ describe('Real text editor save and recovery integration', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Seu rascunho foi mantido');
     expect(screen.getByRole('button', { name: 'Recuperar rascunho' })).toBeVisible();
     expect(textEditorDrafts.remove).not.toHaveBeenCalled();
+  });
+
+  it('nests a page card and adopts the parent revision before saving more writing', async () => {
+    const alpha = { id: 'alpha', title: 'Alpha', sort_order: 0, parent_page_id: page.id };
+    const beta = { id: 'beta', title: 'Beta', sort_order: 1000, parent_page_id: page.id };
+    const card = (id: string, title: string) => ({ type: 'subPageBlock', attrs: { pageId: id, title, icon: '', source: 'child' } });
+    const content = { type: 'doc' as const, content: [...doc('Before').content, card('alpha', 'Alpha'), card('beta', 'Beta'), ...doc('After').content] };
+    const root = { ...page, content };
+    let moved = false;
+    vi.mocked(api.getSubPages).mockImplementation(async id => id === page.id ? (moved ? [beta] : [alpha,beta]) as Awaited<ReturnType<typeof api.getSubPages>> : []);
+    vi.mocked(api.patchPage).mockImplementation(async () => { moved = true; return { ...alpha, revision: 2 } as Page; });
+    vi.mocked(api.getPage).mockResolvedValue({ ...root, revision: 4, content: { type: 'doc', content: [...doc('Before').content,card('beta','Beta'),...doc('After').content] } });
+    render(<Editor page={root} />, { wrapper: MemoryRouter });
+    await waitFor(() => expect(captured.editor?.isEditable).toBe(true));
+    const target = document.querySelector('[data-page-card="beta"]') as HTMLElement;
+    vi.spyOn(target,'getBoundingClientRect').mockReturnValue({top:100,height:80,bottom:180} as DOMRect);
+    const data=new Map<string,string>();const transfer={setData:(k:string,v:string)=>data.set(k,v),getData:(k:string)=>data.get(k)??'',get types(){return [...data.keys()];},effectAllowed:''} as unknown as DataTransfer;
+    writePageDrag(transfer,{id:'alpha',title:'Alpha',origin:'editor',reference:false});
+    const drop=new Event('drop',{bubbles:true,cancelable:true});Object.defineProperties(drop,{clientY:{value:140},dataTransfer:{value:transfer}});
+    fireEvent(target,drop);
+    await waitFor(() => expect(api.patchPage).toHaveBeenCalledWith('alpha',{parent_page_id:'beta',sort_order:0}));
+    await waitFor(() => expect(document.querySelector('[data-page-card="alpha"]')).toBeNull());
+    await waitFor(() => expect(captured.editor?.isEditable).toBe(true));
+    expect(captured.editor?.getText()).toContain('Before');expect(captured.editor?.getText()).toContain('After');
+    fireEvent.change(screen.getByRole('textbox',{name:'Título da página'}),{target:{value:'After move'}});
+    fireEvent.click(screen.getByRole('button',{name:'Retry save'}));
+    await waitFor(() => expect(api.savePage).toHaveBeenCalledWith(page.id,expect.objectContaining({revision:4,title:'After move'}),expect.anything()));
   });
 
 });

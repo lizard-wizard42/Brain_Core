@@ -42,6 +42,9 @@ import { PageNavigation } from './PageNavigation';
 import { type SavedSel, TableControls } from './ToolbarControls';
 import { BottomToolbar } from './BottomToolbar';
 import { useTextEditorPersistence } from './useTextEditorPersistence';
+import { PageWritingGaps } from './PageWritingGaps';
+import { PageDragBridge } from './PageDragBridge';
+import { PageMoveError, movePageInto } from './pageNesting';
 
 const lowlight = createLowlight(common);
 
@@ -151,16 +154,43 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
   const { status: saveStatus, conflict: conflictState, ready, recoverable, draftWarning,
     saveNow: persistContentNow, change, discard, recover, currentDraft, acceptMetadata } = persistence;
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
-  const canEdit = ready && !recoverable;
+  const [pageMoving, setPageMoving] = useState(false);
+  const [moveNeedsReload, setMoveNeedsReload] = useState(false);
+  const [moveNotice, setMoveNotice] = useState<string | null>(null);
+  const movePending = useRef(false);
+  const canEdit = ready && !recoverable && !pageMoving && !moveNeedsReload;
   const { joinPage, leavePage } = useSocket();
   const triggerSave = useCallback((ed: TiptapEditor, currentTitle: string) => {
     change(ed.getJSON() as TiptapDoc, currentTitle);
   }, [change]);
 
+  const handleNestPage = useCallback(async (ed: TiptapEditor, draggedId: string, targetId: string) => {
+    if (movePending.current || !ed.isEditable) return;
+    movePending.current = true; setPageMoving(true); setMoveNotice(null);
+    ed.setEditable(false);
+    clearTimeout(syncSubPageOrderTimerRef.current);
+    try {
+      const fresh = await movePageInto(page.id, draggedId, targetId, async () => {
+        await persistContentNow(ed.getJSON() as TiptapDoc, titleRef.current);
+        return persistence.isFullySaved();
+      });
+      await discard(fresh);
+      titleRef.current = fresh.title; setTitle(fresh.title);
+      ed.commands.setContent(fresh.content, { emitUpdate: false });
+      onRefreshRef.current?.();
+      setMoveNotice('Página movida. A árvore e o documento foram atualizados.');
+    } catch (error) {
+      if (error instanceof PageMoveError && error.committed) {
+        setMoveNeedsReload(true); setMoveNotice(error.message);
+      }
+      throw error;
+    } finally { movePending.current = false; setPageMoving(false); }
+  }, [discard, page.id, persistContentNow, persistence]);
+
   const syncSubPageOrder = useCallback(async (ed: TiptapEditor) => {
     const subPageIds: string[] = [];
     ed.state.doc.descendants(node => {
-      if (node.type.name === 'subPageBlock' && node.attrs.pageId) {
+      if (node.type.name === 'subPageBlock' && node.attrs.source !== 'reference' && node.attrs.pageId) {
         subPageIds.push(node.attrs.pageId);
       }
     });
@@ -183,10 +213,10 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
     }
   }, [onRefresh, page.id]);
 
-  const getSubPageOrderFromDoc = useCallback((doc: { descendants: (fn: (node: { type: { name: string }; attrs: { pageId?: string } }) => void) => void }) => {
+  const getSubPageOrderFromDoc = useCallback((doc: { descendants: (fn: (node: { type: { name: string }; attrs: { pageId?: string; source?: string } }) => void) => void }) => {
     const ids: string[] = [];
     doc.descendants((node) => {
-      if (node.type.name === 'subPageBlock' && node.attrs.pageId) {
+      if (node.type.name === 'subPageBlock' && node.attrs.source !== 'reference' && node.attrs.pageId) {
         ids.push(node.attrs.pageId);
       }
     });
@@ -196,7 +226,9 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
   const editor = useEditor({
     editable: false,
     extensions: [
-      StarterKit.configure({ codeBlock: false, underline: false, link: false }),
+      StarterKit.configure({ codeBlock: false, underline: false, link: false, dropcursor: { color: 'var(--theme-primary)', width: 2 } }),
+      PageWritingGaps,
+      PageDragBridge,
       Table.configure({ resizable: true }),
       TableRow,
       TableHeader,
@@ -213,7 +245,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
       SubPageBlock.extend({
         addNodeView() {
           return ReactNodeViewRenderer(
-            (props) => SubPageBlockView({ ...props, onRefresh: () => onRefreshRef.current?.(), onNavigatePage: (page, openInNewTab) => onNavigatePageRef.current?.(page, openInNewTab) })
+            (props) => SubPageBlockView({ ...props, onRefresh: () => onRefreshRef.current?.(), onNavigatePage: (page, openInNewTab) => onNavigatePageRef.current?.(page, openInNewTab), onNestPage: (draggedId, targetId) => handleNestPage(props.editor, draggedId, targetId) })
           );
         },
       }),
@@ -325,7 +357,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
       }
 
       // Sync sidebar order only when the subPageBlock sequence actually changes.
-      const nextOrder = getSubPageOrderFromDoc(transaction.doc as unknown as { descendants: (fn: (node: { type: { name: string }; attrs: { pageId?: string } }) => void) => void });
+      const nextOrder = getSubPageOrderFromDoc(transaction.doc as unknown as { descendants: (fn: (node: { type: { name: string }; attrs: { pageId?: string; source?: string } }) => void) => void });
       const nextOrderKey = nextOrder.join('|');
 
       if (nextOrderKey !== subPageOrderKeyRef.current) {
@@ -358,7 +390,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
 
   useEffect(() => {
     if (!editor) return;
-    const currentOrder = getSubPageOrderFromDoc(editor.state.doc as unknown as { descendants: (fn: (node: { type: { name: string }; attrs: { pageId?: string } }) => void) => void });
+    const currentOrder = getSubPageOrderFromDoc(editor.state.doc as unknown as { descendants: (fn: (node: { type: { name: string }; attrs: { pageId?: string; source?: string } }) => void) => void });
     subPageOrderKeyRef.current = currentOrder.join('|');
   }, [editor, page.id, getSubPageOrderFromDoc]);
 
@@ -375,7 +407,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
       const ed = editorRef.current;
       if (!ed) return;
       ed.state.doc.descendants((node, pos) => {
-        if (node.type.name === 'subPageBlock' && node.attrs.pageId === pageId) {
+        if (node.type.name === 'subPageBlock' && node.attrs.source !== 'reference' && node.attrs.pageId === pageId) {
           ed.view.dispatch(
             ed.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, icon: newIcon })
           );
@@ -452,18 +484,8 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
           nextContent.splice(insertAt, 0, ...missingNodes);
         }
       } else if (missingNodes.length) {
-        // If body is still effectively empty, replace it with the ordered child list.
-        const docIsEffectivelyEmpty = nextContent.every(node => {
-          if (node.type !== 'paragraph') return false;
-          const paragraphText = (node.content ?? [])
-            .map(child => ('text' in child ? child.text : ''))
-            .join('')
-            .trim();
-          return paragraphText.length === 0;
-        });
-
-        if (docIsEffectivelyEmpty) nextContent = missingNodes;
-        else nextContent = [...nextContent, ...missingNodes];
+        // Preserve intentional empty writing lines when new children appear.
+        nextContent = [...nextContent, ...missingNodes];
       }
 
       if (JSON.stringify(nextContent) === JSON.stringify(currentContent)) return;
@@ -494,6 +516,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
       if (fresh.icon !== undefined) setIcon(fresh.icon ?? '');
       if (fresh.content) editor?.commands.setContent(fresh.content, { emitUpdate: false });
       setRecoveryError(null);
+      setMoveNeedsReload(false); setMoveNotice(null);
       loadVersionHistory();
       onRefresh?.();
     } catch {
@@ -620,6 +643,10 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
+      {pageMoving && <div role="status" className="editor-page-move-status">Salvando e movendo a página…</div>}
+      {moveNotice && <div role={moveNeedsReload ? 'alert' : 'status'} className="editor-page-move-status"><span>{moveNotice}</span>
+        {moveNeedsReload ? <button type="button" onClick={() => { void reloadFromServer(); }}>Recarregar versão salva</button>
+          : <button type="button" aria-label="Fechar aviso" onClick={() => setMoveNotice(null)}>×</button>}</div>}
       {!ready && <div role="status" className="border-b border-[var(--theme-border)] px-4 py-2 text-sm">Verificando rascunho local…</div>}
       {recoverable && <div role="status" className="flex flex-wrap items-center gap-2 border-b border-[var(--theme-border)] bg-[var(--theme-surface)] px-4 py-3 text-sm">
         <span className="flex-1">Há um rascunho local não salvo. Deseja recuperá-lo?

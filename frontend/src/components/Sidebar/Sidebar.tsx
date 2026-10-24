@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import type { TreePage } from '../../types';
 import type { Tab } from '../../hooks/useTabs';
 import { api } from '../../api/client';
+import { writePageDrag, clearPageDrag } from '../Editor/pageDrag';
 import { TrashPanel } from '../Trash/TrashPanel';
 import { EmojiPicker } from '../shared/EmojiPicker';
 import { RememberSidebarTree } from '../Remember/RememberSidebarTree';
@@ -394,9 +395,10 @@ function PageNodeComponent({
             document.body.appendChild(ghost);
             e.dataTransfer.setDragImage(ghost, 0, 0);
             setTimeout(() => document.body.removeChild(ghost), 0);
+            writePageDrag(e.dataTransfer, { id: page.id, title: page.title, origin: 'sidebar', reference: false });
             onDragStart(page.id);
           }}
-          onDragEnd={e => { e.stopPropagation(); onDragEnd(); }}
+          onDragEnd={e => { e.stopPropagation(); clearPageDrag(); onDragEnd(); }}
           onClick={e => e.stopPropagation()}
           title="Arrastar para mover"
         >
@@ -458,8 +460,8 @@ function PageNodeComponent({
           />
         ) : (
           <button type="button" className="sidebar-page-title" title={page.title} draggable
-            onDragStart={event => { event.stopPropagation(); onDragStart(page.id); }}
-            onDragEnd={event => { event.stopPropagation(); onDragEnd(); }}
+            onDragStart={event => { event.stopPropagation(); writePageDrag(event.dataTransfer, { id: page.id, title: page.title, origin: 'sidebar', reference: false }); onDragStart(page.id); }}
+            onDragEnd={event => { event.stopPropagation(); clearPageDrag(); onDragEnd(); }}
             aria-current={isActive ? 'page' : undefined}
             onClick={() => { setActionsOpen(false); if (onPageClick) onPageClick(page); else navigate(`/page/${page.id}`); }}>
             {page.title}

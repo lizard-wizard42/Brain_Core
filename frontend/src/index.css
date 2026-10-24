@@ -385,3 +385,18 @@
 .tiptap-editor > p + p { margin-top: .65em; }
 .tiptap-editor :is(h1, h2, h3, h4, h5, h6) { scroll-margin-top: 1rem; }
 .tiptap-editor code { color: var(--theme-text); }
+
+/* Page cards share a clear nesting target and theme-aware insertion cursors. */
+.subpage-card { position: relative; transition: border-color 120ms, background 120ms; }
+.subpage-card[data-drop-inside] { border-color: var(--theme-primary); background: var(--theme-hover); outline: 2px solid var(--theme-primary); outline-offset: 2px; }
+.subpage-drop-label { width: 100%; padding: 0 8px 4px; color: var(--theme-primary); font-size: 12px; pointer-events: none; }
+.tiptap-editor .ProseMirror-gapcursor::after { border-top: 2px solid var(--theme-primary); }
+.subpage-writing-gap { display: flex; align-items: center; justify-content: center; position: relative; width: 100%; height: 16px; padding: 0; border: 0; background: transparent; color: var(--theme-muted); cursor: text; }
+.subpage-writing-gap::before { content: ''; position: absolute; inset: 50% 0 auto; border-top: 1px dashed transparent; }
+.subpage-writing-gap span { position: relative; display: grid; place-items: center; width: 22px; height: 22px; border: 1px solid var(--theme-border); border-radius: 50%; background: var(--theme-surface); opacity: 0; font: 14px/1 sans-serif; }
+.subpage-writing-gap:hover span, .subpage-writing-gap:focus-visible span { opacity: 1; }
+.subpage-writing-gap:hover::before, .subpage-writing-gap:focus-visible::before { border-color: var(--theme-primary); }
+.subpage-writing-gap:focus-visible { outline: 2px solid var(--theme-primary); outline-offset: 1px; }
+.editor-page-move-status { display: flex; align-items: center; gap: 12px; padding: 8px 16px; border-bottom: 1px solid var(--theme-border); color: var(--theme-text); font-size: 13px; }
+.editor-page-move-status button { min-height: 36px; padding: 4px 8px; border: 1px solid var(--theme-border); border-radius: 6px; }
+@media (hover: none) { .subpage-writing-gap { height: 24px; } .subpage-writing-gap span { opacity: .75; } }

@@ -166,6 +166,7 @@ export function useTextEditorPersistence(page: Page, onSaved?: () => void) {
     if (dirty.current) void queueDraft({ ...latest.current, baseRevision: saved.revision });
   }, [page.id, queueDraft, sameAccount]);
 
+  const isFullySaved = useCallback(() => !dirty.current && !conflicted.current && !blocked.current && sameAccount(), [sameAccount]);
   const currentDraft = useCallback((): TextEditorDraft => recovery.current ?? { ...latest.current, baseRevision: revision.current }, []);
-  return { status, ready, recoverable, draftWarning, conflict, change, flush, saveNow, recover, discard, currentDraft, acceptMetadata };
+  return { status, ready, recoverable, draftWarning, conflict, change, flush, saveNow, recover, discard, currentDraft, acceptMetadata, isFullySaved };
 }
