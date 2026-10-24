@@ -182,3 +182,25 @@ backups; it does not make a page available offline if the app cannot load it.
 The existing Notebook and Infinite formats retain their own persistence flows.
 
 See the [TDD evidence](TEXT_EDITOR_RECOVERY_TDD.md) for validation and limits.
+
+## Moving page cards and writing between them
+
+Drag a managed page by its handle. Dropping onto the middle of another managed
+page card moves the source into that page, with a highlighted destination and
+confirmation. The upper and lower edges retain normal document reordering.
+Dragging from the sidebar onto a card's middle uses the same nesting operation.
+Reference cards remain links: they cannot become hierarchy move sources or targets.
+Read-only pages do not offer these editing controls.
+
+The editor saves pending writing before moving. After a successful move it reads
+the updated parent document and revision, preserving surrounding text and allowing
+further saves. A rejected move keeps the card and offers a retry. If the move
+succeeds but reloading fails, editing pauses until **Recarregar versão salva**
+loads the saved version; this avoids writing an outdated parent document.
+
+Hover or focus the small insertion point before or after a card to create a real
+text paragraph. With a card selected, Enter inserts a paragraph after it and
+Shift+Enter inserts one before it. Insertion controls are UI decorations and are
+not stored in the document. The drag cursor and writing indicator follow the theme.
+
+See [page movement validation](PAGE_CARD_MOVEMENT_TDD.md).

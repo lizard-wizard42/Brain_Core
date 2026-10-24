@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — page cards inside the editor
+
+- Drag a managed page card onto the center of another card to move it into that page; use the edges for normal document reordering. Preserve native page identity even after a previous text selection.
+- Save the current document before moving, reconcile the parent revision afterward, and keep failed moves retryable. References and read-only pages cannot change hierarchy.
+- Add discreet insertion points and Enter/Shift+Enter shortcuts for writing after/before a selected card. Use theme-colored drag and gap indicators instead of a black cursor.
+
 ## Unreleased — text editor draft recovery
 
 - Keep account- and page-scoped text drafts in IndexedDB before the autosave delay; offer recovery, download or the saved server version when reopening.
