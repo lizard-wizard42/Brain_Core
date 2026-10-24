@@ -184,4 +184,15 @@ describe('Text editor persistence', () => {
     expect(result.current.status).toBe('saved');
   });
 
+  it('keeps a draft when undo happens after the response was lost', async () => {
+    vi.mocked(api.savePage).mockRejectedValueOnce(new Error('response lost'));
+    const { result } = await setup();
+    await act(async () => { await result.current.saveNow(doc('Unacknowledged'), 'Unacknowledged'); });
+    act(() => { result.current.change(doc('Saved'), 'Study'); });
+    expect(result.current.status).not.toBe('saved');
+    expect(textEditorDrafts.remove).not.toHaveBeenCalled();
+    await act(async () => { await result.current.flush(); });
+    expect(api.savePage).toHaveBeenCalledTimes(2);
+  });
+
 });
