@@ -143,4 +143,15 @@ describe('Text editor persistence', () => {
     expect(textEditorDrafts.write).toHaveBeenLastCalledWith(key, { content: doc('Latest'), title: 'Latest', baseRevision: 4 });
   });
 
+  it('accepts metadata-only acknowledgements without hiding a content conflict', async () => {
+    const { result } = await setup();
+    act(() => { result.current.change(doc('Typing'), 'Study'); });
+    act(() => { result.current.acceptMetadata({ ...page(), icon: '📘', revision: 4 }); });
+    await act(async () => { await result.current.flush(); });
+    expect(api.savePage).toHaveBeenLastCalledWith('fictional-page', expect.objectContaining({ revision: 4 }), expect.anything());
+    act(() => { result.current.acceptMetadata({ ...page(), content: doc('Someone else'), revision: 9 }); });
+    await act(async () => { await result.current.saveNow(doc('More typing'), 'Study'); });
+    expect(api.savePage).toHaveBeenLastCalledWith('fictional-page', expect.objectContaining({ revision: 4 }), expect.anything());
+  });
+
 });
