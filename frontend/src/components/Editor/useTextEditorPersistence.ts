@@ -16,13 +16,14 @@ export function useTextEditorPersistence(page: Page, onSaved?: () => void) {
   const [recoverable, setRecoverable] = useState<TextEditorDraft | null>(null);
   const [draftWarning, setDraftWarning] = useState(false);
   const [conflict, setConflict] = useState(false);
-  const userId = activeBrowserUserId();
+  const [userId] = useState(activeBrowserUserId);
   const key = `${userId}:${page.id}`;
   const mounted = useRef(true), blocked = useRef(true), conflicted = useRef(false), suspended = useRef(false);
   const revision = useRef(page.revision);
   const latest = useRef<Snapshot>({ content: page.content as TiptapDoc, title: page.title });
   const savedHash = useRef(hash(latest.current));
   const dirty = useRef(false);
+  const pendingSaves = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const localQueue = useRef<Promise<unknown>>(Promise.resolve());
   const serverQueue = useRef<Promise<void>>(Promise.resolve());
@@ -45,6 +46,7 @@ export function useTextEditorPersistence(page: Page, onSaved?: () => void) {
     clearTimeout(timer.current);
     if (blocked.current || conflicted.current || !sameAccount() || !dirty.current) return Promise.resolve();
     const snapshot = latest.current;
+    pendingSaves.current += 1;
     const operation = serverQueue.current.catch(() => {}).then(async () => {
       if (blocked.current || conflicted.current || !sameAccount()) return;
       if (hash(snapshot) === savedHash.current) return;
@@ -59,7 +61,8 @@ export function useTextEditorPersistence(page: Page, onSaved?: () => void) {
           await queueDraft({ ...latest.current, baseRevision: revision.current });
         } else {
           await queueDraft(null);
-          updateStatus('saved');
+          // A new edit may arrive while IndexedDB is committing the deletion.
+          if (hash(latest.current) === savedHash.current) updateStatus('saved');
         }
         if (options?.reloadVersions) onSavedRef.current?.();
       } catch (error) {
@@ -70,7 +73,7 @@ export function useTextEditorPersistence(page: Page, onSaved?: () => void) {
         } else updateStatus('error');
         // Draft remains recoverable. UI exposes retry instead of rejecting lifecycle events.
       }
-    });
+    }).finally(() => { pendingSaves.current -= 1; });
     serverQueue.current = operation;
     return operation;
   }, [page.id, queueDraft, sameAccount, updateStatus]);
@@ -78,7 +81,7 @@ export function useTextEditorPersistence(page: Page, onSaved?: () => void) {
   const change = useCallback((content: TiptapDoc, title: string) => {
     if (blocked.current || !sameAccount()) return;
     latest.current = { content, title };
-    dirty.current = hash(latest.current) !== savedHash.current;
+    dirty.current = pendingSaves.current > 0 || hash(latest.current) !== savedHash.current;
     // Persist before the debounce so closing the view doesn't depend on a network request.
     void queueDraft(dirty.current ? { content, title, baseRevision: revision.current } : null);
     clearTimeout(timer.current);
