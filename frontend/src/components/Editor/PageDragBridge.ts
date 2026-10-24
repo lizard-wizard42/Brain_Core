@@ -9,7 +9,8 @@ export function attachPageDragBridge(root: HTMLElement, editable: () => boolean)
     if (!editable() || !drag.dataTransfer || !(drag.target instanceof Element)) return;
     // Native dragging may retarget the NodeView wrapper instead of the inner handle.
     const card = drag.target.closest<HTMLElement>('[data-page-card]')
-      ?? drag.target.closest('[data-node-view-wrapper]')?.querySelector<HTMLElement>('[data-page-card]');
+      ?? drag.target.closest('[data-node-view-wrapper]')?.querySelector<HTMLElement>('[data-page-card]')
+      ?? drag.target.closest('.node-subPageBlock')?.querySelector<HTMLElement>('[data-page-card]');
     if (!card?.dataset.pageCard) return;
     writePageDrag(drag.dataTransfer, { id: card.dataset.pageCard, title: card.dataset.pageTitle ?? '',
       origin: 'editor', reference: card.dataset.pageSource === 'reference' });
