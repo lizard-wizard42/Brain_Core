@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SubPageBlockView } from './SubPageBlockView';
 import { api } from '../../api/client';
+import { writePageDrag, clearPageDrag } from './pageDrag';
 
 vi.mock('@tiptap/react', () => ({ NodeViewWrapper: ({ children }: { children: ReactNode }) => <div>{children}</div> }));
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
@@ -111,5 +112,41 @@ describe('subpage and reference actions', () => {
     fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' });
     expect(api.renamePage).not.toHaveBeenCalled();
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  });
+});
+
+function showDropTarget(source: 'child' | 'reference' = 'child', editable = true) {
+  const onNestPage = vi.fn().mockResolvedValue(undefined);
+  const props = { node: { attrs: { pageId: 'beta', title: 'Beta', icon: '', source } }, editor: { isEditable: editable }, updateAttributes: vi.fn(), deleteNode: vi.fn(), onNestPage };
+  const view = render(<SubPageBlockView {...props as unknown as ComponentProps<typeof SubPageBlockView>} />);
+  const target = view.container.querySelector('[data-page-card]') as HTMLElement;
+  if (target) vi.spyOn(target, 'getBoundingClientRect').mockReturnValue({ top: 100, height: 80, bottom: 180 } as DOMRect);
+  return { onNestPage, target };
+}
+function syntheticDrag(reference = false, id = 'alpha') {
+  const data = new Map<string,string>();
+  const dt = { setData: (k:string,v:string) => data.set(k,v), getData: (k:string) => data.get(k) ?? '', get types() { return [...data.keys()]; }, effectAllowed: '', dropEffect: '' } as unknown as DataTransfer;
+  writePageDrag(dt, { id, title: id, origin: 'editor', reference });
+  return dt;
+}
+describe('Page card nesting target', () => {
+  afterEach(clearPageDrag);
+  it('moves a real page only when dropped in the center, and preserves it on failure', async () => {
+    const { target, onNestPage } = showDropTarget(); const dataTransfer=syntheticDrag();
+    expect(target).not.toBeNull();
+    onNestPage.mockRejectedValueOnce(new Error('Could not move fictional page'));
+    fireEvent.dragOver(target, { clientY: 140, dataTransfer });
+    expect(screen.getByText('Mover para dentro de Beta')).toBeVisible();
+    fireEvent.drop(target, { clientY: 140, dataTransfer });
+    await waitFor(() => expect(onNestPage).toHaveBeenCalledWith('alpha', 'beta'));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not move fictional page');
+    expect(screen.getByRole('button', { name: 'Abrir subpágina: Beta' })).toBeInTheDocument();
+  });
+  it.each(['edge', 'self', 'reference', 'readonly'] as const)('does not reparent on %s drops', async kind => {
+    const { target, onNestPage } = showDropTarget('child', kind !== 'readonly');
+    const dataTransfer = syntheticDrag(kind === 'reference', kind === 'self' ? 'beta' : 'alpha');
+    expect(target).not.toBeNull();
+    fireEvent.drop(target, { clientY: kind === 'edge' ? 102 : 140, dataTransfer });
+    expect(onNestPage).not.toHaveBeenCalled();
   });
 });
