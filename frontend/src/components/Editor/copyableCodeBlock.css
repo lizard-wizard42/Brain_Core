@@ -1,0 +1,8 @@
+.tiptap-editor .editor-code-block { margin: .75em 0; min-width: 0; overflow: hidden; border: 1px solid var(--theme-border); border-radius: 8px; background: var(--theme-surface); }
+.editor-code-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 4px 10px; min-height: 44px; padding: 0 8px; border-bottom: 1px solid var(--theme-border); }
+.editor-code-copy { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 90px; min-height: 44px; padding: 4px 8px; border: 0; border-radius: 6px; background: transparent; color: var(--theme-muted); font-family: inherit; font-size: 12px; cursor: pointer; }
+.editor-code-copy:hover { background: var(--theme-hover); color: var(--theme-text); }
+.editor-code-copy:focus-visible { outline: 2px solid var(--theme-primary); outline-offset: -2px; }
+.editor-code-copy:disabled { cursor: wait; opacity: .65; }
+.tiptap-editor .editor-code-block pre { margin: 0; border: 0; border-radius: 0; padding: 1em 1.25em; overflow-x: auto; }
+.editor-code-error { flex-basis: 100%; padding: 0 4px 6px; color: var(--theme-muted); font-family: inherit; font-size: 12px; text-align: right; }

@@ -132,3 +132,19 @@ change the installation's locale.
 **Mobile navigation:** compact rows, branch controls and footer actions within a narrow drawer.
 
 <img src="images/sidebar-mobile-demo.jpg" alt="Mobile sidebar with fictional content" width="320">
+
+## Copying code blocks
+
+Blocks inserted with the `</>` toolbar button or the code-block slash command
+show **Copiar** at the top right. It copies the entire block as plain text,
+including tabs, indentation and trailing line breaks. It does not copy syntax
+colors, button labels or neighboring paragraphs. Each block has its own action.
+
+The action remains visible on touch screens and read-only shared pages. **Copiado**
+appears briefly after a successful copy; failures show a retry message. A fallback
+is attempted when the browser Clipboard API is unavailable, preserving focus and
+selection. Browser restrictions can still prevent copying.
+
+The control is editor UI only: existing code blocks, saved JSON, HTML exports,
+language highlighting and editing shortcuts retain their original format. No
+data migration or new dependency is required.

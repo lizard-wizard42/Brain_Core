@@ -7,7 +7,7 @@ import TableHeader from '@tiptap/extension-table-header';
 import TableCell from '@tiptap/extension-table-cell';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
+import { CopyableCodeBlock } from './CopyableCodeBlock';
 import Placeholder from '@tiptap/extension-placeholder';
 import Highlight from '@tiptap/extension-highlight';
 import { Color } from '@tiptap/extension-color';
@@ -285,7 +285,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
       TableCell,
       TaskList,
       TaskItem.configure({ nested: true }),
-      CodeBlockLowlight.configure({ lowlight }),
+      CopyableCodeBlock.configure({ lowlight }),
       Highlight.configure({ multicolor: true }),
       TextStyle,
       Color,

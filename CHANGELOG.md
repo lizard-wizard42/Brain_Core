@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — copy code blocks
+
+- Add a visible copy action at the top right of each highlighted code block, including read-only pages. Copy preserves indentation, tabs, Unicode and line breaks without changing saved content.
+- Show copied/error feedback and support a selection-preserving fallback for browsers without the Clipboard API.
+- Refresh compatible dependency locks for body-parser, multer, qs and zod to clear the production dependency audit required by CI; no major-version or API changes.
+
+
 ## Unreleased — notebook zoom and narrow-screen layout
 
 - Notebook zoom: two-finger pinch, double tap (fit/100%), Ctrl+wheel and Ctrl/Cmd +/-/0, multiplicative footer buttons, up to 300%, focal point preserved, manual zoom remembered per notebook. The initial zoom and "fit" now share one rule, so a phone in portrait opens with the sheet edge to edge instead of 43%.
