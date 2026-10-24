@@ -47,7 +47,7 @@ Node.js · Express · Socket.IO · PostgreSQL · Docker
 
 | Area | What you can do |
 | --- | --- |
-| Rich pages | Write and format content in Tiptap; organize pages and subpages in a tree with uncluttered title cards; add tags, status, and due dates. |
+| Rich pages | Write and format content in Tiptap; organize pages and subpages in a tree with uncluttered title cards; drag cards into other pages and insert writing between them; add tags, status, and due dates. |
 | Search and navigation | Search pages and quick notes by title or text, with snippets, filters and pagination. Navigate breadcrumbs, a live heading outline and incoming page references. Use the grid button beside Knowledge to open the overview, and the adjacent control to expand or collapse every level of the sidebar tree. |
 | Note templates | Start with Study, Meeting or Project, or save your own text/structure snapshot per account. Create independent root pages or subpages. Open templates with the lightning button beside Attach file in the single-row editor toolbar. |
 | Quick notes | Capture short notes and reminders on a compact board and search them. Telegram reminders are optional and require your own bot configuration. |
