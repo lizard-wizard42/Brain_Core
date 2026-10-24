@@ -36,9 +36,11 @@ describe('CopyableCodeBlock', () => {
     render(<Demo />);
     const buttons = await screen.findAllByRole('button', { name: 'Copiar código' });
     const before = editor!.getJSON();
+    expect(buttons[0]).toHaveTextContent('');
+    expect(buttons[0]).toHaveAttribute('title', 'Copiar todo o código');
     expect(document.querySelector('pre code .hljs-keyword')).toBeInTheDocument();
     fireEvent.click(buttons[0]);
-    await waitFor(() => expect(screen.getByText('Copiado')).toBeVisible());
+    await waitFor(() => expect(screen.getByText('Código copiado.')).toBeInTheDocument());
     expect(writeText).toHaveBeenCalledWith(code);
     expect(editor!.getJSON()).toEqual(before);
     expect(editor!.getHTML()).not.toMatch(/Copiar|Copiado|button|editor-code/);
@@ -69,6 +71,6 @@ describe('CopyableCodeBlock', () => {
     expect(screen.queryByText('Copiado')).not.toBeInTheDocument();
     writeText.mockResolvedValueOnce(undefined);
     fireEvent.click(button);
-    expect(await screen.findByText('Copiado')).toBeVisible();
+    expect(await screen.findByText('Código copiado.')).toBeInTheDocument();
   });
 });
