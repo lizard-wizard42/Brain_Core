@@ -2,7 +2,7 @@ import { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { SubPageBlock } from './SubPageBlock';
 import { PageDragBridge } from './PageDragBridge';
-import { describe, expect, it, vi } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { attachPageDragBridge } from './PageDragBridge';
 import { readPageDrag, PAGE_DRAG_TYPE } from './pageDrag';
 it('writes page identity after an existing native drag handler clears data, including wrapper-retargeted drags', () => {
