@@ -119,6 +119,12 @@ isolated demonstration fixture rather than personal installation data.
 
 ## Android companion
 
+![Brain Core mobile Notes workspace in a decorative phone frame, with fictional English content and Android APK features](docs/images/android-companion-demo.jpg)
+
+*Mobile web workspace preview, as used by the APK’s PC tab, in a decorative
+phone frame. Fictional content and English demo labels; not a capture of the
+native recorder or a physical device.*
+
 Download the signed [Android APK](https://github.com/lizard-wizard42/Brain_Core/releases/latest/download/brain-core-android.apk)
 and compare its SHA-256 with the [release notes](https://github.com/lizard-wizard42/Brain_Core/releases/latest).
 The app requires **Android 7.0+**. The current source version is **1.1.5**.

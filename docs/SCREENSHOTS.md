@@ -14,13 +14,17 @@ modify application behavior.
 | [Quick Notes](images/notes-board-demo.jpg) | Fictional checklists, a reminder, search, filters, sorting and recoverable Trash navigation. |
 | [Infinite](images/infinite-canvas-demo.jpg) | Native tldraw shapes, arrows and sticky notes in a fictional visual workflow. |
 | [Memory](images/memory-conversation-demo.jpg) | A fictional two-speaker conversation, manual speaker controls and note/copy/download actions. The page is scrolled to keep all three turns visible. |
+| [Android companion](images/android-companion-demo.jpg) | The responsive web workspace used by the APK’s PC tab, shown in a decorative phone frame with Android feature captions. This is a browser preview, not a capture of the native recorder, Android OS or a physical device. |
 | [Dashboard](images/dashboard-current-demo.jpg) | Quick capture, recent work, recordings and the activity overview, computed from fictional page/note dates. |
 
 ## Data and language
 
-These are browser screenshots of the actual React components, rendered in a
+The seven web screenshots and the mobile workspace inside the Android companion
+composition use the actual React components, rendered in a
 separate, disposable source copy with in-memory fixture responses. They are not
-captures of a personal account and are not generated product mockups.
+captures of a personal account. The Android companion composition adds a
+decorative CSS phone frame and feature captions around the real responsive web
+workspace. The frame and captions are documentation artwork, not application UI.
 
 The fixture supplies example pages such as Product studio, Research notes,
 Sketchbook and Reading room; a fictional Demo account; and a conversation with
@@ -51,10 +55,12 @@ validation; see [Notebook limits](NOTEBOOK.md).
    account names, note titles, addresses, credentials, notifications, browser
    chrome and unrelated desktop content.
 5. Verify the actual image encoding and metadata. These files are JPEGs with
-   no EXIF; only standard JFIF/ICC metadata may be present. No pixel retouching,
-   artificial feature overlays or personal-data redaction was needed.
+   no EXIF; only standard JFIF/ICC metadata may be present. No pixel retouching or personal-data redaction was needed. The Android
+   phone frame and feature captions are rendered in the capture page, outside
+   the embedded workspace; they do not add controls to the application UI.
 6. Add descriptive alt text and captions, update the gallery/source version,
-   and check local links before publishing. Stop the disposable demo server
+   and check local links before publishing. For the Android composition, verify the mobile iframe
+   viewport, caption and frame separately from the application UI. Stop the disposable demo server
    and remove its browser tab after review.
 
 The images illustrate the implemented interface, not a performance benchmark,

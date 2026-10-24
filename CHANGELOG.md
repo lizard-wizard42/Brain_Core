@@ -2,7 +2,7 @@
 
 ## Unreleased — current product overview and screenshots
 
-- Refresh the README around the current page editor, Notebook, Infinite, quick notes, Timeline and dashboard, with seven new screenshots from isolated fictional English demo content.
+- Refresh the README around the current page editor, Notebook, Infinite, quick notes, Timeline and dashboard, with seven new web screenshots and an Android companion composition from isolated fictional English demo content.
 - Consolidate Android, transcription, draft recovery and per-account MCP guidance; link detailed setup and behavior to the existing feature guides.
 - Document screenshot provenance, the Portuguese-first application UI and the separate tldraw SDK production licensing requirements. No application behavior or production data changes.
 
