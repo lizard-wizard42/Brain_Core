@@ -46,9 +46,12 @@ Coverage improvements target persistence; existing untested menus and other
 features are not claimed as fully covered. Final suite and coverage figures are
 recorded in the pull request.
 
-## Final local results
+## Local validation results
 
 - Full frontend suite: 408 tests passed across 67 files, with coverage enabled.
+  A subsequent review added a regression for reverting an unacknowledged request;
+  that test failed before the fix and passed with the final persistence changes.
+  The final full-suite result is recorded by CI and in the pull request.
 - Overall frontend lines: 67.67% (baseline before this work: 62.44%). This is not
   a claim of 80% coverage for the existing application as a whole.
 - Backend: 73; disposable PostgreSQL: 24; MCP: 2; offline Memory: 85;

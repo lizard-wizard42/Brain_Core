@@ -49,7 +49,9 @@ export function useTextEditorPersistence(page: Page, onSaved?: () => void) {
     pendingSaves.current += 1;
     const operation = serverQueue.current.catch(() => {}).then(async () => {
       if (blocked.current || conflicted.current || !sameAccount()) return;
-      if (hash(snapshot) === savedHash.current) return;
+      // A failed request may have reached the server: a dirty reverted snapshot
+      // still needs acknowledgement, even when it matches our last known base.
+      if (!dirty.current && hash(snapshot) === savedHash.current) return;
       updateStatus('saving');
       try {
         const saved = await api.savePage(page.id, { ...snapshot, revision: revision.current }, { keepalive: options?.keepalive ?? false });
