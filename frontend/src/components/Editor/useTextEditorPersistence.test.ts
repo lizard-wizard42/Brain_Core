@@ -169,4 +169,19 @@ describe('Text editor persistence', () => {
     expect(textEditorDrafts.read).not.toHaveBeenCalled(); expect(api.savePage).not.toHaveBeenCalled();
   });
 
+  it('saves a reverted edit after an in-flight failure with an uncertain server outcome', async () => {
+    let reject!: (error: Error) => void;
+    vi.mocked(api.savePage).mockImplementationOnce(() => new Promise((_, r) => { reject = r; }));
+    const { result } = await setup();
+    let pending!: Promise<void>;
+    act(() => { pending = result.current.saveNow(doc('Unacknowledged'), 'Unacknowledged'); });
+    await waitFor(() => expect(api.savePage).toHaveBeenCalledTimes(1));
+    act(() => { result.current.change(doc('Saved'), 'Study'); });
+    await act(async () => { reject(new Error('response lost')); await pending; });
+    expect(result.current.status).toBe('error');
+    await act(async () => { await result.current.flush(); });
+    expect(api.savePage).toHaveBeenCalledTimes(2);
+    expect(result.current.status).toBe('saved');
+  });
+
 });
