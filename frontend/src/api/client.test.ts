@@ -160,4 +160,14 @@ describe('api client auth/session behavior', () => {
     expect(JSON.parse(String(init?.body)).revision).toBe(9);
   });
 
+  it('preserves an editor snapshot revision even when a newer revision was cached', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'text-snapshot', revision: 8 }) } as Response)
+      .mockResolvedValueOnce({ ok: false, status: 409, text: async () => 'conflict' } as Response);
+    await api.getPage('text-snapshot');
+    const snapshot = { content: { type: 'doc' as const, content: [] }, title: 'Fictional draft', revision: 3 };
+    await expect(api.savePage('text-snapshot', snapshot)).rejects.toThrow('API 409');
+    expect(JSON.parse(String(fetchSpy.mock.calls[1][1]?.body)).revision).toBe(3);
+  });
+
 });

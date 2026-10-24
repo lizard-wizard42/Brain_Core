@@ -14,6 +14,10 @@ Recording reliability update: Android **1.1.2** preserves recording end times du
 
 ![Brain Core logo](docs/images/brain-core.png)
 
+Text pages now keep local recovery drafts before autosave. After a failed save,
+reopening offers recovery or a JSON download, and stale drafts are protected by
+revision conflicts. See [text draft recovery](docs/EDITOR_E_PAINEL.md#recovering-unsaved-text).
+
 ### Compact navigation
 
 The sidebar uses consistent, compact rows across Memory, Notes, Knowledge and

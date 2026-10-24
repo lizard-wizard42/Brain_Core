@@ -70,7 +70,7 @@ async function readPageRevision(id: string): Promise<number> {
   return page.revision;
 }
 async function writePageRevision(id: string, method: 'PUT' | 'PATCH', body: object, keepalive?: boolean) {
-  const revision = await readPageRevision(id);
+  const revision = (body as { revision?: number }).revision ?? await readPageRevision(id);
   const page = await request<import('../types').Page>(`/api/pages/${id}`, {
     method, body: JSON.stringify({ ...body, revision }), keepalive,
   });
@@ -352,7 +352,7 @@ export const api = {
   createPage: (body: { content?: TiptapDoc | InfiniteDoc | NotebookDoc; parent_page_id?: string | null; title: string; slug: string; is_section?: boolean; type?: 'note' | 'infinite' | 'notebook' }) =>
     request<import('../types').Page>('/api/pages', { method: 'POST', body: JSON.stringify(body) }),
 
-  savePage: (id: string, body: { content: TiptapDoc | InfiniteDoc | NotebookDoc; title?: string }, options?: { keepalive?: boolean }) =>
+  savePage: (id: string, body: { content: TiptapDoc | InfiniteDoc | NotebookDoc; title?: string; revision?: number }, options?: { keepalive?: boolean }) =>
     writePageRevision(id, 'PUT', body, options?.keepalive),
 
   deletePage: (id: string) =>

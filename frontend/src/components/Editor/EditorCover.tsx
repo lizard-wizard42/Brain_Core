@@ -1,14 +1,16 @@
 import { useRef, useState } from 'react';
 import { api } from '../../api/client';
+import type { Page } from '../../types';
 
 export interface CoverProps {
   pageId: string;
   coverUrl: string | null | undefined;
   coverPositionY: number;
+  onMetadataSaved?: (page: Page) => void;
   onUpdate: (url: string | null, posY?: number) => void;
 }
 
-export function CoverImage({ pageId, coverUrl, coverPositionY, onUpdate }: CoverProps) {
+export function CoverImage({ pageId, coverUrl, coverPositionY, onUpdate, onMetadataSaved }: CoverProps) {
   const [showPanel, setShowPanel] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const [repositioning, setRepositioning] = useState(false);
@@ -22,6 +24,7 @@ export function CoverImage({ pageId, coverUrl, coverPositionY, onUpdate }: Cover
     if (!urlInput.trim()) return;
     try {
       const updated = await api.patchPage(pageId, { cover_url: urlInput.trim() });
+      onMetadataSaved?.(updated);
       onUpdate(updated.cover_url ?? null, updated.cover_position_y ?? 50);
       setShowPanel(false);
       setUrlInput('');
@@ -36,6 +39,7 @@ export function CoverImage({ pageId, coverUrl, coverPositionY, onUpdate }: Cover
     e.target.value = ''; // reset so same file can be re-uploaded
     try {
       const updated = await api.uploadCover(pageId, file);
+      onMetadataSaved?.(updated);
       onUpdate(updated.cover_url ?? null, updated.cover_position_y ?? 50);
       setShowPanel(false);
     } catch {
@@ -45,7 +49,8 @@ export function CoverImage({ pageId, coverUrl, coverPositionY, onUpdate }: Cover
 
   const handleRemove = async () => {
     try {
-      await api.removeCover(pageId);
+      const saved = await api.removeCover(pageId);
+      onMetadataSaved?.(saved);
       onUpdate(null);
       setShowPanel(false);
     } catch {
@@ -79,7 +84,8 @@ export function CoverImage({ pageId, coverUrl, coverPositionY, onUpdate }: Cover
   const handleSavePosition = async () => {
     setRepositioning(false);
     try {
-      await api.patchPage(pageId, { cover_position_y: Math.round(posY) });
+      const saved = await api.patchPage(pageId, { cover_position_y: Math.round(posY) });
+      onMetadataSaved?.(saved);
       onUpdate(coverUrl ?? null, Math.round(posY));
     } catch { /* silent */ }
   };

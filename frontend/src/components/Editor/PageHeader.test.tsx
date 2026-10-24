@@ -34,3 +34,13 @@ it('makes the title and add-icon control available without hovering', () => {
   fireEvent.change(screen.getByRole('textbox', { name: 'Título da página' }), { target: { value: 'Novo título' } });
   expect(update).toHaveBeenCalledWith('Novo título');
 });
+
+it('forwards the acknowledged page revision after an icon change', async () => {
+  const onMetadataSaved = vi.fn();
+  const saved = { id: 'fictional', revision: 4, icon: '🌙' } as Awaited<ReturnType<typeof api.patchPage>>;
+  vi.mocked(api.patchPage).mockResolvedValue(saved);
+  render(<PageHeader pageId="fictional" title="Study" icon="" onIconChange={vi.fn()} onTitleChange={vi.fn()} onMetadataSaved={onMetadataSaved} />);
+  fireEvent.click(screen.getByRole('button', { name: '+ ícone' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Lua' }));
+  await waitFor(() => expect(onMetadataSaved).toHaveBeenCalledWith(saved));
+});

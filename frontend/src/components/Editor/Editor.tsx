@@ -16,7 +16,7 @@ import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import { createLowlight, common } from 'lowlight';
 import { useSocket } from '../../hooks/useSocket';
-import { api, isRevisionConflict } from '../../api/client';
+import { api } from '../../api/client';
 import { ShareBadge } from '../Shared/ShareBadge';
 import { ShareManagerModal } from '../Shared/ShareManagerModal';
 import { useSharedPages } from '../Shared/sharedPagesContext';
@@ -29,8 +29,8 @@ import { AttachmentBlock } from './AttachmentBlock';
 import { AttachmentBlockView } from './AttachmentBlockView';
 import { SlashMenu, type SlashCommand } from './SlashMenu';
 import { findTrailingEditorTriggerQuery } from './triggers';
-import type { InfiniteDoc, Page, PageSummary, PageVersion, TiptapDoc, TiptapNode } from '../../types';
-import { toSlug, computeSavePayloadHash, whenEditorViewReady, type SaveStatus } from './editorUtils';
+import type { Page, PageSummary, PageVersion, TiptapDoc, TiptapNode } from '../../types';
+import { toSlug, whenEditorViewReady } from './editorUtils';
 import { getCachedAllPages, loadAllPagesCached } from './allPagesCache';
 import { ResizableImage } from './ResizableImage';
 import { NewSubPageModal, TypeSelectorModal } from './EditorModals';
@@ -41,6 +41,7 @@ import { NoteTemplatesDialog } from './NoteTemplatesDialog';
 import { PageNavigation } from './PageNavigation';
 import { type SavedSel, TableControls } from './ToolbarControls';
 import { BottomToolbar } from './BottomToolbar';
+import { useTextEditorPersistence } from './useTextEditorPersistence';
 
 const lowlight = createLowlight(common);
 
@@ -52,7 +53,6 @@ interface EditorProps {
 }
 
 export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorProps) {
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [title, setTitle] = useState(page.title);
   // Mantém titleRef sempre atualizado para uso em closures do editor
   useEffect(() => { titleRef.current = title; }, [title]);
@@ -60,16 +60,8 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
   const [coverUrl, setCoverUrl] = useState<string | null>(page.cover_url ?? null);
   const [coverPositionY, setCoverPositionY] = useState<number>(page.cover_position_y ?? 50);
   const [viewMode, setViewMode] = useState<'document' | 'kanban'>('document');
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const latestContentRef = useRef<unknown>(page.content);
-  const lastQueuedSaveHashRef = useRef<string>('');
-  const lastSentSaveHashRef = useRef<string>('');
-  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const subPageOrderKeyRef = useRef<string>('');
   const syncSubPageOrderTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const revisionRef = useRef<number | null>(typeof page.revision === 'number' ? page.revision : null);
-  const conflictRef = useRef(false);
-  const [conflictState, setConflictState] = useState(false);
   // Refs estáveis para não recriar o editor a cada render
   const onRefreshRef = useRef(onRefresh);
   useEffect(() => { onRefreshRef.current = onRefresh; }, [onRefresh]);
@@ -155,90 +147,15 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
   } | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
-  const currentPageIdRef = useRef(page.id);
-
-  useEffect(() => {
-    currentPageIdRef.current = page.id;
-    setSaveStatus('idle');
-    setSpellcheckEnabled(true);
-    clearTimeout(saveTimer.current);
-    clearTimeout(syncSubPageOrderTimerRef.current);
-    lastQueuedSaveHashRef.current = '';
-    lastSentSaveHashRef.current = '';
-    subPageOrderKeyRef.current = '';
-    revisionRef.current = typeof page.revision === 'number' ? page.revision : null;
-    conflictRef.current = false;
-    setConflictState(false);
-  }, [page.id]);
-
+  const persistence = useTextEditorPersistence(page, loadVersionHistory);
+  const { status: saveStatus, conflict: conflictState, ready, recoverable, draftWarning,
+    saveNow: persistContentNow, change, discard, recover, currentDraft, acceptMetadata } = persistence;
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
+  const canEdit = ready && !recoverable;
   const { joinPage, leavePage } = useSocket();
-
-  const persistContentNow = useCallback(
-    async (
-      content: TiptapDoc | InfiniteDoc,
-      currentTitle: string,
-      options?: { keepalive?: boolean; reloadVersions?: boolean }
-    ) => {
-      clearTimeout(saveTimer.current);
-      latestContentRef.current = content;
-      const payloadHash = computeSavePayloadHash(content, currentTitle);
-      const operation = saveQueueRef.current.catch(() => {}).then(async () => {
-        if (conflictRef.current) {
-          setSaveStatus('conflict');
-          return;
-        }
-        if (payloadHash === lastSentSaveHashRef.current) {
-          setSaveStatus('saved');
-          return;
-        }
-        setSaveStatus('saving');
-        const revision = revisionRef.current;
-        const payload = revision === null
-          ? { content, title: currentTitle }
-          : { content, title: currentTitle, revision };
-        try {
-          const updated = await api.savePage(page.id, payload, { keepalive: options?.keepalive });
-          if (typeof updated.revision === 'number') revisionRef.current = updated.revision;
-          lastSentSaveHashRef.current = payloadHash;
-          if (payloadHash === computeSavePayloadHash(latestContentRef.current, titleRef.current)) {
-            setSaveStatus('saved');
-          }
-          if (options?.reloadVersions) loadVersionHistory();
-        } catch (err) {
-          lastQueuedSaveHashRef.current = '';
-          if (isRevisionConflict(err)) {
-            conflictRef.current = true;
-            setConflictState(true);
-            setSaveStatus('conflict');
-            return;
-          }
-          setSaveStatus('error');
-          throw err;
-        }
-      });
-      saveQueueRef.current = operation.catch(() => {});
-      await operation;
-    },
-    [loadVersionHistory, page.id]
-  );
-
-  const triggerSave = useCallback(
-    (ed: TiptapEditor, currentTitle: string) => {
-      clearTimeout(saveTimer.current);
-      setSaveStatus('saving');
-      saveTimer.current = setTimeout(() => {
-        const content = ed.getJSON();
-        latestContentRef.current = content;
-        const payloadHash = computeSavePayloadHash(content, currentTitle);
-        if (payloadHash === lastQueuedSaveHashRef.current) {
-          return;
-        }
-        lastQueuedSaveHashRef.current = payloadHash;
-        void persistContentNow(content, currentTitle, { reloadVersions: true }).catch(() => {});
-      }, 1500);
-    },
-    [persistContentNow]
-  );
+  const triggerSave = useCallback((ed: TiptapEditor, currentTitle: string) => {
+    change(ed.getJSON() as TiptapDoc, currentTitle);
+  }, [change]);
 
   const syncSubPageOrder = useCallback(async (ed: TiptapEditor) => {
     const subPageIds: string[] = [];
@@ -277,6 +194,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
   }, []);
 
   const editor = useEditor({
+    editable: false,
     extensions: [
       StarterKit.configure({ codeBlock: false, underline: false, link: false }),
       Table.configure({ resizable: true }),
@@ -377,9 +295,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
     onUpdate: ({ editor: ed, transaction }) => {
       if (!transaction.docChanged) return;
 
-      // Keep the latest content cached so the unmount/pagehide flush can persist
-      // recent edits even if the editor has already been destroyed by then.
-      latestContentRef.current = ed.getJSON();
+      // Draft the complete document immediately; the server save is debounced.
       triggerSave(ed, titleRef.current);
 
       // Detect @ for page linking
@@ -421,6 +337,8 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
       }
     },
   });
+
+  useEffect(() => { editor?.setEditable(canEdit); }, [canEdit, editor]);
 
   useEffect(() => {
     if (!editor) return;
@@ -470,8 +388,10 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
 
   // Sync sub-pages from sidebar/tree into the editor body (Notion-like)
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || !canEdit) return;
+    let active = true;
     api.getSubPages(page.id).then(subPages => {
+      if (!active || editor.isDestroyed) return;
       const orderedChildIds = subPages.map(sp => sp.id);
       const childRank = new Map(orderedChildIds.map((id, index) => [id, index]));
       const childById = new Map(subPages.map(sp => [sp.id, sp]));
@@ -549,31 +469,8 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
       if (JSON.stringify(nextContent) === JSON.stringify(currentContent)) return;
       editor.chain().setContent({ type: 'doc', content: nextContent }).run();
     }).catch(() => {});
-  }, [editor, page.id]);
-
-  // Reset "saved" status after 2s
-  useEffect(() => {
-    if (saveStatus === 'saved') {
-      const t = setTimeout(() => setSaveStatus('idle'), 2000);
-      return () => clearTimeout(t);
-    }
-    return undefined;
-  }, [saveStatus]);
-
-  useEffect(() => {
-    function flushPendingSave() {
-      if (saveStatus !== 'saving') return;
-      const content = (editor?.getJSON() ?? latestContentRef.current) as TiptapDoc | InfiniteDoc | undefined;
-      if (!content) return;
-      void persistContentNow(content, titleRef.current, { keepalive: true });
-    }
-
-    window.addEventListener('pagehide', flushPendingSave);
-    return () => {
-      window.removeEventListener('pagehide', flushPendingSave);
-      flushPendingSave();
-    };
-  }, [editor, persistContentNow, saveStatus]);
+    return () => { active = false; };
+  }, [editor, page.id, canEdit]);
 
   // Socket room
   useEffect(() => {
@@ -583,6 +480,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
 
   // Title change handler — triggers save
   const handleTitleChange = (newTitle: string) => {
+    titleRef.current = newTitle;
     setTitle(newTitle);
     if (editor) triggerSave(editor, newTitle);
   };
@@ -590,21 +488,18 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
   const reloadFromServer = useCallback(async () => {
     try {
       const fresh = await api.getPage(page.id);
+      await discard(fresh);
+      titleRef.current = fresh.title;
       setTitle(fresh.title);
       if (fresh.icon !== undefined) setIcon(fresh.icon ?? '');
-      if (fresh.content) editor?.chain().setContent(fresh.content).run();
-      revisionRef.current = typeof fresh.revision === 'number' ? fresh.revision : revisionRef.current;
-      conflictRef.current = false;
-      setConflictState(false);
-      setSaveStatus('idle');
-      lastQueuedSaveHashRef.current = '';
-      lastSentSaveHashRef.current = '';
+      if (fresh.content) editor?.commands.setContent(fresh.content, { emitUpdate: false });
+      setRecoveryError(null);
       loadVersionHistory();
       onRefresh?.();
     } catch {
-      setSaveStatus('error');
+      setRecoveryError('Não foi possível carregar a versão salva. Seu rascunho foi mantido.');
     }
-  }, [editor, loadVersionHistory, onRefresh, page.id]);
+  }, [discard, editor, loadVersionHistory, onRefresh, page.id]);
 
   // @ picker: insert link to selected page
   const handleAtSelect = useCallback((p: PageSummary) => {
@@ -704,6 +599,19 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
     }
   };
 
+  const downloadDraft = () => {
+    const draft = currentDraft();
+    const url = URL.createObjectURL(new Blob([JSON.stringify(draft, null, 2)], { type: 'application/json' }));
+    const link = document.createElement('a'); link.href = url; link.download = 'brain-core-draft.json'; link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  const restoreDraft = () => {
+    const draft = recover();
+    if (!draft || !editor) return;
+    titleRef.current = draft.title; setTitle(draft.title);
+    editor.commands.setContent(draft.content, { emitUpdate: false });
+  };
+
   const lastEditLabel = describeLastEdit(versions[0], page.updated_at, nameById);
   const shareRole = sharedEntry?.role ?? (grants.length > 0 ? 'owner' : null);
   const shareCount = grants.length || sharedEntry?.grantees?.length || 0;
@@ -712,6 +620,17 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
+      {!ready && <div role="status" className="border-b border-[var(--theme-border)] px-4 py-2 text-sm">Verificando rascunho local…</div>}
+      {recoverable && <div role="status" className="flex flex-wrap items-center gap-2 border-b border-[var(--theme-border)] bg-[var(--theme-surface)] px-4 py-3 text-sm">
+        <span className="flex-1">Há um rascunho local não salvo. Deseja recuperá-lo?
+          {recoverable.baseRevision !== page.revision && ' A versão do servidor mudou; a recuperação não substituirá essa versão.'}</span>
+        <button type="button" className="min-h-11 rounded-md border border-[var(--theme-border)] px-3" onClick={restoreDraft}>Recuperar rascunho</button>
+        <button type="button" className="min-h-11 rounded-md border border-[var(--theme-border)] px-3" onClick={downloadDraft}>Baixar rascunho</button>
+        <button type="button" className="min-h-11 rounded-md border border-[var(--theme-border)] px-3" onClick={() => { void reloadFromServer(); }}>Usar versão salva</button>
+      </div>}
+      {draftWarning && <div role="alert" className="border-b border-[var(--theme-border)] px-4 py-2 text-sm">Não foi possível guardar o rascunho neste navegador. Mantenha a página aberta até aparecer Salvo ou baixe uma cópia.
+        <button type="button" className="ml-2 min-h-11 underline" onClick={downloadDraft}>Baixar rascunho</button></div>}
+      {recoveryError && <div role="alert" className="px-4 py-2 text-sm">{recoveryError}</div>}
       {showTemplates && editor && <NoteTemplatesDialog pageId={page.id} title={title} getCurrentContent={() => editor.getJSON() as TiptapDoc} onClose={() => setShowTemplates(false)} onRefresh={onRefresh} onNavigate={onNavigatePage} />}
       {showShareManager && (
         <ShareManagerModal
@@ -728,6 +647,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
         <div role="alert" className="flex flex-wrap items-center gap-2 border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-[12px] text-amber-200">
           <span className="font-medium">Conflito de edição:</span>
           <span className="min-w-0 flex-1">Esta página foi alterada por outra pessoa enquanto você editava. Suas mudanças locais não foram salvas.</span>
+          <button type="button" className="min-h-11 underline" onClick={downloadDraft}>Baixar rascunho</button>
           <button
             type="button"
             onClick={() => { void reloadFromServer(); }}
@@ -779,7 +699,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
       )}
 
       {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto" inert={!canEdit}>
         {headerSlot && (
           <div className="px-6 pt-6">
             {headerSlot}
@@ -790,6 +710,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
           pageId={page.id}
           coverUrl={coverUrl}
           coverPositionY={coverPositionY}
+          onMetadataSaved={acceptMetadata}
           onUpdate={(url, posY) => {
             setCoverUrl(url);
             if (posY !== undefined) setCoverPositionY(posY);
@@ -805,6 +726,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
             title={title}
             onIconChange={setIcon}
             onTitleChange={handleTitleChange}
+            onMetadataSaved={acceptMetadata}
             onRefresh={onRefresh}
           />
           {(lastEditLabel || showShareButton || showShareBadge) && (
@@ -873,7 +795,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
       </div>
 
       {/* Table controls (+col / +row) */}
-      <TableControls editor={editor} />
+      <div inert={!canEdit}><TableControls editor={editor} /></div>
 
       {/* Bottom toolbar */}
       <input
@@ -904,7 +826,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
           }
         }}
       />
-      <BottomToolbar
+      <div inert={!canEdit}><BottomToolbar
         editor={editor}
         saveStatus={saveStatus}
         onOpenTemplates={() => setShowTemplates(true)}
@@ -924,7 +846,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
           void persistContentNow(editor.getJSON() as TiptapDoc, titleRef.current,
             { reloadVersions: true }).catch(() => {});
         }}
-      />
+      /></div>
     </div>
   );
 }
