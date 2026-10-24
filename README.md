@@ -1,131 +1,101 @@
 # Brain Core
 
-> A self-hosted workspace for notes, visual thinking, recordings, and personal knowledge.
+**A self-hosted workspace for writing, handwriting, visual thinking and recorded memories.**
 
-Brain Core runs on a computer you control. Its database, uploads, and optional
-recordings live in persistent local volumes. The standard Docker installation
-needs no cloud account, API key, GPU, or external sync service.
+Keep a project brief, a quick checklist, a pen sketch and the conversation behind
+an idea in one workspace. Brain Core combines rich-text pages, an infinite
+canvas, a handwriting notebook and an optional recording/transcription pipeline.
 
-**Notebook** adds handwriting-focused pages alongside rich-text notes and Infinite: editable pen/highlighter strokes, typed text boxes, multiple sheets and selectable paper. See the [Notebook guide](docs/NOTEBOOK.md) for controls, saving and device limits.
+Run it on a computer you control. Core note-taking needs no cloud account,
+AI API key or GPU. Its database and uploads stay in persistent local
+volumes; transcription and external AI clients are optional integrations.
 
-Android **1.1.5** also preserves automatic voice suggestions in the native timeline and reuses confirmed voice references. Android 1.1.4 introduced native reminder and transcription notifications, a white status-bar icon, and background startup preparation. Notes supports direct checklist toggles, recoverable deletion with Undo and Trash, and default reminder dates in your device timezone. Note editing preserves existing tags and reminder labels, and keeps your draft if saving fails. See the [Notes guide](docs/NOTES.md). See [notification behavior and limits](android/README.md#android-114-native-notifications).
+[Quick start](#quick-start) · [Android app](#android-companion) ·
+[Documentation](#documentation) · [Changelog](CHANGELOG.md) ·
+[Contributing](CONTRIBUTING.md)
 
-Recording reliability update: Android **1.1.2** preserves recording end times during delayed uploads; the updated server keeps valid phone links when signing out on the web and displays history in the viewer’s timezone. See the [Android update guide](docs/ANDROID.md#recording-reliability-in-android-112).
+![Rich-text editor with a compact page tree, nested page cards, writing between cards and an icon-only code copy action; fictional English demo](docs/images/editor-demo.jpg)
 
-![Brain Core logo](docs/images/brain-core.png)
+*Current web components with fictional content and English demonstration labels.
+The application is primarily in Portuguese; these images do not imply complete
+English localization. See [screenshot provenance](docs/SCREENSHOTS.md).*
 
-Text pages now keep local recovery drafts before autosave. After a failed save,
-reopening offers recovery or a JSON download, and stale drafts are protected by
-revision conflicts. See [text draft recovery](docs/EDITOR_E_PAINEL.md#recovering-unsaved-text).
+## One workspace, several ways to think
 
-### Compact navigation
-
-The sidebar uses consistent, compact rows across Memory, Notes, Knowledge and
-Shared pages. Page actions live under a discreet overflow control; titles can be
-opened by keyboard or dragged into another branch. The overview, expand/collapse,
-search filters and recoverable Trash remain available. See the [navigation guide](docs/EDITOR_E_PAINEL.md#consistent-sidebar-controls).
-
-### Screenshots
-
-These screenshots use fictional content. Navigation previews use English demonstration labels.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/sidebar-navigation-dark-demo.jpg">
-  <img src="docs/images/sidebar-navigation-light-demo.jpg" alt="Compact sidebar and Knowledge overview with fictional pages and English demonstration labels">
-</picture>
-
-![Brain Core dashboard with fictional notes and pages](docs/images/dashboard-demo.png)
-
-![Brain Core Memory conversation preview in English with fictional transcripts and compact chat bubbles](docs/images/timeline-memory-demo.jpg)
-
-**Built with:** React 19 · TypeScript · Vite · Tailwind CSS · Tiptap · tldraw ·
-Node.js · Express · Socket.IO · PostgreSQL · Docker
-
-## Features
-
-### Pages, notes, and canvas
-
-| Area | What you can do |
+| Surface | What it does |
 | --- | --- |
-| Rich pages | Write and format content in Tiptap; organize pages and subpages in a tree with uncluttered title cards; drag cards into other pages and insert writing between them; add tags, status, and due dates. |
-| Search and navigation | Search pages and quick notes by title or text, with snippets, filters and pagination. Navigate breadcrumbs, a live heading outline and incoming page references. Use the grid button beside Knowledge to open the overview, and the adjacent control to expand or collapse every level of the sidebar tree. |
-| Note templates | Start with Study, Meeting or Project, or save your own text/structure snapshot per account. Create independent root pages or subpages. Open templates with the lightning button beside Attach file in the single-row editor toolbar. |
-| Quick notes | Capture short notes and reminders on a compact board and search them. Telegram reminders are optional and require your own bot configuration. |
-| Visual pages | Sketch and arrange ideas on an infinite tldraw canvas. |
-| History and recovery | Review page versions, restore retained note revisions through MCP, and restore pages from trash. Trash is cleaned up after 30 days by default. |
-| Attachments | Upload supported images and documents with server-side type and content checks. Read an attached PDF inside the page; download other supported documents. |
-| Sharing | Add another registered user as a contact, then share a page or folder with viewer or editor permission. There are no public share links. |
-| Live work | See page updates across browser tabs through Socket.IO. Use app tabs, themes, and a mobile-friendly layout. |
+| **Rich-text pages** | Format text, tables, checklists and highlighted code. Copy an entire code block with its corner icon. Organize pages and subpages in a tree; drop a card onto another card to nest it, or use its edges to reorder. Insert real text between cards. |
+| **Notebook** | Write with editable vector pen/highlighter strokes and typed text boxes. Choose blank, ruled, grid, dotted or Oxford paper; use multiple sheets, selection, whole-stroke erasing, undo/redo, zoom and focus mode. |
+| **Infinite** | Sketch and arrange ideas freely on a tldraw canvas, with automatic snapshot saving. Its SDK has separate production licensing requirements; see below. |
+| **Quick notes** | Capture ideas, checklists and reminders on a searchable board. Toggle checklist items directly, filter and sort notes, and recover deleted notes through Undo or Trash. |
+| **Knowledge and navigation** | Search page and quick-note text, browse breadcrumbs and heading outlines, follow page references, or explore the interactive knowledge graph. Expand/collapse the tree and keep work open in app tabs. |
+| **Memory** | Record deliberately, then review optional local transcriptions as a conversation. Search transcripts, correct speakers, copy/download the conversation or turn it into a note or reminder. |
 
-See the [editor and navigation guide](docs/EDITOR_E_PAINEL.md) for search, templates, toolbar controls and the Knowledge tree. Custom templates omit images, attachment blocks and subpage cards, reset checked tasks, and preserve text links. Renaming and deleting templates are not available yet.
+Start text pages from Study, Meeting or Project templates, or save a reusable
+text/structure snapshot. Add supported images and documents; PDFs can be read
+inside a page. Share pages with another registered account as a viewer or editor.
+Light, dark and additional themes are available.
 
-Authentication uses session cookies, login throttling, optional TOTP
-two-factor authentication, and trusted-device support. The first account is
-created through a one-time setup wizard. The operator can create member accounts; each account owns its notes, devices and integrations. Optional AI organization and the
-host terminal require separate configuration; the standard Docker profile
-starts with the terminal disabled.
+Text pages and notebooks keep account-scoped local drafts for recovery when a
+save cannot finish. Revision checks prevent stale overwrites; page history and
+recoverable Trash offer additional recovery paths. Browser drafts are local to
+that browser and origin, and do not replace backups or make the whole app offline.
 
-### Recording, Timeline, and transcription
+## A closer look
 
-Recording starts only after a user action. In the browser, grant microphone
-access and start a recording from the Timeline. On Android, tap **Gravar** in
-**Linha do tempo**; the app stores roughly two-minute `.m4a` chunks in its
-private storage. Its upload queue survives network loss and app restarts, and
-marks a chunk uploaded only after the server confirms its SHA-256. Recordings
-remain tied to the linked account.
+### Notebook: paper, ink and text
 
-The optional Memory service can transcribe recordings locally, group sessions
-by date, search transcripts, show speaker turns, and let you review or correct
-participant suggestions. Sessions are presented as a compact conversation. Voices are grouped
-automatically per session; the group matching your enrolled voice is shown as
-**Eu (provável)** until you confirm it, other groups appear as **Pessoa N**, and
-**Criar nota**, **Copiar conversa**, **Baixar conversa (.md)** and **Mais ações**
-(reminder, voice reference) work from the same view. Copying never sends content
-to an AI service. See the [Memory guide](docs/REMEMBER_TIMELINE.md) for details.
-You can turn transcript content into a Brain Core note or reminder. Participant suggestions use the current account’s enrolled voice ("Minha voz") and manually confirmed segments; they never assign a person automatically. Voice enrollment accepts 8–60 seconds and up to 25 MiB. Each account can choose automatic, scheduled or manual transcription, pause new jobs, and configure audio retention. The standard installation keeps
-Memory **offline**. Phone recording and local playback work without it, but
-server upload and transcription require the private Memory API and worker.
+![Notebook with ruled paper, editable pen strokes, typed text, color controls and multiple sheets; fictional English demo](docs/images/notebook-demo.jpg)
 
-Use the [Timeline and CPU setup guide](docs/REMEMBER_TIMELINE.md) to enable the
-service. The default worker runs on CPU in Docker. For acceleration on a Linux
-computer with a compatible NVIDIA GPU, use the [GPU worker guide](services/gpu-worker/README.md).
-The maintainer has tested local transcription on an RTX 2060 (6 GB) with
-`medium` and `int8_float16` and reports that it works quickly; this is a
-firsthand usage report, not a benchmark or a guarantee for other GPUs.
-AMD and Intel users can use the CPU worker; ROCm and oneAPI GPU execution have
-not been validated in this project. No model, recording, voiceprint, token, or
-transcript is included in the repository or APK.
+Change the paper without clearing your writing. Pinch/Ctrl+wheel zoom, sheet
+navigation and focus mode help on smaller screens. Pressure and pen-button
+behavior depend on the device/browser; physical S Pen behavior is not certified.
+Handwriting recognition and PDF import/export are not included. Notebook
+titles are searchable; ink and typed boxes are not text-indexed in this version.
+[Notebook controls and limits →](docs/NOTEBOOK.md)
 
-### Local MCP for AI clients
+<details>
+<summary>Choose your paper style</summary>
 
-Open **Settings → MCP e acesso da IA** to enable MCP for your account, create a credential, choose read/write permissions for pages and quick notes, and set its expiry. Credentials can be revoked individually or together; switching MCP off suspends all access for that account. The panel also shows recent AI writes and produces a client configuration containing paths rather than the secret.
+![Notebook paper selector showing blank, ruled, grid, dotted and Oxford styles with spacing and tint controls; English demo](docs/images/notebook-paper-demo.jpg)
 
-The local stdio adapter exposes 12 note tools with ownership, revision checks, history and idempotent writes. It can create subpages and list direct children using `parent_page_id`. The optional `brain-core-notes` skill guides note editing and preservation. A private tunnel is the documented route for ChatGPT access; desktop clients can use local STDIO. It opens no extra listener and connects only to an HTTP loopback origin. A credential stays bound to its account when you switch browser logins. Shared pages owned by other accounts, canvas, audio, transcript and terminal tools are outside this API. The AI client receives the note content it requests and may use its configured cloud provider.
+</details>
 
-Follow [the MCP guide](docs/NOTES_MCP.md) for private credential files, native/Docker paths, scopes and validation. See the [changelog](CHANGELOG.md) for the latest functionality and limits.
+### Notes: small things that stay actionable
 
-### Android app and private HTTPS access
+![Quick Notes board with fictional English ideas, interactive checklists, a reminder, search, filters and Trash](docs/images/notes-board-demo.jpg)
 
-Download the signed [Android APK](https://github.com/lizard-wizard42/Brain_Core/releases/latest/download/brain-core-android.apk)
-and compare its SHA-256 with the [latest release notes](https://github.com/lizard-wizard42/Brain_Core/releases/latest).
-The app requires Android 7.0 or newer and uses the package
-`com.example.braincore`. It has a local recorder and Timeline, plus a **PC** tab
-that opens your own Brain Core web interface. Version 1.1.1 adds native
-participant review: create the first participant, or correct a segment and
-build a reusable voice reference from it. The APK contains no server
-address, account, recording, or service token. Local Android notes are not
-synchronized with web notes in this version.
+Edit a note without losing its existing tags or reminder label. Failed saves
+keep the draft for retry. Reminder dates follow the device's local calendar.
+[Notes and reminder behavior →](docs/NOTES.md)
 
-For phone access without publishing Brain Core to the internet, follow the
-[Tailscale Serve guide](docs/ANDROID.md). Install Tailscale on the computer and
-phone, give the local web entrypoint a private HTTPS address, enter that origin
-in **Ajustes**, sign in through **PC**, and select **Vincular gravações**.
-The device credential is protected by Android Keystore. Use Tailscale **Serve**,
-not Funnel; only the web entrypoint should be reachable from the phone.
+### Infinite: space for the bigger picture
+
+![Infinite canvas with fictional English idea cards and a visual workflow](docs/images/infinite-canvas-demo.jpg)
+
+Use a free-form canvas when the relationship between ideas matters as much as
+the words. Infinite is a separate page format from text notes and Notebook.
+
+### Memory: revisit a conversation
+
+![Timeline with a fictional English conversation, distinct speaker bubbles and actions to create a note or copy/download the conversation](docs/images/memory-conversation-demo.jpg)
+
+Transcription requires the optional Memory API and worker. Speaker grouping and
+voice-reference matches help review; a probable match is a suggestion, not a
+confirmed identity. Short, noisy or overlapping speech can remain unidentified.
+Copying/downloading does not send the conversation to an AI service.
+[Timeline, voice review and transcription setup →](docs/REMEMBER_TIMELINE.md)
+
+### Dashboard: pick up where you left off
+
+![Dashboard with fictional English pages, quick capture, recent memories and a 90-day activity overview](docs/images/dashboard-current-demo.jpg)
+
+Capture a thought, reopen recent work, see the day's recordings and review the
+90-day activity overview from the home screen.
 
 ## Quick start
 
-**Requirement:** Docker Engine with Docker Compose. On a new machine:
+**Requirement:** Docker Engine with Docker Compose.
 
 ```bash
 git clone https://github.com/lizard-wizard42/Brain_Core.git
@@ -134,105 +104,158 @@ docker compose up --build -d
 docker compose ps
 ```
 
-Open [http://localhost:8080](http://localhost:8080). The first-access wizard
-creates the administrator account; its setup endpoint closes after that first
-account exists. No `.env` file is needed for this standard installation.
-Compose generates the PostgreSQL password and JWT secret once and stores them
-in a private local volume.
+Open [http://localhost:8080](http://localhost:8080). The one-time setup wizard
+creates the administrator account. The operator can then create member accounts;
+each account owns its notes, linked devices and integrations.
 
-To start a **new** database with fictional sample pages, first copy
-`.env.docker.example` to your own ignored `.env.docker`, set
-`SEED_DEMO_DATA=true`, and run:
+No `.env` file is needed for this standard installation. Compose generates the
+PostgreSQL password and JWT secret once and stores them in a private local
+volume. Memory and the host terminal start disabled.
 
-```bash
-cp .env.docker.example .env.docker
-docker compose --env-file .env.docker up --build -d
-```
+For fictional starter content in a **new, empty database**, use
+`SEED_DEMO_DATA=true` with the ignored `.env.docker` configuration described in
+the [Docker guide](docs/DOCKER.md). The screenshots above use a separate,
+isolated demonstration fixture rather than personal installation data.
 
-The demo seed and optional `INITIAL_ADMIN_*` settings only apply when the
-database is empty. Remove bootstrap credentials from `.env.docker` after first
-use. See the [Docker guide](docs/DOCKER.md) for updates, storage limits, and
-diagnostics.
+## Android companion
 
-### Add transcription later
+![Brain Core mobile Notes workspace in a decorative phone frame, with fictional English content and Android APK features](docs/images/android-companion-demo.jpg)
 
-From the repository root, create `.env.docker` if you did not create one during
-the quick start. Then create a private Memory token in `.env.memory` as shown
-in the [Timeline guide](docs/REMEMBER_TIMELINE.md):
+*Mobile web workspace preview, as used by the APK’s PC tab, in a decorative
+phone frame. Fictional content and English demo labels; not a capture of the
+native recorder or a physical device.*
 
-```bash
-test -e .env.docker || cp .env.docker.example .env.docker
-test -e .env.memory || cp .env.memory.example .env.memory
-chmod 600 .env.memory
-```
+Download the signed [Android APK](https://github.com/lizard-wizard42/Brain_Core/releases/latest/download/brain-core-android.apk)
+and compare its SHA-256 with the [release notes](https://github.com/lizard-wizard42/Brain_Core/releases/latest).
+The app requires **Android 7.0+**. The current source version is **1.1.5**.
 
-Set a unique `CELTWO_MEMORY_TOKEN` in `.env.memory` before starting the
-optional stack. The complete commands and model options are in the Timeline
-guide. The CPU API and worker use a private Compose network with no published
-host port. The NVIDIA override exposes the Memory API only on host loopback;
-never expose that API publicly.
+- A native recorder and Timeline keep recordings in private app storage. Roughly
+  two-minute `.m4a` chunks survive network loss and app restarts; a chunk is
+  marked uploaded only after the server confirms its SHA-256.
+- The **PC** tab opens your own web workspace, including Notebook and Infinite.
+  Local Android notes are not synchronized with web notes in this version.
+- Native notifications cover reminders and completed transcriptions, with a
+  white Brain Core status-bar icon. Scheduling is local plus background sync,
+  not Firebase push; Android permission, network and battery restrictions apply.
+- Native voice review preserves server voice groups, probable owner matches and
+  manual corrections. Voice references belong to the linked account.
 
-## Data, backups, and network boundaries
+Use [Tailscale Serve for private HTTPS access](docs/ANDROID.md), link the phone
+from your account and keep the computer reachable when syncing. Device
+credentials use Android Keystore. The APK contains no preconfigured server,
+account, recording or service token.
+[Android setup and notification limits →](android/README.md)
+
+## Optional local transcription
+
+The standard installation keeps Memory offline. Phone recording and local
+playback work without it; server upload and transcription require the private
+Memory API and worker.
+
+Enable the [CPU transcription stack](docs/REMEMBER_TIMELINE.md) when needed, or
+use the [NVIDIA GPU worker](services/gpu-worker/README.md) on compatible hardware.
+Transcription runs locally with the configured model. Choose automatic,
+scheduled or manual processing, pause new jobs and configure audio retention
+per account. Enrolling a voice reference is optional; review suggestions before
+confirming a participant.
+
+The optional service needs its own private configuration and token. Keep it
+private; it is not a public transcription endpoint. Model downloads may require
+network access. No recordings, voice samples, models or transcripts are shipped
+in this repository or APK.
+
+## MCP for your AI client
+
+Enable **MCP e acesso da IA** in Settings, then create an expiring credential with
+independent read/write permissions for rich-text pages and quick notes. Revoke
+one credential or all of them, or switch MCP off for the account.
+
+The local STDIO adapter exposes **12 tools**: list/search, read, create, update,
+list versions and restore, for each of the two note collections. The backend
+enforces ownership and scopes. Writes use revision checks and operation IDs to
+prevent stale updates and duplicate retries. The optional `brain-core-notes`
+skill explains safe editing and preservation of Tiptap content.
+
+Each credential selects one Brain Core account. Changing the browser login does
+not change a running MCP connection. For separate people, use separate
+credentials and separately controlled client/tunnel profiles; a ChatGPT login
+alone does not select a Brain Core account.
+
+Desktop clients can launch the local adapter. ChatGPT access through an optional
+private tunnel requires separate external setup and permissions. The adapter
+opens no additional listener and accepts only a loopback HTTP backend origin.
+It does not expose Notebook, Infinite, audio, transcripts, terminal access or
+other users' shared pages. Requested note content reaches the AI client and may
+be processed by its configured provider; local storage does not prevent that.
+[MCP setup, credentials and boundaries →](docs/NOTES_MCP.md)
+
+## Data and deployment
 
 ```mermaid
 flowchart LR
-  B[Browser or Android PC tab] --> W[Nginx web entrypoint]
+  C[Browser or Android PC tab] --> W[Web entrypoint]
   W --> A[Express API]
-  A --> D[(PostgreSQL volume)]
-  A --> U[(Uploads volume)]
-  S[Generated secrets volume] --> A
-  S --> D
-  A -. optional private token .-> M[(Memory API and volume)]
+  A --> D[(PostgreSQL)]
+  A --> U[(Uploads)]
+  A -. optional .-> M[Private Memory API and worker]
+  AI[Local MCP client] --> A
 ```
 
-- The standard web entrypoint binds to `127.0.0.1:8080`; PostgreSQL has no
-  published host port. The terminal and Memory integration start disabled.
-- `brain-core-postgres`, `brain-core-uploads`, and `brain-core-secrets` persist
-  independently. Enabling Memory adds `brain-core-memory` for recordings,
-  transcripts, models, and its index. Back up the volumes you use and protect
-  those backups like the original data.
-- `docker compose down` stops services without deleting volumes. **Do not use
-  `down -v`** unless you intend to erase persisted data.
-- For LAN or internet exposure, configure TLS, secure cookies, an explicit
-  CORS origin, and a trusted-proxy policy first. Changing the port binding
-  alone is insufficient. See the [Docker guide](docs/DOCKER.md).
+The standard web entrypoint binds to loopback at port 8080; PostgreSQL has no
+published host port. Notes, uploads and generated secrets use persistent local
+volumes. Enabling Memory adds persistent storage for its recordings,
+transcripts, models and index.
 
-Obtain consent before recording other people. Protect audio, transcripts,
-voice samples, devices, and backups. For a lost or changed phone account,
-unlink the old device before linking it to another account or server.
+Back up the volumes you use. `docker compose down` stops services without
+removing volumes; **`docker compose down -v` deletes persisted data**. Local
+drafts and version history supplement backups rather than replacing them.
 
-## Development and architecture
+Authentication includes session cookies, login throttling, optional TOTP
+and trusted-device support. For access beyond loopback, configure TLS, secure
+cookies, explicit origins and trusted proxies using the deployment guides.
+Obtain consent before recording others and protect recordings and backups like
+the original notes.
 
-```bash
-cd backend && npm install && JWT_SECRET=0123456789abcdef0123456789abcdef npm test
-cd ../frontend && npm install && npm run lint && npm test && npm run build
-```
+## Development
 
-The JWT value above is only a synthetic test fixture. Never use it in a
-running installation; Docker generates a different private secret for you.
+**Web:** React 19, TypeScript, Vite, Tailwind CSS, Tiptap and tldraw.
 
-The Android source is in [`android/`](android/README.md); its README shows the
-debug build and unit-test commands. The [architecture overview](docs/ARQUITETURA.md)
-explains the Nginx, Express, PostgreSQL, and Socket.IO boundaries.
+**Server:** Node.js, Express, Socket.IO and PostgreSQL.
 
-- [Docker installation and operations](docs/DOCKER.md)
-- [Android and Tailscale Serve](docs/ANDROID.md)
-- [Timeline and CPU transcription](docs/REMEMBER_TIMELINE.md)
-- [Tailscale Serve com frontend na mesma origem](docs/TAILSCALE.md)
-- [Banco de dados: esquema, retenção e consistência](docs/BANCO_DE_DADOS.md)
-- [Segurança de borda e LGPD](docs/SEGURANCA_DE_BORDA.md)
-- [Isolamento de gravações por conta](docs/ISOLAMENTO_DE_GRAVACOES.md)
-- [MCP local para consultar e editar notas](docs/NOTES_MCP.md)
-- [Backup completo e ensaio de restauração](docs/BACKUP_BRAIN_CORE.md)
-- [NVIDIA GPU worker](services/gpu-worker/README.md)
-- [Security policy](SECURITY.md)
-- [Contributing](CONTRIBUTING.md)
+**Android:** Kotlin and Jetpack Compose.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for dependency installation, tests and
+privacy checks, [AGENTS.md](AGENTS.md) for source/build rules, and the
+[maintainer workflow](docs/MAINTAINER_WORKFLOW.md) for publishing. Edit source
+files rather than generated bundles; `./build.sh` is the canonical web/server
+build. Use fictional data for screenshots and regression tests.
+
+## Documentation
+
+| Topic | Guide |
+| --- | --- |
+| Install, update and operate Docker | [Docker](docs/DOCKER.md) |
+| Text editor, navigation, templates and recovery | [Editor and page tree](docs/EDITOR_E_PAINEL.md) |
+| Pen input, paper, sheets and editable copies | [Notebook](docs/NOTEBOOK.md) |
+| Quick notes, checklists, reminders and Trash | [Notes](docs/NOTES.md) |
+| Recording, speakers and local CPU transcription | [Timeline](docs/REMEMBER_TIMELINE.md) |
+| Android and private HTTPS | [Android](docs/ANDROID.md) · [App source](android/README.md) |
+| AI client connection and per-account credentials | [MCP](docs/NOTES_MCP.md) |
+| Backup and restore | [Backup guide](docs/BACKUP_BRAIN_CORE.md) |
+| Server and storage architecture | [Architecture](docs/ARQUITETURA.md) · [Database](docs/BANCO_DE_DADOS.md) |
+| Screenshots and fictional demo content | [Screenshot notes](docs/SCREENSHOTS.md) |
+
+For vulnerability reports, follow the private process in [SECURITY.md](SECURITY.md).
+For recent changes, read [CHANGELOG.md](CHANGELOG.md).
 
 ## Support and license
 
-If Brain Core is useful to you, you can [support its development](https://buymeacoffee.com/lizardwizard).
-Brain Core is available under the [MIT License](LICENSE). You may use,
-modify, and redistribute the code, including commercially, while preserving
-the license notice. The project name and visual identity do not imply
-endorsement or affiliation.
+If Brain Core is useful to you, [support its development](https://buymeacoffee.com/lizardwizard).
+It is available under the [MIT License](LICENSE), including commercial use,
+while preserving the license notice. The project name and visual identity do
+not imply endorsement or affiliation.
 
+Third-party dependencies retain their own licenses. In particular, Infinite uses
+the tldraw SDK, whose [versioned license](https://github.com/tldraw/tldraw/blob/v5.1.1/LICENSE.md)
+sets separate production-use and license-key requirements. Brain Core’s MIT
+license does not replace those terms. The Notebook editor is a separate surface.
