@@ -148,3 +148,37 @@ selection. Browser restrictions can still prevent copying.
 The control is editor UI only: existing code blocks, saved JSON, HTML exports,
 language highlighting and editing shortcuts retain their original format. No
 data migration or new dependency is required.
+
+## Recovering unsaved text
+
+The text editor saves a complete local draft (title and Tiptap document) in
+IndexedDB when editing, before the 1.5-second server autosave delay. Draft keys
+include the signed-in account and page; another account does not receive the
+recovery prompt. Drafts remain in this browser and origin, rather than syncing
+between devices. Clearing site data also removes them.
+
+When reopening a page with unsent writing, the editor waits for your choice:
+
+- **Recuperar rascunho** restores its title and content. If its base revision still
+  matches the loaded page, normal autosave resumes.
+- **Baixar rascunho** downloads the title, complete Tiptap content and base revision
+  as JSON for safekeeping.
+- **Usar versão salva** loads the current server version and discards the local
+  draft. A failed server read keeps the draft and offers an error message.
+
+If the server revision changed, restoring the draft opens it with a conflict
+warning and prevents automatic overwrite. Download the draft before choosing
+**Recarregar do servidor** if you want to keep both versions. The editor also
+retains drafts when a live save returns a revision conflict.
+
+A server acknowledgement removes only the matching draft. Writing made while a
+save is pending stays local until its own save succeeds. Network failures leave
+an error and **Tentar salvar** action; closing the view attempts a final save,
+while the local draft provides recovery if that request cannot finish.
+
+When the browser cannot read or write local storage, a warning asks you to keep
+the page open until saved or download a copy. Local recovery supplements server
+backups; it does not make a page available offline if the app cannot load it.
+The existing Notebook and Infinite formats retain their own persistence flows.
+
+See the [TDD evidence](TEXT_EDITOR_RECOVERY_TDD.md) for validation and limits.

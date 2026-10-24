@@ -12,7 +12,8 @@ vi.mock('../../hooks/useSocket', () => ({ useSocket: () => ({ joinPage: vi.fn(),
 vi.mock('../Shared/sharedPagesContext', () => ({ useSharedPages: () => ({ getEntry: () => undefined, refresh: vi.fn() }) }));
 vi.mock('./allPagesCache', () => ({ getCachedAllPages: () => [], loadAllPagesCached: async () => [] }));
 vi.mock('./textEditorDrafts', () => ({ textEditorDrafts: { read: vi.fn(), write: vi.fn(), remove: vi.fn() } }));
-vi.mock('../../api/client', () => ({ api: { getPageVersions: vi.fn(), getMe: vi.fn(), getPageGrants: vi.fn(), getSubPages: vi.fn(), savePage: vi.fn(), getPage: vi.fn() }, isRevisionConflict: (e: unknown) => String(e).includes('409') }));
+vi.mock('../../api/client', () => ({ api: { getPageVersions: vi.fn(), getMe: vi.fn(), getPageGrants: vi.fn(), getSubPages: vi.fn(), savePage: vi.fn(), getPage: vi.fn(), patchPage: vi.fn() }, isRevisionConflict: (e: unknown) => String(e).includes('409') }));
+vi.mock('../shared/EmojiPicker', () => ({ EmojiPicker: ({ onSelect }: { onSelect: (value: string) => void }) => <button onClick={() => onSelect('📘')}>Choose demo icon</button> }));
 vi.mock('./EditorCover', () => ({ CoverImage: () => null }));
 vi.mock('./PageNavigation', () => ({ PageNavigation: () => null }));
 vi.mock('./SubPagesKanban', () => ({ SubPagesKanban: () => null }));
@@ -76,4 +77,24 @@ describe('Real text editor save and recovery integration', () => {
     await waitFor(() => expect(captured.editor?.getText()).toBe('Saved text'));
     expect(screen.getByRole('textbox', { name: 'Título da página' })).toHaveValue('Study');
   });
+  it('continues saving text after changing the page icon', async () => {
+    await ready();
+    vi.mocked(api.patchPage).mockResolvedValue({ ...page, icon: '📘', revision: 4 });
+    fireEvent.click(screen.getByRole('button', { name: '+ ícone' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Choose demo icon' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Trocar ícone' })).toBeEnabled());
+    act(() => { captured.editor!.commands.setContent(doc('Written after icon update')); });
+    fireEvent.click(screen.getByRole('button', { name: 'Retry save' }));
+    await waitFor(() => expect(api.savePage).toHaveBeenCalledWith(page.id, expect.objectContaining({ revision: 4 }), expect.anything()));
+  });
+  it('keeps recovery available if the server cannot load the saved version', async () => {
+    vi.mocked(textEditorDrafts.read).mockResolvedValue({ content: doc('Keep this draft'), title: 'Local', baseRevision: 3 });
+    vi.mocked(api.getPage).mockRejectedValueOnce(new Error('offline'));
+    render(<Editor page={page} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Usar versão salva' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Seu rascunho foi mantido');
+    expect(screen.getByRole('button', { name: 'Recuperar rascunho' })).toBeVisible();
+    expect(textEditorDrafts.remove).not.toHaveBeenCalled();
+  });
+
 });

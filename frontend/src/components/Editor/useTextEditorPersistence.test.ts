@@ -154,4 +154,19 @@ describe('Text editor persistence', () => {
     expect(api.savePage).toHaveBeenLastCalledWith('fictional-page', expect.objectContaining({ revision: 4 }), expect.anything());
   });
 
+  it('blocks network saves when the browser session ends', async () => {
+    const { result } = await setup();
+    act(() => { result.current.change(doc('Pending logout'), 'Pending logout'); window.dispatchEvent(new Event('brain-core:session-ended')); });
+    await act(async () => { await result.current.flush(); });
+    expect(api.savePage).not.toHaveBeenCalled();
+    await waitFor(() => expect(textEditorDrafts.write).toHaveBeenCalledWith(key, expect.objectContaining({ title: 'Pending logout' })));
+  });
+  it('does not read or save another account when no account is active', async () => {
+    account = null;
+    const { result } = await setup();
+    expect(result.current.draftWarning).toBe(true);
+    await act(async () => { await result.current.saveNow(doc('Unlinked'), 'Unlinked'); });
+    expect(textEditorDrafts.read).not.toHaveBeenCalled(); expect(api.savePage).not.toHaveBeenCalled();
+  });
+
 });

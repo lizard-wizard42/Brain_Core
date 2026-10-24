@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — text editor draft recovery
+
+- Keep account- and page-scoped text drafts in IndexedDB before the autosave delay; offer recovery, download or the saved server version when reopening.
+- Preserve newer edits during pending saves and retain drafts after network failures or revision conflicts. Stale drafts never automatically replace newer server content.
+- Respect the revision of the editor snapshot instead of replacing it with the API cache revision; add storage, persistence and real Tiptap editor regression tests.
+
 ## Unreleased — discreet code copy control
 
 - Replace the code-block header row with an accessible icon in the upper-right corner; copying still confirms with a checkmark and preserves code formatting.
