@@ -1,8 +1,9 @@
 export const PAGE_DRAG_TYPE = 'application/x-brain-core-page';
 export interface PageDrag { id: string; title: string; origin: 'editor' | 'sidebar'; reference: boolean }
 let active: PageDrag | null = null;
-export function writePageDrag(transfer: DataTransfer, page: PageDrag) {
+export function writePageDrag(transfer: DataTransfer | null | undefined, page: PageDrag) {
   active = page;
+  if (!transfer) return;
   transfer.setData(PAGE_DRAG_TYPE, JSON.stringify(page));
   transfer.effectAllowed = 'move';
 }

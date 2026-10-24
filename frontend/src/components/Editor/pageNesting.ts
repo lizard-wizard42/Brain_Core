@@ -1,6 +1,7 @@
 import { api } from '../../api/client';
 export class PageMoveError extends Error {
-  constructor(message: string, public committed: boolean) { super(message); }
+  readonly committed: boolean;
+  constructor(message: string, committed: boolean) { super(message); this.committed = committed; }
 }
 /** Persist the open document before the server atomically cleans its old child card. */
 export async function movePageInto(parentId: string, draggedId: string, targetId: string, save: () => Promise<boolean>) {
