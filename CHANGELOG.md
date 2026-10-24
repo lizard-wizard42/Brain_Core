@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — current product overview and screenshots
+
+- Refresh the README around the current page editor, Notebook, Infinite, quick notes, Timeline and dashboard, with seven new screenshots from isolated fictional English demo content.
+- Consolidate Android, transcription, draft recovery and per-account MCP guidance; link detailed setup and behavior to the existing feature guides.
+- Document screenshot provenance, the Portuguese-first application UI and the separate tldraw SDK production licensing requirements. No application behavior or production data changes.
+
 ## Unreleased — page cards inside the editor
 
 - Drag a managed page card onto the center of another card to move it into that page; use the edges for normal document reordering. Preserve native page identity even after a previous text selection.
