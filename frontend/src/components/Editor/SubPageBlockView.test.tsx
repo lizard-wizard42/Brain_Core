@@ -117,11 +117,16 @@ describe('subpage and reference actions', () => {
 
 function showDropTarget(source: 'child' | 'reference' = 'child', editable = true) {
   const onNestPage = vi.fn().mockResolvedValue(undefined);
-  const props = { node: { attrs: { pageId: 'beta', title: 'Beta', icon: '', source } }, editor: { isEditable: editable }, updateAttributes: vi.fn(), deleteNode: vi.fn(), onNestPage };
+  const props = { node: { attrs: { pageId: 'beta', title: 'Beta', icon: '', source } }, editor: { isEditable: editable, view: { dragging: null } }, updateAttributes: vi.fn(), deleteNode: vi.fn(), onNestPage };
   const view = render(<SubPageBlockView {...props as unknown as ComponentProps<typeof SubPageBlockView>} />);
   const target = view.container.querySelector('[data-page-card]') as HTMLElement;
   if (target) vi.spyOn(target, 'getBoundingClientRect').mockReturnValue({ top: 100, height: 80, bottom: 180 } as DOMRect);
   return { onNestPage, target };
+}
+function dropEvent(target: HTMLElement, type: string, dataTransfer: DataTransfer, clientY: number) {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperties(event, { dataTransfer: { value: dataTransfer }, clientY: { value: clientY } });
+  fireEvent(target, event);
 }
 function syntheticDrag(reference = false, id = 'alpha') {
   const data = new Map<string,string>();
@@ -135,9 +140,9 @@ describe('Page card nesting target', () => {
     const { target, onNestPage } = showDropTarget(); const dataTransfer=syntheticDrag();
     expect(target).not.toBeNull();
     onNestPage.mockRejectedValueOnce(new Error('Could not move fictional page'));
-    fireEvent.dragOver(target, { clientY: 140, dataTransfer });
+    dropEvent(target, 'dragover', dataTransfer, 140);
     expect(screen.getByText('Mover para dentro de Beta')).toBeVisible();
-    fireEvent.drop(target, { clientY: 140, dataTransfer });
+    dropEvent(target, 'drop', dataTransfer, 140);
     await waitFor(() => expect(onNestPage).toHaveBeenCalledWith('alpha', 'beta'));
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not move fictional page');
     expect(screen.getByRole('button', { name: 'Abrir subpágina: Beta' })).toBeInTheDocument();
@@ -146,7 +151,7 @@ describe('Page card nesting target', () => {
     const { target, onNestPage } = showDropTarget('child', kind !== 'readonly');
     const dataTransfer = syntheticDrag(kind === 'reference', kind === 'self' ? 'beta' : 'alpha');
     expect(target).not.toBeNull();
-    fireEvent.drop(target, { clientY: kind === 'edge' ? 102 : 140, dataTransfer });
+    dropEvent(target, 'drop', dataTransfer, kind === 'edge' ? 102 : 140);
     expect(onNestPage).not.toHaveBeenCalled();
   });
 });

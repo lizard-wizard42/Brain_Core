@@ -3,16 +3,19 @@ import { NodeViewWrapper } from '@tiptap/react';
 import type { NodeViewProps } from '@tiptap/react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../api/client';
+import { readPageDrag, writePageDrag, clearPageDrag, pageDropZone } from './pageDrag';
 
 interface SubPageBlockViewProps extends NodeViewProps {
   onRefresh?: () => void;
+  onNestPage?: (draggedId: string, targetId: string) => Promise<void>;
   onNavigatePage?: (page: { id: string; title: string; icon?: string | null }, openInNewTab?: boolean) => void;
 }
 
-export function SubPageBlockView({ node, updateAttributes, deleteNode, onRefresh, onNavigatePage }: SubPageBlockViewProps) {
+export function SubPageBlockView({ node, updateAttributes, deleteNode, onRefresh, onNavigatePage, onNestPage, editor }: SubPageBlockViewProps) {
   const { pageId, title, icon, source } = node.attrs as { pageId: string; title: string; icon: string; source?: 'child' | 'reference' };
   const isReference = source === 'reference';
   const navigate = useNavigate();
+  const [dropInside, setDropInside] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [newTitle, setNewTitle] = useState(title);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -29,11 +32,11 @@ export function SubPageBlockView({ node, updateAttributes, deleteNode, onRefresh
 
   useEffect(() => {
     if (renaming) inputRef.current?.focus();
-    else if (restoreRenameFocus.current) {
+    else if (restoreRenameFocus.current && !busy) {
       renameRef.current?.focus();
       restoreRenameFocus.current = false;
     }
-  }, [renaming]);
+  }, [renaming, busy]);
 
   useEffect(() => {
     if (!showDeleteConfirm) return;
@@ -94,6 +97,20 @@ export function SubPageBlockView({ node, updateAttributes, deleteNode, onRefresh
     onRefresh?.();
   };
 
+  const dropCandidate = (event: React.DragEvent<HTMLDivElement>) => {
+    const dragged = readPageDrag(event.dataTransfer);
+    if (!onNestPage || editor?.isEditable === false || isReference || busy || !dragged || dragged.reference) return null;
+    const rect = event.currentTarget.getBoundingClientRect();
+    return pageDropZone(event.clientY, rect.top, rect.height) === 'inside' ? dragged : null;
+  };
+  const nest = async (draggedId: string) => {
+    if (pending.current || draggedId === pageId) return;
+    pending.current = true; setBusy(true); setError(null);
+    try { await onNestPage?.(draggedId, pageId); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível mover a página. Tente novamente.'); }
+    finally { pending.current = false; setBusy(false); }
+  };
+
   const actionClass = 'min-h-10 min-w-10 rounded-md px-2 text-sm text-[var(--theme-muted)] hover:bg-[var(--theme-hover)] hover:text-[var(--theme-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)] disabled:opacity-50';
 
   return (
@@ -142,8 +159,29 @@ export function SubPageBlockView({ node, updateAttributes, deleteNode, onRefresh
         </div>
       )}
 
-      <div className="my-1 flex flex-wrap items-center gap-2 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-surface)] px-2 py-1.5" contentEditable={false}>
-        <div data-drag-handle className="cursor-grab px-1 text-[var(--theme-muted)] active:cursor-grabbing" title="Arrastar para reordenar">⠿</div>
+      <div data-page-card={pageId}
+        data-drop-inside={dropInside || undefined}
+        onDragStart={event => {
+          if (editor?.isEditable === false || busy) { event.preventDefault(); return; }
+          writePageDrag(event.dataTransfer, { id: pageId, title, origin: 'editor', reference: isReference });
+        }}
+        onDragEnd={() => { clearPageDrag(); setDropInside(false); }}
+        onDragOverCapture={event => {
+          const dragged = dropCandidate(event);
+          setDropInside(Boolean(dragged && dragged.id !== pageId));
+          if (!dragged) return;
+          event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = dragged.id === pageId ? 'none' : 'move';
+        }}
+        onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as globalThis.Node | null)) setDropInside(false); }}
+        onDropCapture={event => {
+          const dragged = dropCandidate(event); setDropInside(false);
+          if (!dragged) return;
+          event.preventDefault(); event.stopPropagation();
+          if (editor) editor.view.dragging = null;
+          void nest(dragged.id);
+        }}
+        className="subpage-card my-1 flex flex-wrap items-center gap-2 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-surface)] px-2 py-1.5" contentEditable={false}>
+        <div data-drag-handle className="cursor-grab px-1 text-[var(--theme-muted)] active:cursor-grabbing" title="Arrastar: bordas reordenam, centro de outra página move para dentro">⠿</div>
         <span aria-hidden="true" className="shrink-0 text-base">{icon || (isReference ? '↗' : '📄')}</span>
         {renaming ? (
           <input
@@ -190,6 +228,7 @@ export function SubPageBlockView({ node, updateAttributes, deleteNode, onRefresh
             </>
           )}
         </div>
+        {dropInside && <span role="status" className="subpage-drop-label">Mover para dentro de {title}</span>}
         {error && !showDeleteConfirm && <p role="alert" className="w-full px-2 text-sm text-[var(--theme-text)]">{error}</p>}
       </div>
     </NodeViewWrapper>

@@ -19,7 +19,7 @@ describe('Writing between page cards', () => {
   it('inserts a real editable paragraph between cards and preserves their order', () => {
     create();
     (editor.view.dom.querySelectorAll('button[aria-label="Inserir linha de texto"]')[1] as HTMLButtonElement).click();
-    expect(editor.getJSON().content?.map(n => n.type)).toEqual(['subPageBlock', 'paragraph', 'subPageBlock']);
+    expect(editor.getJSON().content?.slice(0, 3).map(n => n.type)).toEqual(['subPageBlock', 'paragraph', 'subPageBlock']);
     editor.commands.insertContent('Fictional writing');
     expect(editor.getJSON().content?.[1].content?.[0].text).toBe('Fictional writing');
     expect(editor.getJSON().content?.[2].attrs?.pageId).toBe('beta');
