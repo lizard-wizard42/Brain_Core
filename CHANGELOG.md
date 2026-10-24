@@ -4,6 +4,7 @@
 
 - Add a visible copy action at the top right of each highlighted code block, including read-only pages. Copy preserves indentation, tabs, Unicode and line breaks without changing saved content.
 - Show copied/error feedback and support a selection-preserving fallback for browsers without the Clipboard API.
+- Refresh compatible dependency locks for body-parser, multer, qs and zod to clear the production dependency audit required by CI; no major-version or API changes.
 
 
 ## Unreleased — notebook zoom and narrow-screen layout
