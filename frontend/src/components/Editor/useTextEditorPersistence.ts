@@ -11,14 +11,14 @@ const hash = (snapshot: Snapshot) => computeSavePayloadHash(snapshot.content, sn
 
 /** One mounted instance per page. Local writes and server saves each have an ordered queue. */
 export function useTextEditorPersistence(page: Page, onSaved?: () => void) {
-  const [status, setStatus] = useState<SaveStatus>('idle');
-  const [ready, setReady] = useState(false);
-  const [recoverable, setRecoverable] = useState<TextEditorDraft | null>(null);
-  const [draftWarning, setDraftWarning] = useState(false);
-  const [conflict, setConflict] = useState(false);
   const [userId] = useState(activeBrowserUserId);
+  const [status, setStatus] = useState<SaveStatus>('idle');
+  const [ready, setReady] = useState(!userId);
+  const [recoverable, setRecoverable] = useState<TextEditorDraft | null>(null);
+  const [draftWarning, setDraftWarning] = useState(!userId);
+  const [conflict, setConflict] = useState(false);
   const key = `${userId}:${page.id}`;
-  const mounted = useRef(true), blocked = useRef(true), conflicted = useRef(false), suspended = useRef(false);
+  const mounted = useRef(true), blocked = useRef(Boolean(userId)), conflicted = useRef(false), suspended = useRef(false);
   const revision = useRef(page.revision);
   const latest = useRef<Snapshot>({ content: page.content as TiptapDoc, title: page.title });
   const savedHash = useRef(hash({ content: page.content as TiptapDoc, title: page.title }));
@@ -99,8 +99,7 @@ export function useTextEditorPersistence(page: Page, onSaved?: () => void) {
   useEffect(() => {
     mounted.current = true;
     let active = true;
-    if (!userId) { blocked.current = false; setReady(true); setDraftWarning(true); }
-    else {
+    if (userId) {
       textEditorDrafts.read(key).then(draft => {
         if (!active || !sameAccount()) return;
         if (draft && draft.content?.type === 'doc' && Array.isArray(draft.content.content)
@@ -151,6 +150,15 @@ export function useTextEditorPersistence(page: Page, onSaved?: () => void) {
     blocked.current = false; updateStatus('idle');
   }, [queueDraft, updateStatus]);
 
+  const acceptMetadata = useCallback((saved: Page) => {
+    // Icon/cover saves may advance the revision without changing the document.
+    // Adopt only acknowledgements whose content still matches our saved base.
+    if (!sameAccount() || !saved?.content || saved.id !== page.id || saved.revision <= revision.current
+      || hash({ content: saved.content as TiptapDoc, title: saved.title }) !== savedHash.current) return;
+    revision.current = saved.revision;
+    if (dirty.current) void queueDraft({ ...latest.current, baseRevision: saved.revision });
+  }, [page.id, queueDraft, sameAccount]);
+
   const currentDraft = useCallback((): TextEditorDraft => recovery.current ?? { ...latest.current, baseRevision: revision.current }, []);
-  return { status, ready, recoverable, draftWarning, conflict, change, flush, saveNow, recover, discard, currentDraft };
+  return { status, ready, recoverable, draftWarning, conflict, change, flush, saveNow, recover, discard, currentDraft, acceptMetadata };
 }

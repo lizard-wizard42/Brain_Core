@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../../api/client';
+import type { Page } from '../../types';
 import { EmojiPicker } from '../shared/EmojiPicker';
 import { renderPageIcon } from './editorUtils';
 
@@ -10,9 +11,10 @@ export interface PageHeaderProps {
   onIconChange: (icon: string) => void;
   onTitleChange: (title: string) => void;
   onRefresh?: () => void;
+  onMetadataSaved?: (page: Page) => void;
 }
 
-export function PageHeader({ pageId, icon, title, onIconChange, onTitleChange, onRefresh }: PageHeaderProps) {
+export function PageHeader({ pageId, icon, title, onIconChange, onTitleChange, onRefresh, onMetadataSaved }: PageHeaderProps) {
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const [savingIcon, setSavingIcon] = useState(false);
   const [iconError, setIconError] = useState(false);
@@ -36,7 +38,8 @@ export function PageHeader({ pageId, icon, title, onIconChange, onTitleChange, o
     setSavingIcon(true);
     setIconError(false);
     try {
-      await api.patchPage(pageId, { icon: emoji });
+      const saved = await api.patchPage(pageId, { icon: emoji });
+      onMetadataSaved?.(saved);
       onIconChange(emoji);
       onRefresh?.();
     } catch { setIconError(true); }

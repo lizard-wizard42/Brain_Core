@@ -149,7 +149,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const persistence = useTextEditorPersistence(page, loadVersionHistory);
   const { status: saveStatus, conflict: conflictState, ready, recoverable, draftWarning,
-    saveNow: persistContentNow, change, discard, recover, currentDraft } = persistence;
+    saveNow: persistContentNow, change, discard, recover, currentDraft, acceptMetadata } = persistence;
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
   const canEdit = ready && !recoverable;
   const { joinPage, leavePage } = useSocket();
@@ -710,6 +710,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
           pageId={page.id}
           coverUrl={coverUrl}
           coverPositionY={coverPositionY}
+          onMetadataSaved={acceptMetadata}
           onUpdate={(url, posY) => {
             setCoverUrl(url);
             if (posY !== undefined) setCoverPositionY(posY);
@@ -725,6 +726,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
             title={title}
             onIconChange={setIcon}
             onTitleChange={handleTitleChange}
+            onMetadataSaved={acceptMetadata}
             onRefresh={onRefresh}
           />
           {(lastEditLabel || showShareButton || showShareBadge) && (
