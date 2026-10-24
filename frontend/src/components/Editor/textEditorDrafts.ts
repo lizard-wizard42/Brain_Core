@@ -21,6 +21,6 @@ async function transaction<T>(mode: IDBTransactionMode, run: (store: IDBObjectSt
 
 export const textEditorDrafts = {
   read: (key: string) => transaction<TextEditorDraft | undefined>('readonly', store => store.get(key)),
-  write: (key: string, draft: TextEditorDraft) => transaction('readwrite', store => store.put(draft, key)),
-  remove: (key: string) => transaction('readwrite', store => store.delete(key)),
+  write: async (key: string, draft: TextEditorDraft): Promise<void> => { await transaction('readwrite', store => store.put(draft, key)); },
+  remove: async (key: string): Promise<void> => { await transaction('readwrite', store => store.delete(key)); },
 };

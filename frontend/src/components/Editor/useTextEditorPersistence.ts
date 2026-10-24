@@ -21,7 +21,7 @@ export function useTextEditorPersistence(page: Page, onSaved?: () => void) {
   const mounted = useRef(true), blocked = useRef(true), conflicted = useRef(false), suspended = useRef(false);
   const revision = useRef(page.revision);
   const latest = useRef<Snapshot>({ content: page.content as TiptapDoc, title: page.title });
-  const savedHash = useRef(hash(latest.current));
+  const savedHash = useRef(hash({ content: page.content as TiptapDoc, title: page.title }));
   const dirty = useRef(false);
   const pendingSaves = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
