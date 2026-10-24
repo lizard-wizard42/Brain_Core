@@ -43,6 +43,7 @@ import { type SavedSel, TableControls } from './ToolbarControls';
 import { BottomToolbar } from './BottomToolbar';
 import { useTextEditorPersistence } from './useTextEditorPersistence';
 import { PageWritingGaps } from './PageWritingGaps';
+import { PageDragBridge } from './PageDragBridge';
 import { PageMoveError, movePageInto } from './pageNesting';
 
 const lowlight = createLowlight(common);
@@ -227,6 +228,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
     extensions: [
       StarterKit.configure({ codeBlock: false, underline: false, link: false, dropcursor: { color: 'var(--theme-primary)', width: 2 } }),
       PageWritingGaps,
+      PageDragBridge,
       Table.configure({ resizable: true }),
       TableRow,
       TableHeader,

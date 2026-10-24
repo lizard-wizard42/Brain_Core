@@ -159,7 +159,7 @@ export function SubPageBlockView({ node, updateAttributes, deleteNode, onRefresh
         </div>
       )}
 
-      <div data-page-card={pageId}
+      <div data-page-card={pageId} data-page-title={title} data-page-source={source}
         data-drop-inside={dropInside || undefined}
         onDragStart={event => {
           if (editor?.isEditable === false || busy) { event.preventDefault(); return; }
