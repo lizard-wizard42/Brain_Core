@@ -49,9 +49,13 @@ recorded in the pull request.
 ## Local validation results
 
 - Full frontend suite: 408 tests passed across 67 files, with coverage enabled.
-  A subsequent review added a regression for reverting an unacknowledged request;
-  that test failed before the fix and passed with the final persistence changes.
+  A subsequent review added two regressions for reverting an unacknowledged
+  request, before or after its failure; both failed before their fixes and
+  passed with the final persistence changes.
   The final full-suite result is recorded by CI and in the pull request.
+- Final scoped recovery validation: 40 tests passed across 6 files. The new
+  persistence/storage modules reached 91.32% statements, 81.52% branches,
+  83.72% functions and 100% lines in that run.
 - Overall frontend lines: 67.67% (baseline before this work: 62.44%). This is not
   a claim of 80% coverage for the existing application as a whole.
 - Backend: 73; disposable PostgreSQL: 24; MCP: 2; offline Memory: 85;

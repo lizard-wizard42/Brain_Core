@@ -24,6 +24,7 @@ export function useTextEditorPersistence(page: Page, onSaved?: () => void) {
   const savedHash = useRef(hash({ content: page.content as TiptapDoc, title: page.title }));
   const dirty = useRef(false);
   const pendingSaves = useRef(0);
+  const unacknowledged = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const localQueue = useRef<Promise<unknown>>(Promise.resolve());
   const serverQueue = useRef<Promise<void>>(Promise.resolve());
@@ -56,6 +57,7 @@ export function useTextEditorPersistence(page: Page, onSaved?: () => void) {
       try {
         const saved = await api.savePage(page.id, { ...snapshot, revision: revision.current }, { keepalive: options?.keepalive ?? false });
         if (!sameAccount()) return;
+        unacknowledged.current = false;
         revision.current = saved.revision;
         savedHash.current = hash(snapshot);
         dirty.current = hash(latest.current) !== savedHash.current;
@@ -68,6 +70,7 @@ export function useTextEditorPersistence(page: Page, onSaved?: () => void) {
         }
         if (options?.reloadVersions) onSavedRef.current?.();
       } catch (error) {
+        unacknowledged.current = true;
         if (isRevisionConflict(error)) {
           conflicted.current = true;
           if (mounted.current) setConflict(true);
@@ -83,7 +86,8 @@ export function useTextEditorPersistence(page: Page, onSaved?: () => void) {
   const change = useCallback((content: TiptapDoc, title: string) => {
     if (blocked.current || !sameAccount()) return;
     latest.current = { content, title };
-    dirty.current = pendingSaves.current > 0 || hash(latest.current) !== savedHash.current;
+    dirty.current = pendingSaves.current > 0 || unacknowledged.current || conflicted.current
+      || hash(latest.current) !== savedHash.current;
     // Persist before the debounce so closing the view doesn't depend on a network request.
     void queueDraft(dirty.current ? { content, title, baseRevision: revision.current } : null);
     clearTimeout(timer.current);
@@ -146,6 +150,7 @@ export function useTextEditorPersistence(page: Page, onSaved?: () => void) {
     blocked.current = true;
     await serverQueue.current;
     latest.current = { content: fresh.content as TiptapDoc, title: fresh.title };
+    unacknowledged.current = false;
     revision.current = fresh.revision; savedHash.current = hash(latest.current); dirty.current = false;
     await queueDraft(null);
     recovery.current = null; setRecoverable(null); conflicted.current = false; setConflict(false);
