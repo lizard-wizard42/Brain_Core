@@ -387,16 +387,22 @@
 .tiptap-editor code { color: var(--theme-text); }
 
 /* Page cards share a clear nesting target and theme-aware insertion cursors. */
-.subpage-card { position: relative; transition: border-color 120ms, background 120ms; }
+.subpage-card { position: relative; z-index: 0; transform-origin: center; will-change: transform; transition: transform 220ms cubic-bezier(.34,1.56,.64,1), box-shadow 220ms ease, border-color 160ms, background 160ms; }
+.subpage-card:hover, .subpage-card:focus-within { z-index: 1; transform: scale(1.018); border-color: color-mix(in srgb, var(--theme-primary) 55%, var(--theme-border)); background: color-mix(in srgb, var(--theme-primary) 7%, var(--theme-surface)); box-shadow: 0 10px 28px -12px color-mix(in srgb, var(--theme-primary) 55%, transparent), 0 2px 8px rgba(0,0,0,.18); }
+.subpage-card:active { transform: scale(1.006); transition-duration: 90ms; }
+.subpage-card [data-drag-handle] { transition: color 160ms, transform 160ms; }
+.subpage-card:hover [data-drag-handle] { color: var(--theme-primary); transform: scale(1.15); }
 .subpage-card[data-drop-inside] { border-color: var(--theme-primary); background: var(--theme-hover); outline: 2px solid var(--theme-primary); outline-offset: 2px; }
 .subpage-drop-label { width: 100%; padding: 0 8px 4px; color: var(--theme-primary); font-size: 12px; pointer-events: none; }
 .tiptap-editor .ProseMirror-gapcursor::after { border-top: 2px solid var(--theme-primary); }
-.subpage-writing-gap { display: flex; align-items: center; justify-content: center; position: relative; width: 100%; height: 16px; padding: 0; border: 0; background: transparent; color: var(--theme-muted); cursor: text; }
-.subpage-writing-gap::before { content: ''; position: absolute; inset: 50% 0 auto; border-top: 1px dashed transparent; }
-.subpage-writing-gap span { position: relative; display: grid; place-items: center; width: 22px; height: 22px; border: 1px solid var(--theme-border); border-radius: 50%; background: var(--theme-surface); opacity: 0; font: 14px/1 sans-serif; }
-.subpage-writing-gap:hover span, .subpage-writing-gap:focus-visible span { opacity: 1; }
-.subpage-writing-gap:hover::before, .subpage-writing-gap:focus-visible::before { border-color: var(--theme-primary); }
+.subpage-writing-gap { display: flex; align-items: center; justify-content: center; position: relative; z-index: 2; width: 100%; height: 10px; padding: 0; border: 0; background: transparent; color: var(--theme-primary); cursor: text; }
+.subpage-writing-gap::before { content: ''; position: absolute; left: 8%; right: 8%; top: 50%; height: 2px; border-radius: 2px; background: linear-gradient(90deg, transparent, var(--theme-primary), transparent); opacity: 0; transform: scaleX(.2); transition: opacity 180ms ease, transform 260ms ease; }
+.subpage-writing-gap span { position: relative; display: grid; place-items: center; width: 22px; height: 22px; border: 1px solid var(--theme-primary); border-radius: 50%; background: var(--theme-surface); box-shadow: 0 4px 14px -4px color-mix(in srgb, var(--theme-primary) 70%, transparent); opacity: 0; transform: scale(.4) rotate(-90deg); transition: opacity 160ms ease, transform 260ms cubic-bezier(.34,1.56,.64,1), background 140ms, color 140ms; font: 15px/1 sans-serif; }
+.subpage-writing-gap:hover span, .subpage-writing-gap:focus-visible span { opacity: 1; transform: scale(1) rotate(0); }
+.subpage-writing-gap:hover span:hover { background: var(--theme-primary); color: var(--theme-surface); transform: scale(1.15); }
+.subpage-writing-gap:hover::before, .subpage-writing-gap:focus-visible::before { opacity: .85; transform: scaleX(1); }
 .subpage-writing-gap:focus-visible { outline: 2px solid var(--theme-primary); outline-offset: 1px; }
 .editor-page-move-status { display: flex; align-items: center; gap: 12px; padding: 8px 16px; border-bottom: 1px solid var(--theme-border); color: var(--theme-text); font-size: 13px; }
 .editor-page-move-status button { min-height: 36px; padding: 4px 8px; border: 1px solid var(--theme-border); border-radius: 6px; }
-@media (hover: none) { .subpage-writing-gap { height: 24px; } .subpage-writing-gap span { opacity: .75; } }
+@media (hover: none) { .subpage-writing-gap { height: 24px; } .subpage-writing-gap span { opacity: .75; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .subpage-card, .subpage-card [data-drag-handle], .subpage-writing-gap::before, .subpage-writing-gap span { transition: none; } .subpage-card:hover, .subpage-card:focus-within { transform: none; } }

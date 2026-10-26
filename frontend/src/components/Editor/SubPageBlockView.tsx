@@ -180,7 +180,7 @@ export function SubPageBlockView({ node, updateAttributes, deleteNode, onRefresh
           if (editor) editor.view.dragging = null;
           void nest(dragged.id);
         }}
-        className="subpage-card my-1 flex flex-wrap items-center gap-2 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-surface)] px-2 py-1.5" contentEditable={false}>
+        className="subpage-card flex flex-wrap items-center gap-2 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-surface)] px-2 py-1.5" contentEditable={false}>
         <div data-drag-handle className="cursor-grab px-1 text-[var(--theme-muted)] active:cursor-grabbing" title="Arrastar: bordas reordenam, centro de outra página move para dentro">⠿</div>
         <span aria-hidden="true" className="shrink-0 text-base">{icon || (isReference ? '↗' : '📄')}</span>
         {renaming ? (

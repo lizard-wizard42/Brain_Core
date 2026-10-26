@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — page card hover motion
+
+- Animate page cards on hover with a subtle zoom, theme-colored glow and highlighted drag handle; honor reduced-motion preferences.
+- Tighten the spacing between adjacent page cards and show the insertion "+" as an overlay in the gap, so it no longer shifts the layout.
+
 ## Unreleased — current product overview and screenshots
 
 - Refresh the README around the current page editor, Notebook, Infinite, quick notes, Timeline and dashboard, with seven new web screenshots and an Android companion composition from isolated fictional English demo content.
