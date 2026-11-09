@@ -62,7 +62,7 @@ const uploadStorage = multer.diskStorage({
   destination: UPLOADS_DIR,
   filename: (_req, file, cb) => {
     const unique = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
-    cb(null, `${unique}${safeUploadExtension(file.originalname)}`);
+    cb(null, `${unique}${safeUploadExtension(file.originalname, file.mimetype)}`);
   },
 });
 
@@ -354,3 +354,4 @@ startServer().catch((err) => {
   logError('server.start.error', { detail: String(err) });
   process.exit(1);
 });
+

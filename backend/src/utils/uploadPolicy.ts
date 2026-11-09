@@ -34,7 +34,10 @@ function matchesAllowedType(
 ): boolean {
   const ext = path.extname(originalName || '').toLowerCase();
   const normalizedMime = String(mimeType || '').toLowerCase().split(';', 1)[0].trim();
-  return allowedTypes.get(ext)?.has(normalizedMime) === true;
+  if (ext) return allowedTypes.get(ext)?.has(normalizedMime) === true;
+  // Clipboard and drag/drop APIs may provide an image Blob without a filename.
+  // In that case the MIME type is the only reliable type signal.
+  return [...allowedTypes.values()].some((types) => types.has(normalizedMime));
 }
 
 export function isAllowedImageUpload(originalName: string, mimeType: string): boolean {
@@ -51,9 +54,12 @@ export function isAllowedAttachmentUpload(originalName: string, mimeType: string
     || matchesAllowedType(ATTACHMENT_TYPES, originalName, mimeType);
 }
 
-export function safeUploadExtension(originalName: string): string {
+export function safeUploadExtension(originalName: string, mimeType = ''): string {
   const ext = path.extname(originalName || '').toLowerCase();
-  return IMAGE_TYPES.has(ext) || ATTACHMENT_TYPES.has(ext) ? ext : '';
+  if (IMAGE_TYPES.has(ext) || ATTACHMENT_TYPES.has(ext)) return ext;
+  const normalizedMime = String(mimeType || '').toLowerCase().split(';', 1)[0].trim();
+  const mimeExtension = [...IMAGE_TYPES.entries()].find(([, types]) => types.has(normalizedMime))?.[0];
+  return mimeExtension ?? '';
 }
 
 export function isAllowedStoredUploadPath(filePath: string): boolean {
@@ -72,8 +78,8 @@ function looksLikeSafeText(buffer: Buffer): boolean {
   return !/^<(?:!doctype\s+html|html|script|svg|iframe|object|embed)(?:\s|>)/.test(sample);
 }
 
-export async function hasValidUploadContent(filePath: string, originalName: string): Promise<boolean> {
-  const ext = path.extname(originalName || '').toLowerCase();
+export async function hasValidUploadContent(filePath: string, originalName: string, mimeType = ''): Promise<boolean> {
+  const ext = safeUploadExtension(originalName, mimeType);
   const handle = await open(filePath, 'r');
   try {
     const buffer = Buffer.alloc(8192);
@@ -101,7 +107,7 @@ export async function hasValidUploadContent(filePath: string, originalName: stri
 
 export async function discardInvalidUpload(file: Express.Multer.File | undefined): Promise<boolean> {
   if (!file) return false;
-  const valid = await hasValidUploadContent(file.path, file.originalname).catch(() => false);
+  const valid = await hasValidUploadContent(file.path, file.originalname, file.mimetype).catch(() => false);
   if (!valid) await unlink(file.path).catch(() => {});
   return !valid;
 }
@@ -186,3 +192,4 @@ export async function ensureUploadStorageCapacity(req: Request, res: Response, n
     res.status(503).json({ error: 'Não foi possível verificar o armazenamento de uploads' });
   }
 }
+
