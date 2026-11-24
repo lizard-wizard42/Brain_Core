@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { localDate } from '../../services/localDate';
 
 interface ActivityItem {
   date: string; // YYYY-MM-DD
@@ -9,31 +10,36 @@ interface ActivityHeatmapProps {
   activityData: ActivityItem[];
   onSelectDate?: (date: string) => void;
   selectedDate?: string;
+  today?: string;
 }
 
-export function ActivityHeatmap({ activityData, onSelectDate, selectedDate }: ActivityHeatmapProps) {
-  // Generate the last 90 days (approx ~13 weeks)
+export function ActivityHeatmap({ activityData, onSelectDate, selectedDate, today = localDate() }: ActivityHeatmapProps) {
   const days = useMemo(() => {
-    const list: { date: string; dayOfWeek: number; count: number }[] = [];
+    const list: { date: string; count: number }[] = [];
     const map = new Map<string, number>();
     for (const item of activityData) {
       map.set(item.date, (map.get(item.date) || 0) + item.count);
     }
 
-    const today = new Date();
-    // 91 days = 13 weeks exactly
-    for (let i = 90; i >= 0; i--) {
-      const d = new Date(today);
+    const [year, month, day] = today.split('-').map(Number);
+    const end = new Date(year, month - 1, day);
+    for (let i = 89; i >= 0; i--) {
+      const d = new Date(end);
       d.setDate(d.getDate() - i);
-      const iso = d.toISOString().slice(0, 10);
+      const iso = localDate(d);
       list.push({
         date: iso,
-        dayOfWeek: d.getDay(),
         count: map.get(iso) || 0,
       });
     }
     return list;
-  }, [activityData]);
+  }, [activityData, today]);
+
+  const leadingEmptyDays = useMemo(() => {
+    const [year, month, day] = days[0].date.split('-').map(Number);
+    return new Date(year, month - 1, day).getDay();
+  }, [days]);
+  const columns = Math.ceil((leadingEmptyDays + days.length) / 7);
 
   const totalActions = useMemo(() => {
     return days.reduce((sum, d) => sum + d.count, 0);
@@ -57,12 +63,13 @@ export function ActivityHeatmap({ activityData, onSelectDate, selectedDate }: Ac
           </h2>
         </div>
         <span className="text-xs text-[var(--theme-muted)]">
-          <strong className="text-[var(--theme-text)] font-semibold">{totalActions}</strong> contribuições
+          <strong className="text-[var(--theme-text)] font-semibold">{totalActions}</strong> páginas e notas
         </span>
       </div>
 
       <div className="overflow-x-auto pb-1">
-        <div className="inline-grid grid-flow-col grid-rows-7 gap-1.5 min-w-[580px]">
+        <div className="grid w-full min-w-[360px] grid-flow-col grid-rows-7 justify-items-center gap-y-1.5" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
+          {Array.from({ length: leadingEmptyDays }, (_, index) => <span key={`empty-${index}`} aria-hidden="true" />)}
           {days.map(d => {
             const isSelected = selectedDate === d.date;
             return (

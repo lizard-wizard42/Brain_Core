@@ -852,11 +852,11 @@ export const Sidebar = memo(function Sidebar({
         <button
           type="button"
           aria-label="Abrir configurações"
-          title="Configurações"
-          className="sidebar-footer-tool"
+          className="sidebar-footer-settings"
           onClick={() => navigate('/settings')}
         >
           <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="m9 3-1 3-3 1-2 3 2 2-1 3 2 3 3-1 2 3h3l1-3 3-1 2-3-2-2 1-3-2-3-3 1-2-3Z"/><circle cx="12" cy="12" r="3"/></svg>
+          <span>Configurações</span>
         </button>
         <button
           type="button"

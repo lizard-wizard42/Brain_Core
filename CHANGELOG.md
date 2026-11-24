@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — dashboard activity and sidebar footer
+
+- Show exactly 90 local calendar days in the activity grid, align cells to weekdays, and label the total as pages and notes according to the available data.
+- Give the sidebar footer two rows so New page and the visible Settings button fit alongside Trash on narrow screens.
+
 ## Unreleased — page card hover motion
 
 - Animate page cards on hover with a subtle zoom, theme-colored glow and highlighted drag handle; honor reduced-motion preferences.

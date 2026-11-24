@@ -10,6 +10,7 @@ import { NotasBoard } from '../Notas/NotasBoard';
 import { useNotas } from '../Notas/useNotas';
 import { emptyDraft } from '../Notas/notasModel';
 import { ActivityHeatmap } from './ActivityHeatmap';
+import { aggregateActivity } from './activityData';
 import { QuickDailyCapture } from './QuickDailyCapture';
 
 function greeting(): string {
@@ -179,23 +180,8 @@ export function DashboardHome({ onOpenPage }: { onOpenPage: (page: { id: string;
 
   const recall = useMemo(() => pickRecall(notes), [notes]);
 
-  // Aggregate activity across pages, notes, and sessions for the 90-day heatmap
-  const activityData = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const p of pages) {
-      if (p.updated_at) {
-        const d = p.updated_at.slice(0, 10);
-        counts.set(d, (counts.get(d) || 0) + 1);
-      }
-    }
-    for (const n of notes) {
-      if (n.created_at) {
-        const d = n.created_at.slice(0, 10);
-        counts.set(d, (counts.get(d) || 0) + 1);
-      }
-    }
-    return Array.from(counts.entries()).map(([date, count]) => ({ date, count }));
-  }, [pages, notes]);
+  // Count pages by their latest edit and notes by their creation date.
+  const activityData = aggregateActivity(pages, notes);
 
   const handleQuickCapture = async (text: string) => {
     await createNote({
@@ -247,7 +233,7 @@ export function DashboardHome({ onOpenPage }: { onOpenPage: (page: { id: string;
 
         {/* 90-day consistency heatmap */}
         <div className="mt-6">
-          <ActivityHeatmap activityData={activityData} />
+          <ActivityHeatmap activityData={activityData} today={todayIso} />
         </div>
 
         <div className="mt-6 grid gap-4 lg:grid-cols-2">

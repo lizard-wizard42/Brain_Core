@@ -97,8 +97,7 @@ de permissão não ocupam a lista; os detalhes de acesso continuam no painel da 
 
 O menu **Gerenciar acesso** permanece visível nas páginas das quais você é dono,
 inclusive em telas de toque. Selecionar uma página apenas a abre; gerenciar acesso
-continua sendo uma ação separada. No rodapé, **Nova página** mantém o contorno; **Configurações** e **Lixeira** usam
-ícones discretos. Os três têm foco de teclado e área mínima de 44 px.
+continua sendo uma ação separada. No rodapé, **Nova página** ocupa a primeira linha; **Configurações** aparece com texto e ícone na segunda, ao lado da **Lixeira**. Os três têm foco de teclado e área mínima de 44 px.
 As mudanças são visuais e não alteram convites, permissões ou conteúdo das páginas.
 
 ## Consistent sidebar controls
@@ -116,8 +115,8 @@ The full title is available on hover. Trash confirmation explains recovery.
 
 The mobile tab section retains open/close/back actions with touch-sized targets.
 Search results use borderless rows and limit previews to two lines while keeping
-filters, pagination and highlighted matches. Footer creation remains outlined;
-settings and trash use lighter icon controls. No storage or permission changes
+filters, pagination and highlighted matches. Footer creation spans the first row;
+the labeled Settings button shares the second row with Trash. No storage or permission changes
 are required.
 
 ### Navigation previews

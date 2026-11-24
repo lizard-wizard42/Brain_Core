@@ -1,5 +1,6 @@
 .sidebar-footer {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--sidebar-footer-height);
   gap: 6px;
   padding: 6px 8px;
   border-top: 1px solid var(--theme-border);
@@ -23,10 +24,21 @@
 }
 .sidebar-footer .sidebar-footer-create {
   border: 1px solid var(--theme-border);
-  flex: 1;
+  grid-column: 1 / -1;
   min-width: 0;
   padding: 0 8px;
   font-size: var(--tree-font-size);
   font-weight: 600;
+  white-space: nowrap;
 }
-.sidebar-footer-tool { width: var(--sidebar-footer-height); flex-shrink: 0; }
+.sidebar-footer .sidebar-footer-settings {
+  grid-column: 1;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid var(--theme-border);
+  font-size: var(--tree-font-size);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.sidebar-footer-settings svg { flex-shrink: 0; }
+.sidebar-footer-tool { grid-column: 2; width: var(--sidebar-footer-height); }
