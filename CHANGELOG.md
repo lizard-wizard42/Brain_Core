@@ -3,7 +3,7 @@
 ## Unreleased — dashboard activity and sidebar footer
 
 - Show exactly 90 local calendar days in the activity grid, align cells to weekdays, and label the total as pages and notes according to the available data.
-- Give the sidebar footer two rows so New page and the visible Settings button fit alongside Trash on narrow screens.
+- Keep the sidebar footer on one row with a larger, labeled-for-accessibility gear button that fits beside New page and Trash.
 
 ## Unreleased — page card hover motion
 

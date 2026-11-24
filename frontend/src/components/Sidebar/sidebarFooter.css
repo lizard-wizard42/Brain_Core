@@ -1,6 +1,5 @@
 .sidebar-footer {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--sidebar-footer-height);
+  display: flex;
   gap: 6px;
   padding: 6px 8px;
   border-top: 1px solid var(--theme-border);
@@ -24,21 +23,18 @@
 }
 .sidebar-footer .sidebar-footer-create {
   border: 1px solid var(--theme-border);
-  grid-column: 1 / -1;
+  flex: 1;
   min-width: 0;
-  padding: 0 8px;
+  padding: 0 4px;
   font-size: var(--tree-font-size);
   font-weight: 600;
   white-space: nowrap;
 }
 .sidebar-footer .sidebar-footer-settings {
-  grid-column: 1;
-  gap: 7px;
-  padding: 0 10px;
+  flex: 0 0 var(--sidebar-footer-height);
+  width: var(--sidebar-footer-height);
   border: 1px solid var(--theme-border);
-  font-size: var(--tree-font-size);
-  font-weight: 600;
-  white-space: nowrap;
+  background: var(--theme-surface);
 }
-.sidebar-footer-settings svg { flex-shrink: 0; }
-.sidebar-footer-tool { grid-column: 2; width: var(--sidebar-footer-height); }
+.sidebar-footer .sidebar-footer-settings:hover { background: var(--theme-hover); }
+.sidebar-footer-tool { flex: 0 0 var(--sidebar-footer-height); width: var(--sidebar-footer-height); }

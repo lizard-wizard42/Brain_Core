@@ -49,7 +49,8 @@ describe('Sidebar', () => {
   it('keeps settings and trash available from the footer without changing pages', async () => {
     vi.mocked(api.getTrash).mockResolvedValue([]);
     render(<Sidebar tree={baseTree} activePage={null} onRefresh={onRefresh} />);
-    expect(screen.getByRole('button', { name: 'Abrir configurações' })).toHaveTextContent('Configurações');
+    expect(screen.getByRole('button', { name: 'Abrir configurações' })).toHaveAttribute('title', 'Configurações');
+    expect(screen.getByRole('button', { name: 'Abrir configurações' }).querySelector('svg')).toHaveAttribute('width', '22');
     expect(screen.getByRole('button', { name: 'Criar nova página' })).toHaveTextContent('Nova página');
     fireEvent.click(screen.getByRole('button', { name: 'Abrir configurações' }));
     expect(navigateSpy).toHaveBeenCalledWith('/settings');
