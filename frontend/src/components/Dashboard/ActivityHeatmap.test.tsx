@@ -1,10 +1,10 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { cleanup, render, screen, fireEvent } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ActivityHeatmap } from './ActivityHeatmap';
 import { QuickDailyCapture } from './QuickDailyCapture';
 import { aggregateActivity } from './activityData';
 
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => { cleanup(); vi.unstubAllEnvs(); });
 
 describe('ActivityHeatmap', () => {
   it('mostra exatamente 90 dias, alinha a semana e soma apenas os dias visíveis', () => {
@@ -27,9 +27,17 @@ describe('ActivityHeatmap', () => {
     expect(grid.children[0]).toHaveAttribute('aria-hidden', 'true');
     expect(grid.children[5]).toHaveAttribute('aria-hidden', 'true');
     expect(grid.children[6]).toHaveAttribute('aria-label', '2025-01-11: 3 atividade(s)');
-    expect(grid).toHaveClass('w-full');
+    expect(grid).toHaveStyle({ gridTemplateColumns: 'repeat(14, 18px)' });
+    expect(screen.getByRole('progressbar', { name: 'Dias com páginas ou notas' })).toHaveAttribute('aria-valuenow', '2');
+    expect(screen.getByText('Páginas ou notas em 10/04/2025')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /2025-04-10: 5/ }));
     expect(onSelectDate).toHaveBeenCalledWith('2025-04-10');
+  });
+
+  it('mostra o período vazio sem sugerir atividade', () => {
+    render(<ActivityHeatmap activityData={[]} today="2025-04-10" />);
+    expect(screen.getByRole('progressbar', { name: 'Dias com páginas ou notas' })).toHaveAttribute('aria-valuenow', '0');
+    expect(screen.getByText('Nenhum registro neste período.')).toBeInTheDocument();
   });
 });
 

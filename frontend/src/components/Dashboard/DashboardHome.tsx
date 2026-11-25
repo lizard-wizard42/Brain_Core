@@ -236,63 +236,82 @@ export function DashboardHome({ onOpenPage }: { onOpenPage: (page: { id: string;
           <ActivityHeatmap activityData={activityData} today={todayIso} />
         </div>
 
-        <div className="mt-6 grid gap-4 lg:grid-cols-2">
-          <Panel
-            title="Memórias de hoje"
-            action={
-              <button
-                type="button"
-                onClick={() => navigate(`/remember?date=${todayIso}`)}
-                className="min-h-11 rounded-lg px-2 text-xs text-[var(--theme-link)] hover:bg-[var(--theme-hover)]"
-              >
-                Ver dia →
-              </button>
-            }
-          >
-            {memoriesLoading ? (
-              <p role="status" className="text-sm text-[var(--theme-muted)]">Carregando memórias…</p>
-            ) : memoriesError ? (
-              <div role="alert" className="text-sm text-[var(--theme-text)]">
-                <p>Não foi possível carregar as gravações de hoje.</p>
-                <button type="button" aria-label="Tentar carregar gravações novamente" onClick={() => retryMemories(n => n + 1)}
-                  className="mt-2 min-h-10 rounded px-2 text-[var(--theme-link)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]">Tentar novamente</button>
-              </div>
-            ) : memories.length === 0 ? (
-              <p className="text-sm text-[var(--theme-muted)]">Nenhuma gravação ainda.</p>
-            ) : (
-              <ol className="space-y-3">
-                {memories.slice(0, 8).map((session) => (
-                  <li key={session.id} className="flex items-start gap-3">
-                    <span className="mt-0.5 shrink-0 font-mono text-xs text-[var(--theme-muted)]">{hhmm(session.started_at)}</span>
-                    <span
-                      role="img"
-                      aria-label={STATUS_LABEL[session.status] ?? session.status}
-                      title={STATUS_LABEL[session.status] ?? session.status}
-                      className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${session.status === 'ready' ? 'bg-emerald-500' : session.status === 'error' ? 'bg-red-500' : 'bg-gray-500'}`}
-                    />
-                    <span className="min-w-0 flex-1">
-                      {previewTurns(session).length > 0 ? (
-                        <span className="block space-y-1">
-                          {previewTurns(session).map((turn, index) => (
-                            <span key={turn.id ?? index} className="flex items-baseline gap-2 text-sm text-[var(--theme-text)]">
-                              <span className="shrink-0 font-mono text-[11px] text-[var(--theme-muted)]">{turn.start_at ? hhmm(turn.start_at) : '--:--'}</span>
-                              <span className="shrink-0 text-xs font-semibold text-[var(--theme-muted)]">{defaultLabelForSpeaker(groupedSpeakerKey(turn))}</span>
-                              <span className="min-w-0 flex-1 truncate">{turn.text.trim()}</span>
-                            </span>
-                          ))}
-                        </span>
-                      ) : (
-                        <span className="block line-clamp-2 text-sm text-[var(--theme-text)]">
-                          {session.text?.trim() || (session.status === 'ready' ? 'Sem transcrição' : STATUS_LABEL[session.status])}
-                        </span>
-                      )}
-                      <span className="mt-0.5 block text-xs text-[var(--theme-muted)]">{session.text?.trim() ? `${STATUS_LABEL[session.status]} · ` : ''}{sessionMeta(session)}</span>
-                    </span>
-                  </li>
-                ))}
-              </ol>
+        <div className="mt-6 grid items-start gap-4 lg:grid-cols-2">
+          <div className="grid min-w-0 content-start gap-4">
+            <Panel
+              title="Memórias de hoje"
+              action={
+                <button
+                  type="button"
+                  onClick={() => navigate(`/remember?date=${todayIso}`)}
+                  className="min-h-11 rounded-lg px-2 text-xs text-[var(--theme-link)] hover:bg-[var(--theme-hover)]"
+                >
+                  Ver dia →
+                </button>
+              }
+            >
+              {memoriesLoading ? (
+                <p role="status" className="text-sm text-[var(--theme-muted)]">Carregando memórias…</p>
+              ) : memoriesError ? (
+                <div role="alert" className="text-sm text-[var(--theme-text)]">
+                  <p>Não foi possível carregar as gravações de hoje.</p>
+                  <button type="button" aria-label="Tentar carregar gravações novamente" onClick={() => retryMemories(n => n + 1)}
+                    className="mt-2 min-h-10 rounded px-2 text-[var(--theme-link)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]">Tentar novamente</button>
+                </div>
+              ) : memories.length === 0 ? (
+                <p className="text-sm text-[var(--theme-muted)]">Nenhuma gravação ainda.</p>
+              ) : (
+                <ol className="space-y-3">
+                  {memories.slice(0, 8).map((session) => (
+                    <li key={session.id} className="flex items-start gap-3">
+                      <span className="mt-0.5 shrink-0 font-mono text-xs text-[var(--theme-muted)]">{hhmm(session.started_at)}</span>
+                      <span
+                        role="img"
+                        aria-label={STATUS_LABEL[session.status] ?? session.status}
+                        title={STATUS_LABEL[session.status] ?? session.status}
+                        className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${session.status === 'ready' ? 'bg-emerald-500' : session.status === 'error' ? 'bg-red-500' : 'bg-gray-500'}`}
+                      />
+                      <span className="min-w-0 flex-1">
+                        {previewTurns(session).length > 0 ? (
+                          <span className="block space-y-1">
+                            {previewTurns(session).map((turn, index) => (
+                              <span key={turn.id ?? index} className="flex items-baseline gap-2 text-sm text-[var(--theme-text)]">
+                                <span className="shrink-0 font-mono text-[11px] text-[var(--theme-muted)]">{turn.start_at ? hhmm(turn.start_at) : '--:--'}</span>
+                                <span className="shrink-0 text-xs font-semibold text-[var(--theme-muted)]">{defaultLabelForSpeaker(groupedSpeakerKey(turn))}</span>
+                                <span className="min-w-0 flex-1 truncate">{turn.text.trim()}</span>
+                              </span>
+                            ))}
+                          </span>
+                        ) : (
+                          <span className="block line-clamp-2 text-sm text-[var(--theme-text)]">
+                            {session.text?.trim() || (session.status === 'ready' ? 'Sem transcrição' : STATUS_LABEL[session.status])}
+                          </span>
+                        )}
+                        <span className="mt-0.5 block text-xs text-[var(--theme-muted)]">{session.text?.trim() ? `${STATUS_LABEL[session.status]} · ` : ''}{sessionMeta(session)}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </Panel>
+
+            {recall.length > 0 && (
+              <section className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-surface)] p-5">
+                <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.12em] text-[var(--theme-muted)]">
+                  <span aria-hidden="true">🧠</span> Lembrado pelo Brain
+                </h2>
+                <div className="grid gap-3">
+                  {recall.map(({ label, note }) => (
+                    <button type="button" key={label} onClick={() => navigate(`/notes?note=${encodeURIComponent(note.id)}`)} className="text-left hover:bg-[var(--theme-hover)] rounded-xl border border-[var(--theme-border)] bg-[var(--theme-background)] p-4">
+                      <p className="text-xs font-medium text-[var(--theme-muted)]">{label}</p>
+                      <p className="mt-0.5 text-xs text-[var(--theme-muted)]">{note.created_at.slice(0, 10).split('-').reverse().join('/')}</p>
+                      <p className="mt-2 line-clamp-3 text-sm leading-6 text-[var(--theme-text)]">{note.title || note.body}</p>
+                    </button>
+                  ))}
+                </div>
+              </section>
             )}
-          </Panel>
+          </div>
 
           <Panel title="Páginas recentes" action={<button type="button" onClick={() => navigate('/knowledge')} className="min-h-11 rounded-lg px-2 text-xs text-[var(--theme-link)] hover:bg-[var(--theme-hover)]">Ver todas →</button>}>
             {pagesLoading ? (
@@ -327,23 +346,6 @@ export function DashboardHome({ onOpenPage }: { onOpenPage: (page: { id: string;
             )}
           </Panel>
         </div>
-
-        {recall.length > 0 && (
-          <section className="mt-6 rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-surface)] p-5">
-            <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.12em] text-[var(--theme-muted)]">
-              <span aria-hidden="true">🧠</span> Lembrado pelo Brain
-            </h2>
-            <div className="grid gap-3 sm:grid-cols-3">
-              {recall.map(({ label, note }) => (
-                <button type="button" key={label} onClick={() => navigate(`/notes?note=${encodeURIComponent(note.id)}`)} className="text-left hover:bg-[var(--theme-hover)] rounded-xl border border-[var(--theme-border)] bg-[var(--theme-background)] p-4">
-                  <p className="text-xs font-medium text-[var(--theme-muted)]">{label}</p>
-                  <p className="mt-0.5 text-xs text-[var(--theme-muted)]">{note.created_at.slice(0, 10).split('-').reverse().join('/')}</p>
-                  <p className="mt-2 line-clamp-3 text-sm leading-6 text-[var(--theme-text)]">{note.title || note.body}</p>
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
 
         <section className="mt-8" aria-label="Notas">
           <div className="mb-4 flex items-center justify-between gap-3">
