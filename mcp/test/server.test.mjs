@@ -25,7 +25,7 @@ test('credential files are private and HTTP remains loopback-only', () => {
   } finally { fs.rmSync(dir, { recursive: true }); }
 });
 
-test('official client negotiates stdio, lists 12 tools, forwards exact writes and reports conflicts', async () => {
+test('official client negotiates stdio, lists 23 tools, forwards exact writes and reports conflicts', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'brain-mcp-test-'));
   const file = path.join(dir, 'token.txt');
   const secret = `bc_${randomBytes(32).toString('base64url')}`;
@@ -47,7 +47,7 @@ test('official client negotiates stdio, lists 12 tools, forwards exact writes an
     await client.connect(transport);
     assert.match(client.getInstructions(), /expected_revision/);
     assert.match(client.getInstructions(), /Create subpages with parent_page_id/);
-    const { tools } = await client.listTools(); assert.equal(tools.length, 12);
+    const { tools } = await client.listTools(); assert.equal(tools.length, 23);
     assert.ok(tools.every(t => !/terminal|memory|audio|delete/.test(t.name)));
     const listing = await client.callTool({ name: 'brain_pages_list', arguments: { query: 'Synthetic', limit: 5 } });
     assert.equal(listing.isError, false);
@@ -61,6 +61,17 @@ test('official client negotiates stdio, lists 12 tools, forwards exact writes an
     assert.deepEqual(received.at(-1).body, childInput);
     assert.equal((await client.callTool({ name: 'brain_pages_list', arguments: { parent_page_id: null } })).isError, false);
     assert.deepEqual(received.at(-1).body, { parent_page_id: null });
+    const designInput = { operation_id: randomUUID(), title: 'Synthetic artboard', content: { tldraw: true, version: 1, data: null } };
+    assert.equal((await client.callTool({ name: 'brain_design_create', arguments: designInput })).isError, false);
+    assert.equal(received.at(-1).path, '/api/agent/design/create');
+    assert.deepEqual(received.at(-1).body, designInput);
+    const designUpdate = { id: randomUUID(), operation_id: randomUUID(), expected_revision: 2, content: { tldraw: true, version: 1, data: { document: {}, session: {} } } };
+    assert.equal((await client.callTool({ name: 'brain_design_update', arguments: designUpdate })).isError, true);
+    assert.deepEqual(received.at(-1).body, designUpdate);
+    const artboardInput = { id: randomUUID(), operation_id: randomUUID(), expected_revision: 1, name: 'Synthetic post', width: 1080, height: 1080 };
+    assert.equal((await client.callTool({ name: 'brain_design_add_frame', arguments: artboardInput })).isError, false);
+    assert.equal(received.at(-1).path, '/api/agent/design/add_frame');
+    assert.deepEqual(received.at(-1).body, artboardInput);
     const count = received.length;
     assert.equal((await client.callTool({ name: 'brain_notes_create', arguments: childInput })).isError, true);
     assert.equal(received.length, count);

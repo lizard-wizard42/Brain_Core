@@ -1,4 +1,4 @@
-# MCP local para notas
+# MCP local para notas e Design
 
 O adaptador `mcp/` usa o SDK oficial do Model Context Protocol e o transporte stdio. O cliente inicia um processo local; esse processo chama a API restrita `/api/agent` do backend existente. Nenhuma porta adicional é aberta. A primeira versão aceita apenas uma origem HTTP de loopback (`127.0.0.1` ou `::1`).
 
@@ -8,7 +8,7 @@ A credencial dá acesso às **notas da conta escolhida**, incluindo seu conteúd
 
 - A credencial é independente do login, armazenada como SHA-256 no PostgreSQL e pode ser revogada. No menu Configurações você escolhe validade de 1, 7, 30 ou 90 dias; pela CLI, 30 dias. Trocar a senha invalida as credenciais por `session_version`.
 - Existem permissões separadas de leitura e escrita para páginas e notas rápidas. A autorização e a propriedade são verificadas no backend em todas as operações.
-- Páginas compartilhadas de outras contas, seções, canvases, terminal, gravações, áudio, arquivos e configurações não fazem parte das ferramentas. Referências a anexos que já estão dentro de uma nota podem aparecer no conteúdo, mas a integração não oferece download desses anexos.
+- Páginas compartilhadas de outras contas, seções, canvases Infinito, terminal, gravações, áudio e configurações não fazem parte das ferramentas. Quadros Design da própria conta podem ser editados com a permissão de páginas. Referências a anexos que já estão dentro de uma nota podem aparecer no conteúdo, mas a integração não oferece download desses anexos.
 - O arquivo da credencial deve pertencer ao usuário que inicia o adaptador, com modo `0600`. Não coloque o segredo no Git, na configuração do cliente, em argumentos de comando ou na conversa com a IA.
 
 ## Instalação e credencial
@@ -94,6 +94,10 @@ Para cada coleção (`pages` e `notes`), existem seis ferramentas: `brain_<cole�
 
 As respostas de páginas incluem `parent_page_id`. Em `brain_pages_list`, esse campo filtra filhos diretos; `null` lista somente raízes; omitido pesquisa toda a coleção. Atualização e restauração preservam a hierarquia. Reinicie a conexão MCP após atualizar o adaptador para o cliente descobrir o novo argumento.
 
+### Quadros Design
+
+O adaptador oferece `brain_design_list`, `brain_design_get`, `brain_design_versions`, `brain_design_create`, `brain_design_update` e `brain_design_restore`. Para editar sem montar um snapshot tldraw manualmente, use `brain_design_add_frame`, `brain_design_add_text`, `brain_design_add_rectangle`, `brain_design_add_image` e `brain_design_add_card`. São 23 ferramentas ao todo, incluindo as 12 ferramentas existentes de páginas e notas. Cada escrita exige `operation_id` e `expected_revision` quando atualiza um quadro; leia a revisão atual antes de alterar. As imagens referenciam somente uploads já pertencentes à mesma conta. A prévia e a exportação PNG são feitas no editor web, que possui o renderizador do canvas.
+
 As páginas usam o histórico existente. Notas rápidas passam a ter revisão e histórico de título/corpo também para alterações pelo app. A auditoria das escritas registra credencial, conta, operação e ID, sem copiar conteúdo para logs. Os históricos e resultados de repetição ficam no banco privado e entram no backup.
 
 ## Validação e próximos passos
@@ -104,7 +108,7 @@ node scripts/test-agent-postgres.mjs
 ```
 
 O segundo comando exige os binários do PostgreSQL (`pg_config`, `initdb`, `pg_ctl`), cria um cluster descartável sem TCP e executa testes com contas/notas fictícias. Ele nunca usa o banco da instalação.
-O ensaio também inicia o adaptador stdio e chama as 12 ferramentas com o cliente
+O ensaio também inicia o adaptador stdio e chama as ferramentas com o cliente
 oficial contra a API e o PostgreSQL reais desse ambiente descartável: criação,
 leitura, pesquisa, edição, histórico, recuperação, conflitos e repetição idempotente.
 

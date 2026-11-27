@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — Design workspace
+
+- Add a separate Design page type while preserving existing Infinite pages. Design offers fixed-size artboards, internal pages and layers, editable canvas shapes, a property inspector, PNG preview/export and revision-aware autosave.
+- Expose Design pages through dedicated MCP tools under the existing page read/write permissions, with ownership checks and saved revisions.
+- Make Settings navigation easier to scan and explain which MCP permissions cover Design.
+- Improve Design card wrapping, layer order for large boards, document-only autosave, 4:5 presets and PNG scale controls.
+
+
 ## Unreleased — page card hover motion
 
 - Animate page cards on hover with a subtle zoom, theme-colored glow and highlighted drag handle; honor reduced-motion preferences.

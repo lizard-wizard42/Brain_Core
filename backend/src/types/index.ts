@@ -3,7 +3,7 @@ export interface Page {
   parent_page_id?: string | null;
   title: string;
   slug: string;
-  type: 'note' | 'infinite' | 'notebook';
+  type: 'note' | 'infinite' | 'design' | 'notebook';
   content: TiptapDoc | InfiniteDoc | NotebookDoc;
   markdown_source?: string;
   icon?: string | null;
@@ -43,7 +43,7 @@ export interface PageSummary {
   parent_page_id?: string | null;
   title: string;
   slug: string;
-  type: 'note' | 'infinite' | 'notebook';
+  type: 'note' | 'infinite' | 'design' | 'notebook';
   icon?: string | null;
   is_section?: boolean;
   tags?: string[];

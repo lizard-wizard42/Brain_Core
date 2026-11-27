@@ -7,6 +7,7 @@ type PageFormat = PageSummary['type'];
 const formats: Array<{ type: PageFormat; name: string; description: string }> = [
   { type: 'note', name: 'Nota', description: 'Texto, listas e documentos' },
   { type: 'infinite', name: 'Infinite', description: 'Ideias em uma tela sem limites' },
+  { type: 'design', name: 'Design', description: 'Peças visuais em quadros com tamanho definido' },
   { type: 'notebook', name: 'Caderno', description: 'Escrita à mão e desenhos' },
 ];
 
@@ -15,7 +16,9 @@ function FormatIcon({ type }: { type: PageFormat }) {
   return <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     {type === 'note'
       ? <><path d="M6 3h8l4 4v14H6zM14 3v5h4M9 12h6M9 16h6" /></>
-      : <path d="M12 12c-2-3-3-5-5-5a5 5 0 100 10c2 0 3-2 5-5s3-5 5-5a5 5 0 110 10c-2 0-3-2-5-5z" />}
+      : type === 'design'
+        ? <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M8 4v16M3 9h18" /></>
+        : <path d="M12 12c-2-3-3-5-5-5a5 5 0 100 10c2 0 3-2 5-5s3-5 5-5a5 5 0 110 10c-2 0-3-2-5-5z" />}
   </svg>;
 }
 

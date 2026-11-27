@@ -349,7 +349,7 @@ export const api = {
   restorePageVersion: (id: string, versionId: string) =>
     request<import('../types').Page>(`/api/pages/${id}/versions/${versionId}/restore`, { method: 'POST' }),
 
-  createPage: (body: { content?: TiptapDoc | InfiniteDoc | NotebookDoc; parent_page_id?: string | null; title: string; slug: string; is_section?: boolean; type?: 'note' | 'infinite' | 'notebook' }) =>
+  createPage: (body: { content?: TiptapDoc | InfiniteDoc | NotebookDoc; parent_page_id?: string | null; title: string; slug: string; is_section?: boolean; type?: 'note' | 'infinite' | 'design' | 'notebook' }) =>
     request<import('../types').Page>('/api/pages', { method: 'POST', body: JSON.stringify(body) }),
 
   savePage: (id: string, body: { content: TiptapDoc | InfiniteDoc | NotebookDoc; title?: string; revision?: number }, options?: { keepalive?: boolean }) =>

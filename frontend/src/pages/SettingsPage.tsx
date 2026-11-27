@@ -1064,9 +1064,13 @@ export function SettingsPage() {
         <div className="w-20" />
       </div>
 
-      <div className="flex-1 max-w-xl mx-auto w-full px-8 py-10 flex flex-col gap-8">
+      <div className="flex-1 max-w-2xl mx-auto w-full px-4 sm:px-8 py-8 flex flex-col gap-8">
+        <nav aria-label="Seções das configurações" className="flex flex-wrap gap-2 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card)] p-2">
+          {[['#aparencia', 'Aparência'], ['#ia-mcp', 'IA e MCP'], ['#seguranca', 'Segurança'], ['#dados', 'Dados']].map(([href, label]) =>
+            <a key={href} href={href} className="rounded-lg px-3 py-2 text-xs font-medium text-[var(--theme-text)] hover:bg-[var(--theme-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--theme-primary)]">{label}</a>)}
+        </nav>
         {sessionError && <p role="alert" className="text-[13px] text-red-400">{sessionError}</p>}
-        <ThemeSettingsSection />
+        <div id="aparencia"><ThemeSettingsSection /></div>
         <section className="flex flex-col gap-4">
           <h2 className="text-[11px] uppercase tracking-widest text-gray-600">Conta</h2>
           <div className="bg-[#1c1c1c] border border-[#252525] rounded-2xl p-5 flex flex-col gap-3">
@@ -1087,15 +1091,15 @@ export function SettingsPage() {
         </section>
 
         <ContactsSection />
-        {user && <McpSettingsSection key={user.id} />}
-        <ChangePasswordSection />
+        {user && <div id="ia-mcp"><McpSettingsSection key={user.id} /></div>}
+        <div id="seguranca"><ChangePasswordSection /></div>
         <TwoFactorSection user={user} onUserChange={setUser} />
         <MobileDevicesSection />
         <ThisDeviceSection user={user} />
         <TranscriptionPolicySection />
         <PcAudioRetentionSection />
         <TelegramSection user={user} onUpdate={setUser} />
-        <DataExportSection />
+        <div id="dados"><DataExportSection /></div>
 
         <section className="flex flex-col gap-4">
           <h2 className="text-[11px] uppercase tracking-widest text-gray-600">Sessão</h2>

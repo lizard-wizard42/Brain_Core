@@ -1,11 +1,13 @@
 import { validDocument } from '../services/noteDocument';
+import { validDesignDocument } from '../services/designDocument';
+import { addDesignShape, InvalidDesignShape } from '../services/designShapes';
 import { Router, Request } from 'express';
 import { createHash, randomUUID } from 'crypto';
 import { PoolClient } from 'pg';
 import { pool, query } from '../config/database';
 import { PageConflict, PageMissing, savePageRevision } from '../services/pageAccess';
 
-type Kind = 'pages' | 'notes';
+type Kind = 'pages' | 'notes' | 'design';
 type Token = { id: string; user_id: string; scopes: string[] };
 type AgentRequest = Request & { integration?: Token; integrationHash?: string };
 class AgentError extends Error {
@@ -20,10 +22,12 @@ const tokenSql = `SELECT t.id, t.user_id, t.scopes FROM integration_tokens t
   AND t.expires_at > NOW() AND t.session_version = u.session_version`;
 const fields = {
   pages: 'id, parent_page_id, title, content, revision, created_at, updated_at',
+  design: 'id, parent_page_id, title, content, revision, created_at, updated_at',
   notes: 'id, title, body, revision, created_at, updated_at',
 };
-const tables = { pages: 'pages', notes: 'remember_notes' };
+const tables = { pages: 'pages', design: 'pages', notes: 'remember_notes' };
 const owned = { pages: "owner_user_id = $1 AND deleted_at IS NULL AND type = 'note' AND is_section = FALSE",
+  design: "owner_user_id = $1 AND deleted_at IS NULL AND type = 'design' AND is_section = FALSE",
   notes: 'user_id = $1 AND deleted_at IS NULL' };
 
 function validId(value: unknown): string {
@@ -38,7 +42,7 @@ function revision(value: unknown): number {
 function changesFor(kind: Kind, body: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   if (body.title !== undefined) {
-    if (typeof body.title !== 'string' || body.title.length > 160 || (kind === 'pages' && !body.title.trim())) {
+    if (typeof body.title !== 'string' || body.title.length > 160 || (kind !== 'notes' && !body.title.trim())) {
       throw new AgentError(400, 'Invalid title (maximum 160 characters)');
     }
     result.title = body.title;
@@ -49,6 +53,10 @@ function changesFor(kind: Kind, body: Record<string, unknown>): Record<string, u
   }
   if (kind === 'pages' && body.content !== undefined) {
     if (!validDocument(body.content)) throw new AgentError(400, 'Invalid Tiptap document');
+    result.content = body.content;
+  }
+  if (kind === 'design' && body.content !== undefined) {
+    if (!validDesignDocument(body.content)) throw new AgentError(400, 'Invalid Design document');
     result.content = body.content;
   }
   if (!Object.keys(result).length) throw new AgentError(400, 'No changes supplied');
@@ -64,8 +72,14 @@ async function getOwned(client: PoolClient, kind: Kind, user: string, id: string
   if (!row) throw new AgentError(404, 'Note not found');
   return row;
 }
+async function requireOwnedParent(client: PoolClient, user: string, id: string, lock = false) {
+  const row = (await client.query(`SELECT id FROM pages WHERE id = $1 AND owner_user_id = $2 AND deleted_at IS NULL${lock ? ' FOR UPDATE' : ''}`,
+    [id, user])).rows[0];
+  if (!row) throw new AgentError(404, 'Parent page not found');
+}
 function checkScope(token: Token, kind: Kind, write: boolean) {
-  if (!token.scopes.includes(`${kind}:${write ? 'write' : 'read'}`)) throw new AgentError(403, 'Scope denied');
+  const scopeKind = kind === 'design' ? 'pages' : kind;
+  if (!token.scopes.includes(`${scopeKind}:${write ? 'write' : 'read'}`)) throw new AgentError(403, 'Scope denied');
 }
 
 const router = Router();
@@ -90,17 +104,23 @@ router.post('/:kind/:action', async (req: AgentRequest, res) => {
   try {
     const kind = String(req.params.kind) as Kind;
     const action = String(req.params.action);
-    if (!['pages', 'notes'].includes(kind) || !['list', 'get', 'versions', 'create', 'update', 'restore'].includes(action)) {
+    const shapeAction = kind === 'design' && ['add_frame', 'add_text', 'add_rectangle', 'add_image', 'add_card'].includes(action);
+    if (!['pages', 'notes', 'design'].includes(kind) || (!['list', 'get', 'versions', 'create', 'update', 'restore'].includes(action) && !shapeAction)) {
       throw new AgentError(404, 'Tool not found');
     }
-    const write = ['create', 'update', 'restore'].includes(action);
+    const write = ['create', 'update', 'restore'].includes(action) || shapeAction;
     const body = req.body;
     if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AgentError(400, 'Object required');
     const allowed: Record<string, string[]> = {
-      list: ['query', 'limit', 'offset', ...(kind === 'pages' ? ['parent_page_id'] : [])], get: ['id'], versions: ['id', 'limit', 'offset'],
-      create: ['operation_id', 'title', kind === 'pages' ? 'content' : 'body', ...(kind === 'pages' ? ['parent_page_id'] : [])],
-      update: ['id', 'operation_id', 'expected_revision', 'title', kind === 'pages' ? 'content' : 'body'],
+      list: ['query', 'limit', 'offset', ...(kind !== 'notes' ? ['parent_page_id'] : [])], get: ['id'], versions: ['id', 'limit', 'offset'],
+      create: ['operation_id', 'title', kind !== 'notes' ? 'content' : 'body', ...(kind !== 'notes' ? ['parent_page_id'] : [])],
+      update: ['id', 'operation_id', 'expected_revision', 'title', kind !== 'notes' ? 'content' : 'body'],
       restore: ['id', 'operation_id', 'expected_revision', 'saved_revision'],
+      add_frame: ['id', 'operation_id', 'expected_revision', 'name', 'width', 'height', 'x', 'y'],
+      add_text: ['id', 'operation_id', 'expected_revision', 'frame_id', 'text', 'x', 'y', 'color'],
+      add_rectangle: ['id', 'operation_id', 'expected_revision', 'frame_id', 'width', 'height', 'x', 'y', 'color', 'fill'],
+      add_image: ['id', 'operation_id', 'expected_revision', 'frame_id', 'src', 'alt_text', 'width', 'height', 'x', 'y'],
+      add_card: ['id', 'operation_id', 'expected_revision', 'frame_id', 'text', 'width', 'height', 'x', 'y', 'appearance'],
     };
     if (Object.keys(body).some(key => !allowed[action].includes(key))) throw new AgentError(400, 'Unsupported field');
     let token = req.integration!;
@@ -116,12 +136,15 @@ router.post('/:kind/:action', async (req: AgentRequest, res) => {
       if (action === 'list') {
         const search = body.query ?? '';
         if (typeof search !== 'string' || search.length > 200) throw new AgentError(400, 'Invalid search');
-        const filterParent = kind === 'pages' && Object.prototype.hasOwnProperty.call(body, 'parent_page_id');
+        const filterParent = kind !== 'notes' && Object.prototype.hasOwnProperty.call(body, 'parent_page_id');
         const parentId = filterParent && body.parent_page_id !== null ? validId(body.parent_page_id) : null;
-        if (parentId) await getOwned(client, 'pages', token.user_id, parentId);
-        const textField = kind === 'pages' ? 'content::text' : 'body';
+        if (parentId) {
+          if (kind === 'design') await requireOwnedParent(client, token.user_id, parentId);
+          else await getOwned(client, 'pages', token.user_id, parentId);
+        }
+        const textField = kind !== 'notes' ? 'content::text' : 'body';
         // Lists expose titles and revisions; full content requires get.
-        const rows = (await client.query(`SELECT id, title, revision, updated_at${kind === 'pages' ? ', parent_page_id' : ''} FROM ${tables[kind]}
+        const rows = (await client.query(`SELECT id, title, revision, updated_at${kind !== 'notes' ? ', parent_page_id' : ''} FROM ${tables[kind]}
           WHERE ${owned[kind]} AND (strpos(lower(title),lower($2)) > 0 OR strpos(lower(${textField}),lower($2)) > 0)
           ${filterParent ? 'AND parent_page_id IS NOT DISTINCT FROM $5::uuid' : ''}
           ORDER BY updated_at DESC, id LIMIT $3 OFFSET $4`, [token.user_id, search, limit, offset, ...(filterParent ? [parentId] : [])])).rows;
@@ -134,7 +157,7 @@ router.post('/:kind/:action', async (req: AgentRequest, res) => {
         await client.query('COMMIT'); transaction = false;
         res.json(row); return;
       }
-      const rows = kind === 'pages'
+      const rows = kind !== 'notes'
         ? (await client.query(`SELECT page_revision AS revision, title, created_at FROM page_versions
           WHERE page_id = $1 AND page_revision IS NOT NULL ORDER BY page_revision DESC, id DESC LIMIT $2 OFFSET $3`, [id, limit, offset])).rows
         : (await client.query(`SELECT revision, title, created_at FROM remember_note_versions
@@ -154,29 +177,45 @@ router.post('/:kind/:action', async (req: AgentRequest, res) => {
       await client.query('COMMIT'); transaction = false; res.json(previous.response); return;
     }
     let changes: Record<string, unknown>;
+    let current: Record<string, unknown> | undefined;
     if (action !== 'create') {
-      const current = await getOwned(client, kind, token.user_id, id, true);
+      current = await getOwned(client, kind, token.user_id, id, true);
       if (Number(current.revision) !== expected) throw new AgentError(409, 'Revision conflict; read the current note before editing');
     }
+    let createdShapeId: string | undefined;
     if (action === 'restore') {
       const saved = revision(body.saved_revision);
-      const row = kind === 'pages'
+      const row = kind !== 'notes'
         ? (await client.query('SELECT title, content FROM page_versions WHERE page_id = $1 AND page_revision = $2 ORDER BY created_at DESC LIMIT 1', [id, saved])).rows[0]
         : (await client.query('SELECT title, body FROM remember_note_versions WHERE note_id = $1 AND revision = $2', [id, saved])).rows[0];
       if (!row) throw new AgentError(404, 'Version not found');
+      if (kind === 'design' && !validDesignDocument(row.content)) throw new AgentError(400, 'Saved Design document is invalid');
       // Existing versions may predate current input limits; preserve them exactly.
       changes = row;
+    } else if (shapeAction) {
+      if (action === 'add_image') {
+        const src = body.src;
+        if (typeof src !== 'string' || !/^\/uploads\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-]+\.(?:png|jpg|jpeg|webp|gif)$/i.test(src)) throw new AgentError(400, 'Invalid image URL');
+        const rows = await client.query('SELECT 1 FROM uploaded_assets WHERE relative_path = $1 AND owner_user_id = $2', [src.slice('/uploads/'.length), token.user_id]);
+        if (!rows.rows.length) throw new AgentError(404, 'Owned image not found');
+      }
+      const result = addDesignShape(current!.content, action as 'add_frame' | 'add_text' | 'add_rectangle' | 'add_image' | 'add_card', body);
+      changes = { content: result.content };
+      createdShapeId = result.shapeId;
     } else { changes = changesFor(kind, body); }
     let updated: Record<string, unknown>;
     if (action === 'create') {
-      if (kind === 'pages') {
+      if (kind !== 'notes') {
         if (!changes.title) throw new AgentError(400, 'Title required');
         const parentId = body.parent_page_id == null ? null : validId(body.parent_page_id);
         // Serialize with parent deletion/moves without modifying its body or revision.
-        if (parentId) await getOwned(client, 'pages', token.user_id, parentId, true);
+        if (parentId) {
+          if (kind === 'design') await requireOwnedParent(client, token.user_id, parentId, true);
+          else await getOwned(client, 'pages', token.user_id, parentId, true);
+        }
         updated = (await client.query(`INSERT INTO pages (id, owner_user_id, title, slug, type, content, parent_page_id)
-          VALUES ($1,$2,$3,$4,'note',$5,$6) RETURNING *`, [id, token.user_id, changes.title, id,
-          JSON.stringify(changes.content ?? { type: 'doc', content: [] }), parentId])).rows[0];
+          VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`, [id, token.user_id, changes.title, id, kind === 'design' ? 'design' : 'note',
+          JSON.stringify(changes.content ?? (kind === 'design' ? { tldraw: true, version: 1, data: null } : { type: 'doc', content: [] })), parentId])).rows[0];
         await client.query(`INSERT INTO page_versions (page_id,title,content,reason,content_hash,author_user_id,page_revision)
           VALUES ($1,$2,$3,'agent-create',$4,$5,$6)`, [id, updated.title, JSON.stringify(updated.content),
           hash(JSON.stringify([updated.title, updated.content])), token.user_id, updated.revision]);
@@ -185,14 +224,14 @@ router.post('/:kind/:action', async (req: AgentRequest, res) => {
         updated = (await client.query(`INSERT INTO remember_notes (id,user_id,title,body)
           VALUES ($1,$2,$3,$4) RETURNING *`, [id, token.user_id, changes.title ?? '', changes.body ?? ''])).rows[0];
       }
-    } else if (kind === 'pages') {
+    } else if (kind !== 'notes') {
       updated = await savePageRevision(id, token.user_id, expected, changes, `agent-${action}`, client);
     } else {
       const entries = Object.entries(changes);
       updated = (await client.query(`UPDATE remember_notes SET ${entries.map(([key], i) => `${key} = $${i + 3}`).join(', ')}, updated_at = NOW()
         WHERE id = $1 AND user_id = $2 RETURNING *`, [id, token.user_id, ...entries.map(([, value]) => value)])).rows[0];
     }
-    const response = publicRow(kind, updated);
+    const response = { ...publicRow(kind, updated), ...(createdShapeId ? { shape_id: createdShapeId } : {}) };
     await client.query(`INSERT INTO integration_audit (token_id,user_id,operation,target_kind,target_id)
       VALUES ($1,$2,$3,$4,$5)`, [token.id, token.user_id, action, kind, id]);
     await client.query(`INSERT INTO integration_operations (token_id,operation_id,request_hash,response)
@@ -201,8 +240,8 @@ router.post('/:kind/:action', async (req: AgentRequest, res) => {
     res.json(response);
   } catch (error) {
     if (transaction) await client.query('ROLLBACK');
-    const status = error instanceof AgentError ? error.status : error instanceof PageConflict ? 409 : error instanceof PageMissing ? 404 : 500;
-    res.status(status).json({ error: error instanceof AgentError ? error.message : status === 500 ? 'Integration unavailable' : 'Note unavailable or revision conflict' });
+    const status = error instanceof AgentError ? error.status : error instanceof InvalidDesignShape ? 400 : error instanceof PageConflict ? 409 : error instanceof PageMissing ? 404 : 500;
+    res.status(status).json({ error: error instanceof AgentError || error instanceof InvalidDesignShape ? error.message : status === 500 ? 'Integration unavailable' : 'Note unavailable or revision conflict' });
   } finally { client.release(); }
 });
 

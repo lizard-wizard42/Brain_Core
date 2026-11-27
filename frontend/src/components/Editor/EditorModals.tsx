@@ -169,7 +169,7 @@ export function TypeSelectorModal({
   onSelect,
   onClose,
 }: {
-  onSelect: (type: 'note' | 'infinite' | 'notebook') => void;
+  onSelect: (type: 'note' | 'infinite' | 'design' | 'notebook') => void;
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -215,6 +215,10 @@ export function TypeSelectorModal({
               <div className="text-sm font-medium text-[var(--theme-text)]">Infinite</div>
               <div className="text-[11px] text-[var(--theme-muted)]">Espaço livre para ideias sem limites.</div>
             </div>
+          </button>
+          <button className="flex items-center gap-3 w-full p-3 rounded-xl bg-[var(--theme-card)] border border-[var(--theme-border)] hover:bg-[var(--theme-hover)] hover:border-[var(--theme-primary)] transition-all text-left group" onClick={() => onSelect('design')}>
+            <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400 text-xl">▣</div>
+            <div className="flex-1"><div className="text-sm font-medium text-[var(--theme-text)]">Design</div><div className="text-[11px] text-[var(--theme-muted)]">Crie peças visuais em quadros exportáveis.</div></div>
           </button>
           <button className="flex items-center gap-3 w-full p-3 rounded-xl bg-[var(--theme-card)] border border-[var(--theme-border)] hover:bg-[var(--theme-hover)] text-left" onClick={() => onSelect('notebook')}>
             <div className="w-10 h-10 rounded-lg bg-emerald-500/15 flex items-center justify-center text-emerald-600"><NotebookIcon width={24} height={24} /></div>

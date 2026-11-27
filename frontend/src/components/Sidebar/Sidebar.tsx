@@ -232,7 +232,7 @@ function PageNodeComponent({
   const isOver = drag?.overId === page.id;
   const dropPos = isOver ? drag?.position : null;
 
-  const handleAddPage = async (type: 'note' | 'infinite' | 'notebook' = 'note') => {
+  const handleAddPage = async (type: 'note' | 'infinite' | 'design' | 'notebook' = 'note') => {
     if (!newTitle.trim()) return;
     const slug = toSlug(newTitle);
     try {
@@ -433,7 +433,7 @@ function PageNodeComponent({
             setIconAnchorRect((current) => (current ? null : rect));
           }}
         >
-          {page.type === 'notebook' && !page.icon ? <NotebookIcon width={16} height={16} /> : renderPageIcon(page.icon)}
+          {page.type === 'notebook' && !page.icon ? <NotebookIcon width={16} height={16} /> : page.type === 'design' && !page.icon ? <span aria-hidden="true">🎨</span> : renderPageIcon(page.icon)}
         </button>
 
         {/* Título ou input de rename */}
@@ -693,7 +693,7 @@ export const Sidebar = memo(function Sidebar({
     setDrag(null);
   }, []);
 
-  const handleAddPage = async (type: 'note' | 'infinite' | 'notebook' = 'note') => {
+  const handleAddPage = async (type: 'note' | 'infinite' | 'design' | 'notebook' = 'note') => {
     if (!newTitle.trim()) return;
     const slug = toSlug(newTitle);
     try {

@@ -596,7 +596,7 @@ export function Editor({ page, onRefresh, headerSlot, onNavigatePage }: EditorPr
     ];
   }, [editor]);
 
-  const handleCreateSubPage = async (subTitle: string, type: 'note' | 'infinite' | 'notebook') => {
+  const handleCreateSubPage = async (subTitle: string, type: 'note' | 'infinite' | 'design' | 'notebook') => {
     setShowSubPageModal(false);
     setShowSubPageTypeSelector(false);
     setPendingSubPageTitle(null);
