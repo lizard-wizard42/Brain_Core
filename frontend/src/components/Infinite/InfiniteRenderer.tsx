@@ -28,6 +28,13 @@ function richTextLength(value: unknown): number {
   return (typeof node.text === 'string' ? node.text.length : 0) + richTextLength(node.content);
 }
 
+function richTextPlainText(value: unknown): string {
+  if (!value || typeof value !== 'object') return '';
+  if (Array.isArray(value)) return value.map(richTextPlainText).join('');
+  const node = value as { text?: unknown; content?: unknown };
+  return (typeof node.text === 'string' ? node.text : '') + richTextPlainText(node.content);
+}
+
 export function InfiniteRenderer({ page }: InfiniteRendererProps) {
   const isDesign = page.type === 'design';
   const [store] = useState(() => createTLStore({ shapeUtils: isDesign ? [...defaultShapeUtils, DesignCardShapeUtil] : defaultShapeUtils }));
@@ -62,6 +69,26 @@ export function InfiniteRenderer({ page }: InfiniteRendererProps) {
       const width = Math.max(160, Math.min(400, Math.floor(frameWidth / 2) - 72));
       current.updateShape({ id: shape.id, type: 'text', props: { w: width, autoSize: false } });
     }
+  }, []);
+
+  const archiveImportedAnnotation = useCallback((current: Editor) => {
+    const page = current.getCurrentPage();
+    const previous = Array.isArray(page.meta.brainCoreArchivedAnnotations)
+      ? page.meta.brainCoreArchivedAnnotations as Array<{ shapeId: string; text: string }> : [];
+    const additions: Array<{ shapeId: string; text: string }> = [];
+    const toRemove: TLShapeId[] = [];
+    for (const shape of current.getCurrentPageShapes()) {
+      if (shape.type !== 'text') continue;
+      const props = shape.props as { w?: number; richText?: unknown };
+      const text = richTextPlainText(props.richText);
+      // Legacy MCP test annotation was imported as an 8px-wide native text shape.
+      // Keep its exact text in page metadata, where it can be read in the outline.
+      if ((props.w ?? 0) > 16 || !text.startsWith('Anotação nativa (add_text')) continue;
+      if (!previous.some(item => item.shapeId === shape.id)) additions.push({ shapeId: shape.id, text });
+      toRemove.push(shape.id);
+    }
+    if (additions.length) current.updatePage({ id: page.id, meta: { ...page.meta, brainCoreArchivedAnnotations: [...previous, ...additions] } });
+    if (toRemove.length) current.deleteShapes(toRemove);
   }, []);
 
   const refreshFrames = useCallback((current: Editor) => {
@@ -248,11 +275,22 @@ export function InfiniteRenderer({ page }: InfiniteRendererProps) {
         if (dirtyRef.current || savingRef.current) { setExternalUpdate(true); return; }
         if (!isInfiniteContent(remote.content)) { setExternalUpdate(true); return; }
         const remoteSnapshot = remote.content.data;
-        const localSession = getSnapshot(store).session;
         try {
+          if (!remoteSnapshot) throw new Error('Empty remote Design snapshot');
+          // Validate and migrate in an isolated store first. Loading into the live
+          // store clears it before validation; a bad MCP snapshot left a black canvas.
+          const candidate = createTLStore({ shapeUtils: [...defaultShapeUtils, DesignCardShapeUtil] });
+          loadSnapshot(candidate, remoteSnapshot as Parameters<typeof loadSnapshot>[1]);
+          const incoming = candidate.getStoreSnapshot().store;
+          const current = store.getStoreSnapshot().store;
+          const countShapes = (records: typeof current) => Object.values(records).filter(record => record.typeName === 'shape').length;
+          if (countShapes(current) > 0 && countShapes(incoming) === 0) throw new Error('Remote Design lost all shapes');
+          if (dirtyRef.current || savingRef.current) { setExternalUpdate(true); return; }
+          const toPut = Object.entries(incoming).filter(([id, record]) => JSON.stringify(current[id as keyof typeof current]) !== JSON.stringify(record)).map(([, record]) => record);
+          const toRemove = Object.keys(current).filter(id => !(id in incoming)) as Parameters<typeof store.remove>[0];
           store.mergeRemoteChanges(() => {
-            if (remoteSnapshot) loadSnapshot(store, { ...remoteSnapshot, session: localSession });
-            else store.clear();
+            if (toPut.length) store.put(toPut);
+            if (toRemove.length) store.remove(toRemove);
           });
           knownRevisionRef.current = remote.revision;
           setPreviewRevision(remote.revision);
@@ -382,7 +420,7 @@ export function InfiniteRenderer({ page }: InfiniteRendererProps) {
         store={store} 
         shapeUtils={isDesign ? [DesignCardShapeUtil] : undefined}
         autoFocus
-        onMount={current => { setEditor(current); if (isDesign) { refreshFrames(current); repairNarrowDesignText(current); } }}
+        onMount={current => { setEditor(current); if (isDesign) { archiveImportedAnnotation(current); repairNarrowDesignText(current); refreshFrames(current); } }}
       />
       </div>
       {isDesign && <DesignInspector editor={editor} selectedShapeId={selectedShapeId} onPreview={() => { void exportFrame(true); }} onExport={() => { void exportFrame(false); }} />}

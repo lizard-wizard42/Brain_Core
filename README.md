@@ -86,6 +86,11 @@ artboard as PNG. Design uses the same canvas engine as Infinite but has its own
 page type and workspace. It does not reproduce Paper's full HTML/CSS layout,
 responsive behavior, shaders or component system.
 
+Design checks for external edits while a page is open. A revision that cannot be
+loaded leaves the visible canvas intact and asks for a reload. Legacy native
+test annotations imported as narrow text are kept under **Preserved annotations**
+in the Design page list, outside the artwork.
+
 ### Memory: revisit a conversation
 
 ![Timeline with a fictional English conversation, distinct speaker bubbles and actions to create a note or copy/download the conversation](docs/images/memory-conversation-demo.jpg)

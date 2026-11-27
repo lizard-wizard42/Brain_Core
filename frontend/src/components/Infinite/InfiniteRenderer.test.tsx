@@ -3,10 +3,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Page } from '../../types';
 import { loadSnapshot } from 'tldraw';
 
-const state = vi.hoisted(() => ({ changed: undefined as undefined | (() => void), mounted: undefined as undefined | ((editor: unknown) => void) }));
+const state = vi.hoisted(() => ({ changed: undefined as undefined | (() => void), mounted: undefined as undefined | ((editor: unknown) => void), stores: [] as Array<{ clear: ReturnType<typeof vi.fn>; put: ReturnType<typeof vi.fn>; remove: ReturnType<typeof vi.fn>; getStoreSnapshot: ReturnType<typeof vi.fn> }> }));
 vi.mock('tldraw', () => ({
   Tldraw: ({ onMount }: { onMount?: (editor: unknown) => void }) => { state.mounted = onMount; return <div data-testid="tldraw" />; },
-  createTLStore: () => ({ clear: vi.fn(), mergeRemoteChanges: (fn: () => void) => fn(), listen: (fn: () => void) => { state.changed = fn; return () => undefined; } }),
+  createTLStore: () => { const store = { clear: vi.fn(), put: vi.fn(), remove: vi.fn(), getStoreSnapshot: vi.fn(() => ({ store: { 'shape:frame': { id: 'shape:frame', typeName: 'shape', type: 'frame', x: 0 } } })), mergeRemoteChanges: (fn: () => void) => fn(), listen: (fn: () => void) => { state.changed = fn; return () => undefined; } }; state.stores.push(store); return store; },
   createShapeId: () => 'shape:card',
   defaultShapeUtils: [],
   ShapeUtil: class {}, HTMLContainer: 'div', Rectangle2d: class {}, T: { number: {}, string: {}, optional: (value: unknown) => value }, resizeBox: vi.fn(),
@@ -72,6 +72,7 @@ it('keeps Design separate from Infinite and creates an exportable artboard', asy
     getCurrentPageShapes: vi.fn(() => shapes),
     getSelectedShapeIds: vi.fn(() => []),
     getCurrentPageId: vi.fn(() => 'page:one'),
+    getCurrentPage: vi.fn(() => ({ id: 'page:one', meta: {} })),
     getPages: vi.fn(() => [{ id: 'page:one', name: 'Página 1' }]),
     store: { listen: vi.fn(() => () => undefined) },
     user: { getUserPreferences: vi.fn(() => ({ isSnapMode: false })), updateUserPreferences: vi.fn() },
@@ -109,6 +110,7 @@ it('repairs a narrow imported text shape without changing its content', async ()
     getCurrentPageShapes: vi.fn(() => [textShape]), getSelectedShapeIds: vi.fn(() => []),
     getShape: vi.fn(() => ({ type: 'frame', props: { w: 960 } })), updateShape: vi.fn(),
     getCurrentPageId: vi.fn(() => 'page:one'), getPages: vi.fn(() => [{ id: 'page:one', name: 'Página 1' }]),
+    getCurrentPage: vi.fn(() => ({ id: 'page:one', meta: {} })),
     store: { listen: vi.fn(() => () => undefined) }, user: { getUserPreferences: vi.fn(() => ({ isSnapMode: false })) },
     getInstanceState: vi.fn(() => ({ isGridMode: false })),
   };
@@ -117,6 +119,27 @@ it('repairs a narrow imported text shape without changing its content', async ()
   act(() => state.mounted?.(editor));
   expect(editor.updateShape).toHaveBeenCalledWith({ id: 'shape:long', type: 'text', props: { w: 400, autoSize: false } });
   expect(textShape.props.richText.content[0].content[0].text).toBe(longText);
+});
+
+it('moves the legacy native test annotation off the canvas while preserving its text', async () => {
+  const annotation = 'Anotação nativa (add_text · fonte draw)';
+  const textShape = { id: 'shape:legacy-note', type: 'text', parentId: 'shape:frame', x: 32, y: 974,
+    props: { w: 8, richText: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: annotation }] }] } } };
+  const editor = {
+    getCurrentPageShapes: vi.fn(() => [textShape]), getSelectedShapeIds: vi.fn(() => []),
+    getCurrentPage: vi.fn(() => ({ id: 'page:one', meta: { unrelated: 'kept' } })),
+    getCurrentPageId: vi.fn(() => 'page:one'), getPages: vi.fn(() => [{ id: 'page:one', name: 'Página 1' }]),
+    updatePage: vi.fn(), deleteShapes: vi.fn(),
+    store: { listen: vi.fn(() => () => undefined) }, user: { getUserPreferences: vi.fn(() => ({ isSnapMode: false })) },
+    getInstanceState: vi.fn(() => ({ isGridMode: false })),
+  };
+  render(<InfiniteRenderer page={{ ...page, type: 'design' }} />);
+  await screen.findByRole('status');
+  act(() => state.mounted?.(editor));
+  expect(editor.updatePage).toHaveBeenCalledWith({ id: 'page:one', meta: {
+    unrelated: 'kept', brainCoreArchivedAnnotations: [{ shapeId: 'shape:legacy-note', text: annotation }],
+  } });
+  expect(editor.deleteShapes).toHaveBeenCalledWith(['shape:legacy-note']);
 });
 
 it('refreshes a clean Design document after an external MCP revision', async () => {
@@ -130,6 +153,39 @@ it('refreshes a clean Design document after an external MCP revision', async () 
   await waitFor(() => expect(api.getPage).toHaveBeenCalledWith('p1'));
   await waitFor(() => expect(loadSnapshot).toHaveBeenCalled());
   expect(api.patchPage).not.toHaveBeenCalled();
+});
+
+it('applies a validated remote shape without clearing the live canvas', async () => {
+  vi.mocked(api.getPage).mockResolvedValueOnce({ ...page, revision: 3,
+    content: { tldraw: true, version: 1, data: { document: { store: {}, schema: {} }, session: {} } } } as unknown as Page);
+  vi.mocked(loadSnapshot).mockImplementationOnce(candidate => {
+    (candidate as unknown as { getStoreSnapshot: ReturnType<typeof vi.fn> }).getStoreSnapshot.mockReturnValue({ store: {
+      'shape:frame': { id: 'shape:frame', typeName: 'shape', type: 'frame', x: 50 },
+    } });
+  });
+  const firstStore = state.stores.length;
+  render(<InfiniteRenderer page={{ ...page, type: 'design', revision: 2 }} />);
+  await screen.findByRole('status');
+  const live = state.stores[firstStore];
+  act(() => window.dispatchEvent(new Event('focus')));
+  await waitFor(() => expect(live.put).toHaveBeenCalledWith([expect.objectContaining({ id: 'shape:frame', x: 50 })]));
+  expect(live.clear).toHaveBeenCalledTimes(1); // initial hydration only
+  expect(live.remove).not.toHaveBeenCalled();
+});
+
+it('keeps the live canvas when an external snapshot cannot be loaded', async () => {
+  vi.mocked(api.getPage).mockResolvedValueOnce({ ...page, revision: 3,
+    content: { tldraw: true, version: 1, data: { document: { store: {}, schema: {} }, session: {} } } } as unknown as Page);
+  vi.mocked(loadSnapshot).mockImplementationOnce(() => { throw new Error('invalid remote snapshot'); });
+  const firstStore = state.stores.length;
+  render(<InfiniteRenderer page={{ ...page, type: 'design', revision: 2 }} />);
+  await screen.findByRole('status');
+  const live = state.stores[firstStore];
+  act(() => window.dispatchEvent(new Event('focus')));
+  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Atualização externa'));
+  expect(live.clear).toHaveBeenCalledTimes(1);
+  expect(live.put).not.toHaveBeenCalled();
+  expect(live.remove).not.toHaveBeenCalled();
 });
 
 it('does not replace unsaved local changes when checking for MCP edits', async () => {

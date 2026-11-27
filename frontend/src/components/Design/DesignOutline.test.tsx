@@ -5,16 +5,16 @@ import { DesignOutline } from './DesignOutline';
 afterEach(cleanup);
 
 function fakeEditor() {
-  const pages = [{ id: 'page:one', name: 'Feed' }];
+  const pages = [{ id: 'page:one', name: 'Feed', meta: {} as Record<string, unknown> }];
   let current = 'page:one';
   const shapes = [
     { id: 'shape:frame', type: 'frame', parentId: 'page:one', index: 'a1', props: { name: 'Post 01', w: 1080, h: 1080 } },
     { id: 'shape:text', type: 'text', parentId: 'shape:frame', index: 'a1', props: {} },
   ];
   const api = {
-    getPages: vi.fn(() => pages), getCurrentPageId: vi.fn(() => current), getCurrentPageShapes: vi.fn(() => shapes),
+    getPages: vi.fn(() => pages), getCurrentPageId: vi.fn(() => current), getCurrentPage: vi.fn(() => pages.find(page => page.id === current)!), getCurrentPageShapes: vi.fn(() => shapes),
     setCurrentPage: vi.fn((id: string) => { current = id; }),
-    createPage: vi.fn(({ name }: { name: string }) => { pages.push({ id: 'page:two', name }); }),
+    createPage: vi.fn(({ name }: { name: string }) => { pages.push({ id: 'page:two', name, meta: {} }); }),
     renamePage: vi.fn((id: string, name: string) => { const page = pages.find(item => item.id === id); if (page) page.name = name; }),
     select: vi.fn(), zoomToSelection: vi.fn(), setCurrentTool: vi.fn(),
     store: { listen: vi.fn(() => () => {}) },
@@ -51,5 +51,13 @@ describe('DesignOutline', () => {
     render(<DesignOutline editor={editor as unknown as Editor} />);
     fireEvent.click(screen.getByRole('button', { name: 'Texto' }));
     expect(editor.setCurrentTool).toHaveBeenCalledWith('text');
+  });
+
+  it('shows the exact text of annotations archived outside the canvas', async () => {
+    const editor = fakeEditor();
+    editor.getCurrentPage().meta.brainCoreArchivedAnnotations = [{ shapeId: 'shape:legacy-note', text: 'Anotação nativa de teste' }];
+    render(<DesignOutline editor={editor as unknown as Editor} />);
+    expect(await screen.findByText('Anotações preservadas (1)')).toBeInTheDocument();
+    expect(screen.getByText('Anotação nativa de teste')).toBeInTheDocument();
   });
 });

@@ -20,6 +20,9 @@
 .design-outline-layer span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .design-outline-layer span:first-child{flex:0 0 18px;text-align:center;color:#a2abc0}
 .design-outline-empty{padding:0 12px;color:#8e949e;font-size:11px}
+.design-outline-archive{max-height:28%;overflow:auto;padding:10px 12px;border-top:1px solid #34363a;color:#cbd0d9}
+.design-outline-archive summary{cursor:pointer;font-size:11px;font-weight:700}
+.design-outline-archive p{white-space:pre-wrap;overflow-wrap:anywhere;padding:8px;margin:6px 0 0;background:#17181b;border-radius:6px;font-size:11px}
 .design-outline-tools{display:flex;flex-wrap:wrap;gap:3px;padding:8px;border-top:1px solid #34363a}
 .design-outline-tools button{width:30px;height:30px;border:0;border-radius:6px;background:transparent;color:#d7dce4;cursor:pointer}
 .design-outline-tools button:hover,.design-outline-tools button:focus-visible{background:#3b3f46}
