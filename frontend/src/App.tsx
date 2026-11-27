@@ -38,7 +38,7 @@ function createPageTab(page: { id: string; title: string; icon?: string | null; 
   return {
     id: tabId,
     title: page.title,
-    icon: page.icon || (page.type === 'notebook' ? notebookIconUrl : undefined),
+    icon: page.icon || (page.type === 'notebook' ? notebookIconUrl : page.type === 'design' ? '🎨' : undefined),
     path: separateTab ? buildPagePath(page.id) + '?tab=' + encodeURIComponent(tabId) : buildPagePath(page.id),
   };
 }
@@ -199,7 +199,7 @@ function PageView({ onRefresh, onPageOpen, tabs, onOpenTab, onPageNavigate }: Pa
     return <Suspense fallback={<RouteFallback />}><NotebookEditor key={page.id} page={page} onRefresh={onRefresh} /></Suspense>;
   }
 
-  if (page.type === 'infinite') {
+  if (page.type === 'infinite' || page.type === 'design') {
     return (
       <Suspense fallback={<RouteFallback />}>
         <InfiniteRenderer

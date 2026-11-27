@@ -3,7 +3,7 @@ export interface PageSummary {
   parent_page_id?: string | null;
   title: string;
   slug: string;
-  type: 'note' | 'infinite' | 'notebook';
+  type: 'note' | 'infinite' | 'design' | 'notebook';
   icon?: string | null;
   is_section?: boolean;
   tags?: string[];
@@ -17,7 +17,7 @@ export interface PageSummary {
 export interface Page extends PageSummary {
   revision: number;
   access_role?: PageShareRole;
-  type: 'note' | 'infinite' | 'notebook';
+  type: 'note' | 'infinite' | 'design' | 'notebook';
   content: TiptapDoc | InfiniteDoc | NotebookDoc;
   markdown_source?: string;
   cover_url?: string | null;
@@ -30,7 +30,7 @@ export interface SharedPageSummary {
   id: string;
   title: string;
   slug: string;
-  type: 'note' | 'infinite' | 'notebook';
+  type: 'note' | 'infinite' | 'design' | 'notebook';
   icon?: string | null;
   updated_at: string;
   revision?: number;
@@ -208,7 +208,7 @@ export interface RememberSearchResponse {
 }
 
 export interface SearchResult {
-  id: string; title: string; kind: 'page' | 'note'; type: 'note' | 'infinite' | 'notebook';
+  id: string; title: string; kind: 'page' | 'note'; type: 'note' | 'infinite' | 'design' | 'notebook';
   icon: string | null; updated_at: string; parent_page_id: string | null;
   snippet: string; path: { id: string; title: string }[];
   score?: number;

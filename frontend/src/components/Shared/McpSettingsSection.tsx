@@ -64,7 +64,7 @@ export function McpSettingsSection() {
           {settings?.enabled ? 'Desligar' : 'Ligar'}
         </button>
       </div>
-      <p className="text-xs text-gray-500">Esta integração permite consultar e editar suas notas. Fotos, arquivos, áudios, transcrições e terminal não têm ferramentas de acesso. Links de anexos já presentes nas notas podem aparecer no texto.</p>
+      <p className="text-xs text-gray-500">Esta integração permite consultar e editar páginas de notas, quadros Design e notas rápidas conforme a credencial. O MCP de Design trabalha com o documento do quadro; fotos, arquivos, áudios, transcrições e terminal não têm ferramentas próprias de acesso. Links de anexos já presentes nas notas podem aparecer no texto.</p>
       <p className="text-xs text-gray-500">A conexão MCP funciona neste computador. O cliente de IA pode enviar os textos recebidos ao provedor que você configurou.</p>
       {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
       {message && <p role="status" className="text-sm text-green-500">{message}</p>}
@@ -83,7 +83,7 @@ export function McpSettingsSection() {
         <label className="text-xs">Nome do cliente de IA
           <input className={`${inputClass} mt-1`} value={name} maxLength={80} required onChange={e => setName(e.target.value)} />
         </label>
-        {([['Páginas de notas', pages, setPages], ['Notas rápidas', notes, setNotes]] as const).map(([label, access, setter]) =>
+        {([['Páginas de notas e Design', pages, setPages], ['Notas rápidas', notes, setNotes]] as const).map(([label, access, setter]) =>
           <label key={label} className="text-xs">{label}
             <select className={`${inputClass} mt-1`} value={access} onChange={e => setter(e.target.value as Access)}>
               <option value="off">Sem acesso</option><option value="read">Somente leitura</option><option value="write">Leitura e edição</option>
@@ -115,7 +115,7 @@ export function McpSettingsSection() {
             <span className="text-xs">{token.revoked_at ? 'Revogada' : !token.valid ? 'Expirada ou invalidada' : settings.enabled ? 'Ativa' : 'Bloqueada pelo desligamento'}</span>
           </div>
           <p className="text-xs text-gray-500">Validade: {date(token.expires_at)}</p>
-          <p className="text-xs text-gray-500">{[['pages', 'Páginas'], ['notes', 'Notas rápidas']].map(([kind, label]) =>
+          <p className="text-xs text-gray-500">{[['pages', 'Páginas e Design'], ['notes', 'Notas rápidas']].map(([kind, label]) =>
             `${label}: ${token.scopes.includes(`${kind}:write`) ? 'leitura e edição' : token.scopes.includes(`${kind}:read`) ? 'leitura' : 'sem acesso'}`).join(' · ')}</p>
           {!token.revoked_at && <button type="button" disabled={busy} className={`${buttonClass} self-start`} aria-label={`Revogar ${token.name}`}
             onClick={() => void run(async () => { setSecret(null); await mcpApi.revokeCredential(token.id); }, 'Credencial revogada.')}>Revogar credencial</button>}
@@ -179,7 +179,7 @@ export function McpSettingsSection() {
         <p className="text-xs text-gray-500 mt-2">Até 30 alterações recentes. Leituras não aparecem aqui. Recuperações ficam no histórico da nota.</p>
         {settings?.audit.length === 0 && <p className="text-xs text-gray-500 mt-2">Nenhuma alteração registrada.</p>}
         <ul className="text-xs flex flex-col gap-2 mt-3">{settings?.audit.map(item => <li key={item.id} className="rounded-lg border p-3">
-          {operationLabels[item.operation] ?? item.operation} · {item.target_kind === 'pages' ? 'Página de nota' : 'Nota rápida'} · {item.credential_name ?? 'Credencial removida'}
+          {operationLabels[item.operation] ?? item.operation} · {item.target_kind === 'design' ? 'Quadro Design' : item.target_kind === 'pages' ? 'Página de nota' : 'Nota rápida'} · {item.credential_name ?? 'Credencial removida'}
           <br />{date(item.created_at)}<br /><span className="font-mono break-all">{item.target_id}</span>
         </li>)}</ul>
       </details>

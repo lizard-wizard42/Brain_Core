@@ -1,12 +1,13 @@
 import { Request, Response } from 'express';
 import { defaultNotebook, isNotebookDoc, InvalidNotebook } from '../services/notebookDocument';
+import { validDesignDocument } from '../services/designDocument';
 import { createHash } from 'crypto';
 import { pool, query } from '../config/database';
 import { InfiniteDoc, NotebookDoc, Page, PageSummary, PageVersion, TiptapDoc, TiptapNode } from '../types';
 import { AuthRequest } from '../middleware/auth';
 import { logError, logInfo } from '../utils/logger';
 import { recordUploadedAsset } from '../services/uploadOwnership';
-import { savePageRevision, PageConflict, PageMissing, pageRole } from '../services/pageAccess';
+import { savePageRevision, PageConflict, PageMissing, InvalidDesign, pageRole } from '../services/pageAccess';
 import { indexItemEmbeddings, clearItemEmbeddings } from '../services/embeddingService';
 
 export function extractDocPlainText(node: unknown): string {
@@ -255,12 +256,15 @@ export async function createPage(req: Request, res: Response): Promise<void> {
     return;
   }
   
-  if (!['note', 'infinite', 'notebook'].includes(type)) { res.status(400).json({ error: 'Unsupported page type' }); return; }
+  if (!['note', 'infinite', 'design', 'notebook'].includes(type)) { res.status(400).json({ error: 'Unsupported page type' }); return; }
   if (type === 'notebook' && content !== undefined && !isNotebookDoc(content)) {
     res.status(400).json({ error: 'Invalid notebook document' }); return;
   }
+  if (type === 'design' && content !== undefined && !validDesignDocument(content)) {
+    res.status(400).json({ error: 'Invalid Design document' }); return;
+  }
   let defaultContent: TiptapDoc | InfiniteDoc | NotebookDoc = { type: 'doc', content: [] };
-  if (type === 'infinite') {
+  if (type === 'infinite' || type === 'design') {
     defaultContent = { tldraw: true, version: 1, data: null };
   }
 
@@ -450,6 +454,7 @@ export async function savePage(req: Request, res: Response): Promise<void> {
     res.json(redactPageForRole(row, await pageRole(String(req.params.id), userId)));
   } catch (error) {
     if (error instanceof InvalidNotebook) res.status(400).json({ error: 'Invalid notebook document' });
+    else if (error instanceof InvalidDesign) res.status(400).json({ error: 'Invalid Design document' });
     else if (error instanceof PageConflict) res.status(409).json({ error: 'Page revision conflict' });
     else if (error instanceof PageMissing) res.status(404).json({ error: 'Page not found' });
     else res.status(503).json({ error: 'Failed to save page' });
@@ -469,6 +474,7 @@ export async function patchPage(req: Request, res: Response): Promise<void> {
     res.json(redactPageForRole(row, await pageRole(String(req.params.id), userId)));
   } catch (error) {
     if (error instanceof InvalidNotebook) res.status(400).json({ error: 'Invalid notebook document' });
+    else if (error instanceof InvalidDesign) res.status(400).json({ error: 'Invalid Design document' });
     else if (error instanceof PageConflict) res.status(409).json({ error: 'Page revision conflict' });
     else if (error instanceof PageMissing) res.status(404).json({ error: 'Page not found' });
     else res.status(503).json({ error: 'Failed to patch page' });

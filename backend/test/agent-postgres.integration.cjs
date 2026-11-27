@@ -155,7 +155,7 @@ test('a pending revocation prevents a write that has already passed the initial 
   } finally { await connection.query('ROLLBACK'); connection.release(); }
 });
 
-test('MCP stdio performs all 12 tools against the real API and PostgreSQL', async () => {
+test('MCP stdio exposes 23 tools and exercises pages and notes against real PostgreSQL', async () => {
   const mcpRequire = createRequire(path.resolve(__dirname, '../../mcp/package.json'));
   const { Client } = mcpRequire('@modelcontextprotocol/client');
   const { StdioClientTransport } = mcpRequire('@modelcontextprotocol/client/stdio');
@@ -173,7 +173,7 @@ test('MCP stdio performs all 12 tools against the real API and PostgreSQL', asyn
   };
   try {
     await client.connect(transport);
-    assert.equal((await client.listTools()).tools.length, 12);
+    assert.equal((await client.listTools()).tools.length, 23);
     const doc = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Original', marks: [{ type: 'bold' }] }] }] };
     for (const kind of ['pages', 'notes']) {
       const input = { ...operation(), title: `MCP synthetic ${kind}`, ...(kind === 'pages' ? { content: doc } : { body: 'Original' }) };
@@ -443,6 +443,51 @@ test('MCP subpages validate parents, preserve hierarchy on restore and remain id
   assert.equal((await call('pages','create',{...operation(),title:'Invalid',parent_page_id:'nope'})).status,400);
   assert.equal((await call('notes','create',{...operation(),title:'Invalid',parent_page_id:parent.id})).status,400);
   assert.equal((await call('pages','update',{...operation(),id:child.data.id,expected_revision:2,parent_page_id:null})).status,400);
+});
+
+test('Design MCP is isolated from notes and Infinite, versioned and scoped to its owner', async () => {
+  const seed = require('../dist/services/designSnapshotSeed.json');
+  const blank = { tldraw: true, version: 1, data: null };
+  const snapshot = { tldraw: true, version: 1, data: { document: seed.document, session: seed.session } };
+  const created = await call('design', 'create', { ...operation(), title: 'Synthetic board', content: blank });
+  assert.equal(created.status, 200);
+  assert.equal((await query('SELECT type FROM pages WHERE id=$1', [created.data.id]))[0].type, 'design');
+  assert.equal((await call('design', 'get', { id: created.data.id }, readToken)).status, 200);
+  assert.equal((await call('pages', 'get', { id: created.data.id })).status, 404);
+  assert.equal((await call('design', 'update', { ...operation(), id: created.data.id, expected_revision: 0, content: { type: 'doc', content: [] } })).status, 400);
+  assert.equal((await call('design', 'update', { ...operation(), id: created.data.id, expected_revision: 0, content: snapshot }, readToken)).status, 403);
+  const updateInput = { ...operation(), id: created.data.id, expected_revision: 0, content: snapshot };
+  const updated = await call('design', 'update', updateInput);
+  assert.equal(updated.status, 200); assert.equal(updated.data.revision, 1);
+  assert.deepEqual((await call('design', 'update', updateInput)).data, updated.data);
+  assert.equal((await call('design', 'update', { ...operation(), id: created.data.id, expected_revision: 0, title: 'stale' })).status, 409);
+  assert.equal((await call('design', 'get', { id: created.data.id }, await token(['pages:read'], { user: other }))).status, 404);
+  assert.ok((await call('design', 'versions', { id: created.data.id })).data.items.some(x => x.revision === 0));
+  const restored = await call('design', 'restore', { ...operation(), id: created.data.id, expected_revision: 1, saved_revision: 0 });
+  assert.equal(restored.status, 200); assert.deepEqual(restored.data.content, blank);
+  const frame = await call('design', 'add_frame', { ...operation(), id: created.data.id, expected_revision: 2, name: 'Fictional post', width: 1080, height: 1080 });
+  assert.equal(frame.status, 200); assert.match(frame.data.shape_id, /^shape:/);
+  const frameRetry = await call('design', 'add_frame', { ...operation(), id: created.data.id, expected_revision: 2, name: 'Other post', width: 1080, height: 1080 }, readToken);
+  assert.equal(frameRetry.status, 403);
+  const title = await call('design', 'add_text', { ...operation(), id: created.data.id, expected_revision: 3, frame_id: frame.data.shape_id, text: 'Synthetic title', x: 40, y: 80 });
+  assert.equal(title.status, 200);
+  const rect = await call('design', 'add_rectangle', { ...operation(), id: created.data.id, expected_revision: 4, frame_id: frame.data.shape_id, width: 100, height: 90, color: 'blue' });
+  assert.equal(rect.status, 200);
+  assert.equal((await call('design', 'add_image', { ...operation(), id: created.data.id, expected_revision: 5, src: '/uploads/not-owned.png', width: 100, height: 100 })).status, 404);
+  await query('INSERT INTO uploaded_assets(relative_path,owner_user_id) VALUES ($1,$2)', ['synthetic-owned.png', owner]);
+  const image = await call('design', 'add_image', { ...operation(), id: created.data.id, expected_revision: 5, src: '/uploads/synthetic-owned.png', width: 100, height: 100 });
+  assert.equal(image.status, 200);
+  const card = await call('design', 'add_card', { ...operation(), id: created.data.id, expected_revision: 6, frame_id: frame.data.shape_id, width: 200, height: 100, text: 'Synthetic card', appearance: { fill: '#071D31', radius: 12 } });
+  assert.equal(card.status, 200);
+  assert.equal((await call('pages', 'get', { id: created.data.id })).status, 404);
+  const child = await call('design', 'create', { ...operation(), title: 'Nested board', parent_page_id: created.data.id });
+  assert.equal(child.status, 200);
+  assert.equal((await call('design', 'list', { parent_page_id: created.data.id })).data.items.some(item => item.id === child.data.id), true);
+  const note = await call('pages', 'create', { ...operation(), title: 'Separate note' });
+  assert.equal((await call('design', 'get', { id: note.data.id })).status, 404);
+  const canvas = randomUUID();
+  await query(`INSERT INTO pages (id,owner_user_id,title,slug,type) VALUES ($1,$2,'Separate Infinite',$1::uuid::text,'infinite')`, [canvas, owner]);
+  assert.equal((await call('design', 'get', { id: canvas })).status, 404);
 });
 
 test('templates are account snapshots without media or live child cards; new pages preserve source and history', async () => {

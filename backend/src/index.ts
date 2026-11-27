@@ -119,13 +119,15 @@ app.use(cors({ origin: allowedOrigins, credentials: true }));
 // Content-heavy routes (page documents, canvas snapshots, recordings metadata) need the
 // larger budget; everything else is small JSON and should be rejected early.
 const largeJson = express.json({ limit: '10mb' });
+const pageJson = express.json({ limit: '32mb' });
 const smallJson = express.json({ limit: '256kb' });
-const LARGE_BODY_PREFIXES = ['/api/pages', '/api/remember', '/api/mobile'];
-app.use((req, res, next) => (
-  LARGE_BODY_PREFIXES.some(prefix => req.path === prefix || req.path.startsWith(`${prefix}/`))
-    ? largeJson
-    : smallJson
-)(req, res, next));
+const hasPrefix = (path: string, prefix: string) => path === prefix || path.startsWith(`${prefix}/`);
+app.use((req, res, next) => {
+  const parser = hasPrefix(req.path, '/api/pages') || hasPrefix(req.path, '/api/agent/design')
+    ? pageJson
+    : ['/api/remember', '/api/mobile'].some(prefix => hasPrefix(req.path, prefix)) ? largeJson : smallJson;
+  parser(req, res, next);
+});
 app.use(morgan('dev'));
 app.use(slowRequestLogger(config.SLOW_REQUEST_MS));
 app.use('/api', apiSecurityHeaders, createApiRateLimit({ windowMs: 60_000, max: config.API_RATE_LIMIT_PER_MINUTE }));

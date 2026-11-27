@@ -36,3 +36,10 @@ it('blocks empty titles and keeps Escape available before any request', () => {
   fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' });
   expect(onCancel).toHaveBeenCalledOnce();
 });
+
+it('offers Design as its own page format', async () => {
+  const onCreate = vi.fn().mockResolvedValue(undefined);
+  render(<NewPageForm title="Fictional feed" onTitleChange={vi.fn()} onCreate={onCreate} onCancel={vi.fn()} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Design' }));
+  await waitFor(() => expect(onCreate).toHaveBeenCalledWith('design'));
+});

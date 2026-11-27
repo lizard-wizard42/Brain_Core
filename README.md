@@ -27,6 +27,7 @@ English localization. See [screenshot provenance](docs/SCREENSHOTS.md).*
 | **Rich-text pages** | Format text, tables, checklists and highlighted code. Copy an entire code block with its corner icon. Organize pages and subpages in a tree; drop a card onto another card to nest it, or use its edges to reorder. Insert real text between cards. |
 | **Notebook** | Write with editable vector pen/highlighter strokes and typed text boxes. Choose blank, ruled, grid, dotted or Oxford paper; use multiple sheets, selection, whole-stroke erasing, undo/redo, zoom and focus mode. |
 | **Infinite** | Sketch and arrange ideas freely on a tldraw canvas, with automatic snapshot saving. Its SDK has separate production licensing requirements; see below. |
+| **Design** | Compose editable visual pieces on fixed-size artboards, inspect supported properties, preview and export PNGs. Design is a separate page type; existing Infinite canvases remain unchanged. |
 | **Quick notes** | Capture ideas, checklists and reminders on a searchable board. Toggle checklist items directly, filter and sort notes, and recover deleted notes through Undo or Trash. |
 | **Knowledge and navigation** | Search page and quick-note text, browse breadcrumbs and heading outlines, follow page references, or explore the interactive knowledge graph. Expand/collapse the tree and keep work open in app tabs. |
 | **Memory** | Record deliberately, then review optional local transcriptions as a conversation. Search transcripts, correct speakers, copy/download the conversation or turn it into a note or reminder. |
@@ -75,6 +76,15 @@ keep the draft for retry. Reminder dates follow the device's local calendar.
 
 Use a free-form canvas when the relationship between ideas matters as much as
 the words. Infinite is a separate page format from text notes and Notebook.
+
+### Design: compose and preview visual pieces
+
+Create a Design page for posts, stories or screen layouts. Add artboards at preset
+sizes, arrange shapes and text with the canvas tools, switch between internal
+pages and layers, inspect supported shape properties, then preview or export an
+artboard as PNG. Design uses the same canvas engine as Infinite but has its own
+page type and workspace. It does not reproduce Paper's full HTML/CSS layout,
+responsive behavior, shaders or component system.
 
 ### Memory: revisit a conversation
 
@@ -170,11 +180,13 @@ Enable **MCP e acesso da IA** in Settings, then create an expiring credential wi
 independent read/write permissions for rich-text pages and quick notes. Revoke
 one credential or all of them, or switch MCP off for the account.
 
-The local STDIO adapter exposes **12 tools**: list/search, read, create, update,
-list versions and restore, for each of the two note collections. The backend
+The local STDIO adapter exposes **23 tools**: the existing 12 page/note tools,
+six Design document tools (list, read, create, update, versions, restore), and
+five Design shape tools (frame, text, rectangle, image, card). The backend
 enforces ownership and scopes. Writes use revision checks and operation IDs to
-prevent stale updates and duplicate retries. The optional `brain-core-notes`
-skill explains safe editing and preservation of Tiptap content.
+prevent stale updates and duplicate retries. Design images must reference an
+upload owned by the same account. The optional `brain-core-notes` skill
+explains safe editing and preservation of Tiptap content.
 
 Each credential selects one Brain Core account. Changing the browser login does
 not change a running MCP connection. For separate people, use separate
@@ -185,7 +197,8 @@ Desktop clients can launch the local adapter. ChatGPT access through an optional
 private tunnel requires separate external setup and permissions. The adapter
 opens no additional listener and accepts only a loopback HTTP backend origin.
 It does not expose Notebook, Infinite, audio, transcripts, terminal access or
-other users' shared pages. Requested note content reaches the AI client and may
+other users' shared pages. Design documents can be edited through the Design
+tools; preview and PNG export are available in the web editor. Requested content reaches the AI client and may
 be processed by its configured provider; local storage does not prevent that.
 [MCP setup, credentials and boundaries →](docs/NOTES_MCP.md)
 

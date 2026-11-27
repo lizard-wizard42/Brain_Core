@@ -1,0 +1,26 @@
+.design-outline{width:218px;min-width:218px;height:100%;display:flex;flex-direction:column;background:#202124;color:#e7e8eb;border-right:1px solid #3c3e42;font:12px/1.4 Inter,system-ui,sans-serif;overflow:hidden}
+.design-outline-brand{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 14px;border-bottom:1px solid #34363a;font-size:13px}
+.design-outline-brand span{font-size:17px;color:#aab6d6}
+.design-outline-section-heading{display:flex;align-items:center;justify-content:space-between;min-height:34px;padding:0 12px;color:#cbd0d9;font-size:11px;font-weight:700;letter-spacing:.02em}
+.design-outline-section-heading button{border:0;background:transparent;color:inherit;font-size:20px;line-height:1;width:28px;height:28px;cursor:pointer;border-radius:6px}
+.design-outline-section-heading button:hover,.design-outline-section-heading button:focus-visible{background:#3b3f46}
+.design-outline-count{font-size:10px;color:#858c9b}
+.design-outline-pages{max-height:30%;overflow:auto;padding:0 5px 8px;border-bottom:1px solid #34363a}
+.design-outline-page{display:flex;align-items:center;min-height:32px;border-radius:6px}
+.design-outline-page.is-active{background:#35383e}
+.design-outline-page-open{display:flex;align-items:center;gap:8px;flex:1;min-width:0;border:0;background:transparent;color:inherit;text-align:left;padding:7px 8px;cursor:pointer}
+.design-outline-page-open span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.design-outline-page-open span:first-child{color:#9aa4b6}
+.design-outline-rename{opacity:0;border:0;background:none;color:#aab0bb;padding:4px 8px;cursor:pointer}
+.design-outline-page:hover .design-outline-rename,.design-outline-rename:focus-visible{opacity:1}
+.design-outline-page input{width:100%;margin:3px 6px;padding:4px 6px;background:#151619;color:#fff;border:1px solid #7499d9;border-radius:4px}
+.design-outline-layers{flex:1;overflow:auto;padding:0 5px 12px}
+.design-outline-layer{display:flex;align-items:center;gap:8px;width:100%;min-width:0;border:0;background:transparent;color:#d6dae1;text-align:left;padding-top:7px;padding-bottom:7px;padding-right:8px;border-radius:6px;cursor:pointer}
+.design-outline-layer:hover,.design-outline-layer:focus-visible{background:#35383e}
+.design-outline-layer span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.design-outline-layer span:first-child{flex:0 0 18px;text-align:center;color:#a2abc0}
+.design-outline-empty{padding:0 12px;color:#8e949e;font-size:11px}
+.design-outline-tools{display:flex;flex-wrap:wrap;gap:3px;padding:8px;border-top:1px solid #34363a}
+.design-outline-tools button{width:30px;height:30px;border:0;border-radius:6px;background:transparent;color:#d7dce4;cursor:pointer}
+.design-outline-tools button:hover,.design-outline-tools button:focus-visible{background:#3b3f46}
+@media(max-width:720px){.design-outline{width:170px;min-width:170px}}

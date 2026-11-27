@@ -6,7 +6,7 @@ export interface SemanticSearchResult {
   id: string;
   title: string;
   kind: 'page' | 'note';
-  type: 'note' | 'infinite' | 'notebook';
+  type: 'note' | 'infinite' | 'design' | 'notebook';
   icon: string | null;
   updated_at: string;
   parent_page_id: string | null;
@@ -82,12 +82,12 @@ export async function searchSemantic(
   const pageIds = sortedCandidates.filter(c => c.kind === 'page').map(c => c.itemId);
   const noteIds = sortedCandidates.filter(c => c.kind === 'note').map(c => c.itemId);
 
-  const pageMetaMap = new Map<string, { title: string; type: 'note' | 'infinite' | 'notebook'; icon: string | null; updated_at: string; parent_page_id: string | null }>();
+  const pageMetaMap = new Map<string, { title: string; type: 'note' | 'infinite' | 'design' | 'notebook'; icon: string | null; updated_at: string; parent_page_id: string | null }>();
   if (pageIds.length > 0) {
     const pageRows = await query<{
       id: string;
       title: string;
-      type: 'note' | 'infinite' | 'notebook';
+      type: 'note' | 'infinite' | 'design' | 'notebook';
       icon: string | null;
       updated_at: string;
       parent_page_id: string | null;

@@ -33,6 +33,8 @@ describe('MCP settings', () => {
     }, secret: 'synthetic-secret' });
     render(<McpSettingsSection />);
     await waitFor(() => expect(screen.getByRole('button', { name: 'Criar credencial' })).toBeEnabled());
+    expect(screen.getByLabelText('Páginas de notas e Design')).toHaveValue('read');
+    expect(screen.getByText(/quadros Design e notas rápidas/)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Notas rápidas'), { target: { value: 'off' } });
     fireEvent.change(screen.getByLabelText('Validade da credencial'), { target: { value: '7' } });
     fireEvent.click(screen.getByRole('button', { name: 'Criar credencial' }));
