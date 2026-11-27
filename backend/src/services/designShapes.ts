@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { getIndexAbove } from '@tldraw/utils';
 import seed from './designSnapshotSeed.json';
 import { validDesignDocument } from './designDocument';
 
@@ -75,20 +76,11 @@ function nextIndex(store: Record<string, JsonMap>, parentId: string): string {
   const last = Object.values(store).filter(record => record.typeName === 'shape' && record.parentId === parentId && typeof record.index === 'string')
     .map(record => record.index as string).sort().slice(-1)[0];
   if (!last) return 'a1';
-  // Keep the tldraw index prefix and advance a base-62 suffix. Appending a
-  // character on every insert made keys grow until a busy board stopped working.
-  const digits = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
-  if (!/^a[0-9A-Za-z]+$/.test(last)) throw new InvalidDesignShape('Unsupported shape index');
-  const chars = last.slice(1).split('');
-  for (let i = chars.length - 1; i >= 0; i--) {
-    const position = digits.indexOf(chars[i]);
-    if (position < digits.length - 1) {
-      chars[i] = digits[position + 1];
-      for (let j = i + 1; j < chars.length; j++) chars[j] = digits[0];
-      return `a${chars.join('')}`;
-    }
+  try {
+    return getIndexAbove(last as ReturnType<typeof getIndexAbove>);
+  } catch {
+    throw new InvalidDesignShape('Design contains an invalid shape index');
   }
-  return `${last}0`;
 }
 function baseShape(type: string, parentId: string, index: string, x: number, y: number, props: JsonMap): Shape {
   return { x, y, rotation: 0, isLocked: false, opacity: 1, meta: {}, id: `shape:${randomUUID()}`,
@@ -113,8 +105,9 @@ export function addDesignShape(content: unknown, action: ShapeAction, input: Jso
   } else if (action === 'add_text') {
     const parentId = parentFor(store, pageId, input.frame_id);
     const value = text(input.text, 'text', 5000);
+    const width = input.width === undefined ? Math.min(960, Math.max(160, value.length * 15)) : number(input.width, 'width', 1, 10000);
     shape = baseShape('text', parentId, nextIndex(store, parentId), x, y,
-      { ...seed.templates.text, color: color(input.color), richText: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: value }] }] } });
+      { ...seed.templates.text, w: width, autoSize: false, color: color(input.color), richText: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: value }] }] } });
   } else if (action === 'add_card') {
     const parentId = parentFor(store, pageId, input.frame_id);
     const width = number(input.width, 'width', 1, 10000), height = number(input.height, 'height', 1, 10000);

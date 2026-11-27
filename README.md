@@ -180,9 +180,9 @@ Enable **MCP e acesso da IA** in Settings, then create an expiring credential wi
 independent read/write permissions for rich-text pages and quick notes. Revoke
 one credential or all of them, or switch MCP off for the account.
 
-The local STDIO adapter exposes **23 tools**: the existing 12 page/note tools,
-six Design document tools (list, read, create, update, versions, restore), and
-five Design shape tools (frame, text, rectangle, image, card). The backend
+The local STDIO adapter exposes **31 tools**: the existing 12 page/note tools,
+Design document and shape tools, atomic shape batches, tree inspection, preview,
+and owned raster image upload/listing. The backend
 enforces ownership and scopes. Writes use revision checks and operation IDs to
 prevent stale updates and duplicate retries. Design images must reference an
 upload owned by the same account. The optional `brain-core-notes` skill
@@ -198,7 +198,9 @@ private tunnel requires separate external setup and permissions. The adapter
 opens no additional listener and accepts only a loopback HTTP backend origin.
 It does not expose Notebook, Infinite, audio, transcripts, terminal access or
 other users' shared pages. Design documents can be edited through the Design
-tools; preview and PNG export are available in the web editor. Requested content reaches the AI client and may
+tools. The browser publishes revision-bound PNG previews while a Design page is
+open; the MCP can read those previews. PNG download remains in the web editor.
+Requested content reaches the AI client and may
 be processed by its configured provider; local storage does not prevent that.
 [MCP setup, credentials and boundaries →](docs/NOTES_MCP.md)
 

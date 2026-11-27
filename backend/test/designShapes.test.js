@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { addDesignShape, InvalidDesignShape } = require('../dist/services/designShapes');
 const { validDesignDocument } = require('../dist/services/designDocument');
+const { validateIndexKey } = require('@tldraw/utils');
 
 const blank = () => ({ tldraw: true, version: 1, data: null });
 const records = doc => Object.values(doc.data.document.store).filter(record => record.typeName === 'shape');
@@ -17,6 +18,8 @@ test('builds editable artboards, text, rectangles and images without changing pr
   assert.equal(validDesignDocument(card.content), true);
   assert.deepEqual(records(card.content).map(shape => shape.type).sort(), ['design-card', 'frame', 'geo', 'image', 'text']);
   assert.equal(records(card.content).find(shape => shape.id === text.shapeId).parentId, frame.shapeId);
+  assert.ok(card.content.data.document.store[text.shapeId].props.w >= 160);
+  assert.equal(card.content.data.document.store[text.shapeId].props.autoSize, false);
   assert.ok(card.content.data.document.store[rectangle.shapeId]);
   assert.equal(card.content.data.document.store[image.shapeId].props.assetId.startsWith('asset:'), true);
   assert.equal(card.content.data.document.store[card.shapeId].props.fill, '#071D31');
@@ -51,4 +54,26 @@ test('supports hundreds of siblings without growing index keys per insertion', (
   assert.equal(children.length, 320);
   assert.equal(new Set(children.map(shape => shape.index)).size, 320);
   assert.ok(Math.max(...children.map(shape => shape.index.length)) < 16);
+  for (const shape of children) assert.doesNotThrow(() => validateIndexKey(shape.index));
+});
+
+test('adds after a UI-created b index and rejects malformed persisted indices', () => {
+  const initial = addDesignShape(blank(), 'add_frame', { name: 'Mixed board', width: 1080, height: 1080 });
+  const frameId = initial.shapeId;
+  const existing = addDesignShape(initial.content, 'add_card', { frame_id: frameId, width: 20, height: 20 });
+  existing.content.data.document.store[existing.shapeId].index = 'b00BAICDV';
+  const result = addDesignShape(existing.content, 'add_card', { frame_id: frameId, width: 20, height: 20 });
+  const next = result.content.data.document.store[result.shapeId].index;
+  assert.ok(next > 'b00BAICDV');
+  assert.doesNotThrow(() => validateIndexKey(next));
+  existing.content.data.document.store[existing.shapeId].index = 'az0';
+  assert.throws(() => addDesignShape(existing.content, 'add_card', { frame_id: frameId, width: 20, height: 20 }), /invalid shape index/);
+});
+
+test('gives long native text a bounded width and accepts an explicit width', () => {
+  const initial = addDesignShape(blank(), 'add_frame', { name: 'Text board', width: 1080, height: 1080 });
+  const long = addDesignShape(initial.content, 'add_text', { frame_id: initial.shapeId, text: 'Synthetic sentence '.repeat(12) });
+  assert.equal(long.content.data.document.store[long.shapeId].props.w, 960);
+  const narrow = addDesignShape(long.content, 'add_text', { frame_id: initial.shapeId, text: 'Synthetic title', width: 280 });
+  assert.equal(narrow.content.data.document.store[narrow.shapeId].props.w, 280);
 });

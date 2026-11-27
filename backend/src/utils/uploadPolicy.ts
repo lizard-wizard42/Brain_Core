@@ -153,6 +153,25 @@ async function withCapacityLock<T>(operation: () => Promise<T>): Promise<T> {
   }
 }
 
+/** Reserve space for non-multipart uploads using the same budget as browser uploads. */
+export async function reserveUploadCapacity(bytes: number): Promise<() => void> {
+  const limit = Math.max(0, config.UPLOADS_MAX_BYTES);
+  if (!Number.isSafeInteger(bytes) || bytes <= 0 || bytes > limit) throw new Error('Upload exceeds storage limit');
+  const accepted = await withCapacityLock(async () => {
+    const used = await directorySize(config.UPLOADS_DIR);
+    if (used + reservedUploadBytes + bytes > limit) return false;
+    reservedUploadBytes += bytes;
+    return true;
+  });
+  if (!accepted) throw new Error('Upload storage full');
+  let released = false;
+  return () => {
+    if (released) return;
+    reservedUploadBytes = Math.max(0, reservedUploadBytes - bytes);
+    released = true;
+  };
+}
+
 /**
  * Rejects a multipart request before Multer writes it when the local upload
  * store would exceed its configured capacity. This is intentionally a global

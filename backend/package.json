@@ -13,6 +13,7 @@
     "user:create": "node scripts/create-member.cjs"
   },
   "dependencies": {
+    "@tldraw/utils": "^5.1.1",
     "@types/multer": "^2.0.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",

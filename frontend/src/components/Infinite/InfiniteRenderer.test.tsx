@@ -1,20 +1,21 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Page } from '../../types';
+import { loadSnapshot } from 'tldraw';
 
 const state = vi.hoisted(() => ({ changed: undefined as undefined | (() => void), mounted: undefined as undefined | ((editor: unknown) => void) }));
 vi.mock('tldraw', () => ({
   Tldraw: ({ onMount }: { onMount?: (editor: unknown) => void }) => { state.mounted = onMount; return <div data-testid="tldraw" />; },
-  createTLStore: () => ({ clear: vi.fn(), listen: (fn: () => void) => { state.changed = fn; return () => undefined; } }),
+  createTLStore: () => ({ clear: vi.fn(), mergeRemoteChanges: (fn: () => void) => fn(), listen: (fn: () => void) => { state.changed = fn; return () => undefined; } }),
   createShapeId: () => 'shape:card',
   defaultShapeUtils: [],
-  ShapeUtil: class {}, HTMLContainer: 'div', Rectangle2d: class {}, T: { number: {}, string: {} }, resizeBox: vi.fn(),
+  ShapeUtil: class {}, HTMLContainer: 'div', Rectangle2d: class {}, T: { number: {}, string: {}, optional: (value: unknown) => value }, resizeBox: vi.fn(),
   throttle: () => () => undefined,
   getSnapshot: () => ({}),
   loadSnapshot: vi.fn(),
 }));
 vi.mock('tldraw/tldraw.css', () => ({}));
-vi.mock('../../api/client', () => ({ api: { patchPage: vi.fn().mockResolvedValue({}) } }));
+vi.mock('../../api/client', () => ({ api: { patchPage: vi.fn().mockResolvedValue({}), getPage: vi.fn(), uploadDesignPreview: vi.fn().mockResolvedValue(undefined) } }));
 
 import { InfiniteRenderer } from './InfiniteRenderer';
 import { api } from '../../api/client';
@@ -84,7 +85,7 @@ it('keeps Design separate from Infinite and creates an exportable artboard', asy
   const oldCreateUrl = URL.createObjectURL, oldRevokeUrl = URL.revokeObjectURL;
   URL.createObjectURL = vi.fn().mockReturnValue('blob:preview');
   URL.revokeObjectURL = vi.fn();
-  render(<InfiniteRenderer page={{ ...page, type: 'design' }} />);
+  render(<InfiniteRenderer page={{ ...page, type: 'design', revision: 0 }} />);
   await screen.findByRole('status');
   act(() => state.mounted?.(editor));
   fireEvent.click(screen.getByRole('button', { name: '+ Post quadrado' }));
@@ -92,11 +93,52 @@ it('keeps Design separate from Infinite and creates an exportable artboard', asy
   fireEvent.click(screen.getByRole('button', { name: '+ Cartão' }));
   expect(editor.createShape).toHaveBeenCalledWith(expect.objectContaining({ id: 'shape:card', type: 'design-card', props: expect.objectContaining({ radius: 16 }) }));
   expect(screen.getByRole('button', { name: /Post quadrado 1/ })).toBeInTheDocument();
+  await waitFor(() => expect(api.uploadDesignPreview).toHaveBeenCalledWith('p1', 'shape:post', 0, expect.any(Blob)), { timeout: 2000 });
   fireEvent.click(within(screen.getByLabelText('Ferramentas de Design')).getByRole('button', { name: 'Prévia' }));
   expect(await screen.findByRole('dialog', { name: 'Prévia do quadro' })).toBeInTheDocument();
   expect(editor.toImage).toHaveBeenCalledWith(['shape:post'], expect.objectContaining({ format: 'png' }));
   fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
   URL.createObjectURL = oldCreateUrl; URL.revokeObjectURL = oldRevokeUrl;
+});
+
+it('repairs a narrow imported text shape without changing its content', async () => {
+  const longText = 'Synthetic text '.repeat(15);
+  const textShape = { id: 'shape:long', type: 'text', parentId: 'shape:frame', x: 32, y: 974,
+    props: { w: 8, autoSize: true, richText: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: longText }] }] } } };
+  const editor = {
+    getCurrentPageShapes: vi.fn(() => [textShape]), getSelectedShapeIds: vi.fn(() => []),
+    getShape: vi.fn(() => ({ type: 'frame', props: { w: 960 } })), updateShape: vi.fn(),
+    getCurrentPageId: vi.fn(() => 'page:one'), getPages: vi.fn(() => [{ id: 'page:one', name: 'Página 1' }]),
+    store: { listen: vi.fn(() => () => undefined) }, user: { getUserPreferences: vi.fn(() => ({ isSnapMode: false })) },
+    getInstanceState: vi.fn(() => ({ isGridMode: false })),
+  };
+  render(<InfiniteRenderer page={{ ...page, type: 'design' }} />);
+  await screen.findByRole('status');
+  act(() => state.mounted?.(editor));
+  expect(editor.updateShape).toHaveBeenCalledWith({ id: 'shape:long', type: 'text', props: { w: 400, autoSize: false } });
+  expect(textShape.props.richText.content[0].content[0].text).toBe(longText);
+});
+
+it('refreshes a clean Design document after an external MCP revision', async () => {
+  vi.mocked(api.patchPage).mockClear();
+  vi.mocked(loadSnapshot).mockClear();
+  vi.mocked(api.getPage).mockResolvedValueOnce({ ...page, revision: 2,
+    content: { tldraw: true, version: 1, data: { document: { store: {}, schema: {} }, session: {} } } } as unknown as Page);
+  render(<InfiniteRenderer page={{ ...page, type: 'design', revision: 1 }} />);
+  await screen.findByRole('status');
+  act(() => window.dispatchEvent(new Event('focus')));
+  await waitFor(() => expect(api.getPage).toHaveBeenCalledWith('p1'));
+  await waitFor(() => expect(loadSnapshot).toHaveBeenCalled());
+  expect(api.patchPage).not.toHaveBeenCalled();
+});
+
+it('does not replace unsaved local changes when checking for MCP edits', async () => {
+  vi.mocked(api.getPage).mockClear();
+  render(<InfiniteRenderer page={{ ...page, type: 'design', revision: 1 }} />);
+  await screen.findByRole('status');
+  act(() => { state.changed?.(); window.dispatchEvent(new Event('focus')); });
+  expect(api.getPage).not.toHaveBeenCalled();
+  expect(screen.getByRole('status')).toHaveTextContent('Salvando');
 });
 
 it('does not replace an invalid Design document with an empty canvas', async () => {

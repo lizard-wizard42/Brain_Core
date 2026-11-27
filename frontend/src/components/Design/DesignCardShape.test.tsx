@@ -6,7 +6,7 @@ import { cardAppearance } from './designCardModel';
 
 vi.mock('tldraw', () => ({
   HTMLContainer: 'div', Rectangle2d: class {}, ShapeUtil: class {},
-  T: { number: {}, string: {} }, resizeBox: vi.fn(),
+  T: { number: {}, string: {}, optional: (value: unknown) => value }, resizeBox: vi.fn(),
 }));
 
 const util = Object.create(DesignCardShapeUtil.prototype) as DesignCardShapeUtil;
@@ -57,4 +57,20 @@ it('keeps explicit line breaks and clips long text in the exported preview', () 
   expect(svg).toContain('<tspan x="16" dy="0">Primeira linha</tspan>');
   expect(svg).toContain('Segunda linha muito');
   expect(svg).toContain('longa que ultrapassa');
+});
+
+it('preserves rich text controls and a gradient in canvas and SVG export', () => {
+  const card = shape();
+  Object.assign(card.props, { text: 'Promoção', fontFamily: 'Georgia', fontWeight: 700,
+    textAlign: 'center', verticalAlign: 'middle', padding: 24, lineHeight: 1.5,
+    letterSpacing: 2, gradientTo: '#345678' });
+  const canvas = util.component(card);
+  const surface = canvas.props.children as React.ReactElement<{ style: React.CSSProperties }>;
+  expect(surface.props.style.fontWeight).toBe(700);
+  expect(surface.props.style.justifyContent).toBe('center');
+  expect(surface.props.style.backgroundImage).toContain('#345678');
+  const svg = renderToStaticMarkup(util.toSvg(card));
+  expect(svg).toContain('linearGradient');
+  expect(svg).toContain('font-weight="700"');
+  expect(svg).toContain('text-anchor="middle"');
 });

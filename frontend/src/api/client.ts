@@ -298,6 +298,15 @@ export const api = {
     return page;
   },
 
+  uploadDesignPreview: async (id: string, frameId: string, revision: number, png: Blob): Promise<void> => {
+    if (png.type !== 'image/png' || png.size > 3 * 1024 * 1024) return;
+    const response = await fetch(`${API_HOST}${BASE_URL}/api/pages/${encodeURIComponent(id)}/design-preview`, {
+      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'image/png',
+        'x-design-frame-id': frameId, 'x-design-revision': String(revision) }, body: png,
+    });
+    if (!response.ok && response.status !== 409) throw new Error(`Preview upload failed: ${response.status}`);
+  },
+
   getSharedPages: (direction: 'received' | 'sent') =>
     request<import('../types').SharedPageSummary[]>(`/api/pages/shared?direction=${direction}`),
 
@@ -360,7 +369,7 @@ export const api = {
 
   renamePage: (id: string, title: string) => writePageRevision(id, 'PATCH', { title }),
 
-  patchPage: (id: string, data: { icon?: string; cover_url?: string | null; cover_position_y?: number; title?: string; sort_order?: number; parent_page_id?: string | null; status?: string | null; due_date?: string | null; tags?: string[]; working_directory?: string | null; content?: TiptapDoc | InfiniteDoc | NotebookDoc }, options?: { keepalive?: boolean }) =>
+  patchPage: (id: string, data: { revision?: number; icon?: string; cover_url?: string | null; cover_position_y?: number; title?: string; sort_order?: number; parent_page_id?: string | null; status?: string | null; due_date?: string | null; tags?: string[]; working_directory?: string | null; content?: TiptapDoc | InfiniteDoc | NotebookDoc }, options?: { keepalive?: boolean }) =>
     writePageRevision(id, 'PATCH', data, options?.keepalive),
 
   uploadCover: async (id: string, file: File): Promise<import('../types').Page> => {

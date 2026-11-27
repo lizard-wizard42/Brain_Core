@@ -155,7 +155,7 @@ test('a pending revocation prevents a write that has already passed the initial 
   } finally { await connection.query('ROLLBACK'); connection.release(); }
 });
 
-test('MCP stdio exposes 23 tools and exercises pages and notes against real PostgreSQL', async () => {
+test('MCP stdio exposes 31 tools and exercises pages and notes against real PostgreSQL', async () => {
   const mcpRequire = createRequire(path.resolve(__dirname, '../../mcp/package.json'));
   const { Client } = mcpRequire('@modelcontextprotocol/client');
   const { StdioClientTransport } = mcpRequire('@modelcontextprotocol/client/stdio');
@@ -173,7 +173,7 @@ test('MCP stdio exposes 23 tools and exercises pages and notes against real Post
   };
   try {
     await client.connect(transport);
-    assert.equal((await client.listTools()).tools.length, 23);
+    assert.equal((await client.listTools()).tools.length, 31);
     const doc = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Original', marks: [{ type: 'bold' }] }] }] };
     for (const kind of ['pages', 'notes']) {
       const input = { ...operation(), title: `MCP synthetic ${kind}`, ...(kind === 'pages' ? { content: doc } : { body: 'Original' }) };
@@ -206,8 +206,62 @@ test('MCP stdio exposes 23 tools and exercises pages and notes against real Post
       }
       else assert.equal(restored.body, 'Original');
     }
+    const design = await invoke('design', 'create', { ...operation(), title: 'Synthetic Design board' });
+    const batchInput = { ...operation(), id: design.id, expected_revision: 0, operations: [
+      { action: 'add_frame', client_id: 'post', name: 'Post', width: 1080, height: 1080 },
+      { action: 'add_card', client_id: 'title', frame_ref: 'post', width: 600, height: 120, text: 'Synthetic headline' },
+    ] };
+    const batched = await invoke('design', 'batch', batchInput);
+    assert.equal(batched.revision, 1);
+    assert.deepEqual(await invoke('design', 'batch', batchInput), batched);
+    assert.ok(batched.created_shapes.post.startsWith('shape:'));
+    const tree = await invoke('design', 'get_tree', { id: design.id });
+    assert.equal(tree.shapes.length, 2);
+    assert.equal(tree.shapes.find(item => item.id === batched.created_shapes.title).parent_id, batched.created_shapes.post);
+    const editedShape = await invoke('design', 'update_shape', { ...operation(), id: design.id, expected_revision: 1,
+      shape_id: batched.created_shapes.title, patch: { x: 80, props: { fontWeight: 700 } } });
+    assert.equal(editedShape.revision, 2);
+    const deletedShape = await invoke('design', 'delete_shapes', { ...operation(), id: design.id, expected_revision: 2,
+      shape_ids: [batched.created_shapes.title] });
+    assert.equal(deletedShape.revision, 3);
+    assert.equal((await invoke('design', 'get_tree', { id: design.id })).shapes.length, 1);
   } finally {
     await client.close(); fs.rmSync(directory, { recursive: true });
+  }
+});
+
+test('MCP image uploads preserve ownership, idempotency and Design image boundaries', async () => {
+  const { config } = require('../dist/config');
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'brain-agent-assets-e2e-'));
+  const previous = config.UPLOADS_DIR;
+  config.UPLOADS_DIR = directory;
+  const image = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lXcAAAAASUVORK5CYII=';
+  const input = { ...operation(), name: 'synthetic.png', mime_type: 'image/png', data_base64: image };
+  const otherToken = await token(['pages:read', 'pages:write'], { user: other });
+  try {
+    assert.equal((await call('assets', 'upload', input, readToken)).status, 403);
+    const uploaded = await call('assets', 'upload', input);
+    assert.equal(uploaded.status, 200);
+    assert.match(uploaded.data.url, /^\/uploads\/design\/[0-9a-f]{64}\.png$/);
+    assert.deepEqual((await call('assets', 'upload', input)).data, uploaded.data);
+    assert.equal((await call('assets', 'upload', { ...input, data_base64: image.slice(0, -4) })).status, 409);
+    const ownerAssets = await call('assets', 'list', {});
+    const otherAssets = await call('assets', 'list', {}, otherToken);
+    assert.equal(ownerAssets.status, 200);
+    assert.ok(ownerAssets.data.items.some(item => item.url === uploaded.data.url));
+    assert.ok(!otherAssets.data.items.some(item => item.url === uploaded.data.url));
+    assert.equal((await call('assets', 'upload', { ...operation(), name: '../outside.png', mime_type: 'image/png', data_base64: image })).status, 400);
+    assert.equal((await call('assets', 'upload', { ...operation(), name: 'fake.png', mime_type: 'image/png', data_base64: Buffer.from('not an image').toString('base64') })).status, 400);
+    const board = await call('design', 'create', { ...operation(), title: 'Synthetic image board' });
+    assert.equal(board.status, 200);
+    const added = await call('design', 'add_image', { ...operation(), id: board.data.id, expected_revision: 0, width: 10, height: 10, src: uploaded.data.url });
+    assert.equal(added.status, 200);
+    const foreignBoard = await call('design', 'create', { ...operation(), title: 'Synthetic foreign image board' }, otherToken);
+    assert.equal(foreignBoard.status, 200);
+    assert.equal((await call('design', 'add_image', { ...operation(), id: foreignBoard.data.id, expected_revision: 0, width: 10, height: 10, src: uploaded.data.url }, otherToken)).status, 404);
+  } finally {
+    config.UPLOADS_DIR = previous;
+    fs.rmSync(directory, { recursive: true, force: true });
   }
 });
 

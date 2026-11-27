@@ -1,12 +1,15 @@
 import { validDocument } from '../services/noteDocument';
 import { validDesignDocument } from '../services/designDocument';
 import { addDesignShape, InvalidDesignShape } from '../services/designShapes';
+import { designShapeTree, mutateDesignShapes, InvalidDesignMutation } from '../services/designShapeMutations';
 import { Router, Request } from 'express';
 import { createHash, randomUUID } from 'crypto';
 import { PoolClient } from 'pg';
 import { pool, query } from '../config/database';
 import { PageConflict, PageMissing, savePageRevision } from '../services/pageAccess';
 import { rateLimit } from 'express-rate-limit';
+import { uploadAgentAsset, listAgentAssets, InvalidAgentAsset } from '../services/agentAssets';
+import { getDesignPreview, DesignPreviewError } from '../services/designPreview';
 
 type Kind = 'pages' | 'notes' | 'design';
 type Token = { id: string; user_id: string; scopes: string[] };
@@ -101,6 +104,47 @@ router.use(async (req: AgentRequest, res, next) => {
   }
 });
 
+router.post('/assets/:action', async (req: AgentRequest, res) => {
+  const client = await pool.connect().catch(() => null);
+  if (!client) { res.status(503).json({ error: 'Integration unavailable' }); return; }
+  let transaction = false;
+  try {
+    const action = String(req.params.action);
+    if (!['list','upload'].includes(action)) throw new AgentError(404, 'Tool not found');
+    const body = req.body;
+    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AgentError(400, 'Object required');
+    const allowed = action === 'upload' ? ['operation_id','name','mime_type','data_base64'] : ['limit','offset'];
+    if (Object.keys(body).some(key => !allowed.includes(key))) throw new AgentError(400, 'Unsupported field');
+    await client.query('BEGIN'); transaction = true;
+    const token = (await client.query<Token>(`${tokenSql} FOR SHARE OF t, u, s`, [req.integrationHash])).rows[0];
+    if (!token) throw new AgentError(401, 'Integration disabled, expired or revoked');
+    if (!token.scopes.includes(`pages:${action === 'upload' ? 'write' : 'read'}`)) throw new AgentError(403, 'Scope denied');
+    if (action === 'list') {
+      const result = await listAgentAssets(client, token.user_id, body.limit ?? 20, body.offset ?? 0);
+      await client.query('COMMIT'); transaction = false; res.json(result); return;
+    }
+    const operationId = validId(body.operation_id);
+    const requestHash = hash(JSON.stringify([action, body.name, body.mime_type, body.data_base64]));
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`${token.id}:${operationId}`]);
+    const previous = (await client.query('SELECT request_hash, response FROM integration_operations WHERE token_id = $1 AND operation_id = $2',
+      [token.id, operationId])).rows[0];
+    if (previous) {
+      if (previous.request_hash !== requestHash) throw new AgentError(409, 'operation_id was already used for different input');
+      await client.query('COMMIT'); transaction = false; res.json(previous.response); return;
+    }
+    const response = await uploadAgentAsset(client, token.user_id, body as { name: string; mime_type: string; data_base64: string });
+    await client.query('INSERT INTO integration_audit (token_id,user_id,operation,target_kind,target_id) VALUES ($1,$2,$3,$4,$5)',
+      [token.id, token.user_id, 'upload', 'assets', operationId]);
+    await client.query('INSERT INTO integration_operations (token_id,operation_id,request_hash,response) VALUES ($1,$2,$3,$4)',
+      [token.id, operationId, requestHash, JSON.stringify(response)]);
+    await client.query('COMMIT'); transaction = false; res.json(response);
+  } catch (error) {
+    if (transaction) await client.query('ROLLBACK');
+    const status = error instanceof AgentError || error instanceof InvalidAgentAsset ? error.status : 500;
+    res.status(status).json({ error: error instanceof AgentError || error instanceof InvalidAgentAsset ? error.message : 'Integration unavailable' });
+  } finally { client.release(); }
+});
+
 router.post('/:kind/:action', async (req: AgentRequest, res) => {
   const client = await pool.connect().catch(() => null);
   if (!client) { res.status(503).json({ error: 'Integration unavailable' }); return; }
@@ -108,11 +152,14 @@ router.post('/:kind/:action', async (req: AgentRequest, res) => {
   try {
     const kind = String(req.params.kind) as Kind;
     const action = String(req.params.action);
-    const shapeAction = kind === 'design' && ['add_frame', 'add_text', 'add_rectangle', 'add_image', 'add_card'].includes(action);
-    if (!['pages', 'notes', 'design'].includes(kind) || (!['list', 'get', 'versions', 'create', 'update', 'restore'].includes(action) && !shapeAction)) {
+    const addActions = ['add_frame', 'add_text', 'add_rectangle', 'add_image', 'add_card'];
+    const mutationActions = ['update_shape', 'delete_shapes', 'reorder_shape'];
+    const shapeAction = kind === 'design' && addActions.includes(action);
+    const designAction = kind === 'design' && (shapeAction || mutationActions.includes(action) || ['get_tree', 'batch', 'preview'].includes(action));
+    if (!['pages', 'notes', 'design'].includes(kind) || (!['list', 'get', 'versions', 'create', 'update', 'restore'].includes(action) && !designAction)) {
       throw new AgentError(404, 'Tool not found');
     }
-    const write = ['create', 'update', 'restore'].includes(action) || shapeAction;
+    const write = ['create', 'update', 'restore'].includes(action) || shapeAction || mutationActions.includes(action) || action === 'batch';
     const body = req.body;
     if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AgentError(400, 'Object required');
     const allowed: Record<string, string[]> = {
@@ -121,10 +168,16 @@ router.post('/:kind/:action', async (req: AgentRequest, res) => {
       update: ['id', 'operation_id', 'expected_revision', 'title', kind !== 'notes' ? 'content' : 'body'],
       restore: ['id', 'operation_id', 'expected_revision', 'saved_revision'],
       add_frame: ['id', 'operation_id', 'expected_revision', 'name', 'width', 'height', 'x', 'y'],
-      add_text: ['id', 'operation_id', 'expected_revision', 'frame_id', 'text', 'x', 'y', 'color'],
+      add_text: ['id', 'operation_id', 'expected_revision', 'frame_id', 'text', 'x', 'y', 'color', 'width'],
       add_rectangle: ['id', 'operation_id', 'expected_revision', 'frame_id', 'width', 'height', 'x', 'y', 'color', 'fill'],
       add_image: ['id', 'operation_id', 'expected_revision', 'frame_id', 'src', 'alt_text', 'width', 'height', 'x', 'y'],
       add_card: ['id', 'operation_id', 'expected_revision', 'frame_id', 'text', 'width', 'height', 'x', 'y', 'appearance'],
+      get_tree: ['id'],
+      preview: ['id', 'frame_id'],
+      update_shape: ['id', 'operation_id', 'expected_revision', 'shape_id', 'patch'],
+      delete_shapes: ['id', 'operation_id', 'expected_revision', 'shape_ids'],
+      reorder_shape: ['id', 'operation_id', 'expected_revision', 'shape_id', 'before_shape_id'],
+      batch: ['id', 'operation_id', 'expected_revision', 'operations'],
     };
     if (Object.keys(body).some(key => !allowed[action].includes(key))) throw new AgentError(400, 'Unsupported field');
     let token = req.integration!;
@@ -134,6 +187,20 @@ router.post('/:kind/:action', async (req: AgentRequest, res) => {
     if (!token) throw new AgentError(401, 'Integration disabled, expired or revoked');
     checkScope(token, kind, write);
     if (!write) {
+      if (action === 'get_tree') {
+        const id = validId(body.id);
+        const row = await getOwned(client, 'design', token.user_id, id);
+        const shapes = designShapeTree(row.content);
+        await client.query('COMMIT'); transaction = false;
+        res.json({ id, revision: row.revision, shapes }); return;
+      }
+      if (action === 'preview') {
+        const id = validId(body.id);
+        if (typeof body.frame_id !== 'string') throw new AgentError(400, 'Frame ID required');
+        const preview = await getDesignPreview(token.user_id, id, body.frame_id);
+        await client.query('COMMIT'); transaction = false;
+        res.json({ revision: preview.revision, mime_type: 'image/png', data: preview.bytes.toString('base64') }); return;
+      }
       const limit = body.limit ?? 20;
       const offset = body.offset ?? 0;
       if (!Number.isInteger(limit) || limit < 1 || limit > 50 || !Number.isSafeInteger(offset) || offset < 0) throw new AgentError(400, 'Invalid pagination');
@@ -187,6 +254,12 @@ router.post('/:kind/:action', async (req: AgentRequest, res) => {
       if (Number(current.revision) !== expected) throw new AgentError(409, 'Revision conflict; read the current note before editing');
     }
     let createdShapeId: string | undefined;
+    let createdShapes: Record<string, string> | undefined;
+    const requireOwnedImage = async (src: unknown) => {
+      if (typeof src !== 'string' || !/^\/uploads\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-]+\.(?:png|jpg|jpeg|webp|gif)$/i.test(src)) throw new AgentError(400, 'Invalid image URL');
+      const rows = await client.query('SELECT 1 FROM uploaded_assets WHERE relative_path = $1 AND owner_user_id = $2', [src.slice('/uploads/'.length), token.user_id]);
+      if (!rows.rows.length) throw new AgentError(404, 'Owned image not found');
+    };
     if (action === 'restore') {
       const saved = revision(body.saved_revision);
       const row = kind !== 'notes'
@@ -197,15 +270,40 @@ router.post('/:kind/:action', async (req: AgentRequest, res) => {
       // Existing versions may predate current input limits; preserve them exactly.
       changes = row;
     } else if (shapeAction) {
-      if (action === 'add_image') {
-        const src = body.src;
-        if (typeof src !== 'string' || !/^\/uploads\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-]+\.(?:png|jpg|jpeg|webp|gif)$/i.test(src)) throw new AgentError(400, 'Invalid image URL');
-        const rows = await client.query('SELECT 1 FROM uploaded_assets WHERE relative_path = $1 AND owner_user_id = $2', [src.slice('/uploads/'.length), token.user_id]);
-        if (!rows.rows.length) throw new AgentError(404, 'Owned image not found');
-      }
+      if (action === 'add_image') await requireOwnedImage(body.src);
       const result = addDesignShape(current!.content, action as 'add_frame' | 'add_text' | 'add_rectangle' | 'add_image' | 'add_card', body);
       changes = { content: result.content };
       createdShapeId = result.shapeId;
+    } else if (kind === 'design' && mutationActions.includes(action)) {
+      changes = { content: mutateDesignShapes(current!.content, action as 'update_shape' | 'delete_shapes' | 'reorder_shape', body) };
+    } else if (kind === 'design' && action === 'batch') {
+      const operations = body.operations;
+      if (!Array.isArray(operations) || !operations.length || operations.length > 100) throw new AgentError(400, 'Batch must have 1 to 100 operations');
+      let content = current!.content;
+      createdShapes = {};
+      for (const operation of operations) {
+        if (!operation || typeof operation !== 'object' || Array.isArray(operation)) throw new AgentError(400, 'Invalid batch operation');
+        const step = operation as Record<string, unknown>;
+        const stepAction = step.action;
+        if (typeof stepAction !== 'string' || ![...addActions, ...mutationActions].includes(stepAction)) throw new AgentError(400, 'Unsupported batch operation');
+        const accepted = [...allowed[stepAction].filter(key => !['id','operation_id','expected_revision'].includes(key)), 'action', 'client_id', 'frame_ref'];
+        if (Object.keys(step).some(key => !accepted.includes(key))) throw new AgentError(400, 'Unsupported batch field');
+        const clientId = step.client_id;
+        if (clientId !== undefined && (typeof clientId !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(clientId) || createdShapes[clientId])) throw new AgentError(400, 'Invalid or duplicate client_id');
+        const input = { ...step };
+        delete input.action; delete input.client_id; delete input.frame_ref;
+        if (step.frame_ref !== undefined) {
+          if (step.frame_id !== undefined || typeof step.frame_ref !== 'string' || !createdShapes[step.frame_ref]) throw new AgentError(400, 'Unknown frame_ref');
+          input.frame_id = createdShapes[step.frame_ref];
+        }
+        if (addActions.includes(stepAction)) {
+          if (stepAction === 'add_image') await requireOwnedImage(step.src);
+          const result = addDesignShape(content, stepAction as 'add_frame' | 'add_text' | 'add_rectangle' | 'add_image' | 'add_card', input);
+          content = result.content;
+          if (clientId) createdShapes[clientId] = result.shapeId;
+        } else content = mutateDesignShapes(content, stepAction as 'update_shape' | 'delete_shapes' | 'reorder_shape', input);
+      }
+      changes = { content };
     } else { changes = changesFor(kind, body); }
     let updated: Record<string, unknown>;
     if (action === 'create') {
@@ -235,7 +333,7 @@ router.post('/:kind/:action', async (req: AgentRequest, res) => {
       updated = (await client.query(`UPDATE remember_notes SET ${entries.map(([key], i) => `${key} = $${i + 3}`).join(', ')}, updated_at = NOW()
         WHERE id = $1 AND user_id = $2 RETURNING *`, [id, token.user_id, ...entries.map(([, value]) => value)])).rows[0];
     }
-    const response = { ...publicRow(kind, updated), ...(createdShapeId ? { shape_id: createdShapeId } : {}) };
+    const response = { ...publicRow(kind, updated), ...(createdShapeId ? { shape_id: createdShapeId } : {}), ...(createdShapes ? { created_shapes: createdShapes } : {}) };
     await client.query(`INSERT INTO integration_audit (token_id,user_id,operation,target_kind,target_id)
       VALUES ($1,$2,$3,$4,$5)`, [token.id, token.user_id, action, kind, id]);
     await client.query(`INSERT INTO integration_operations (token_id,operation_id,request_hash,response)
@@ -244,8 +342,8 @@ router.post('/:kind/:action', async (req: AgentRequest, res) => {
     res.json(response);
   } catch (error) {
     if (transaction) await client.query('ROLLBACK');
-    const status = error instanceof AgentError ? error.status : error instanceof InvalidDesignShape ? 400 : error instanceof PageConflict ? 409 : error instanceof PageMissing ? 404 : 500;
-    res.status(status).json({ error: error instanceof AgentError || error instanceof InvalidDesignShape ? error.message : status === 500 ? 'Integration unavailable' : 'Note unavailable or revision conflict' });
+    const status = error instanceof AgentError || error instanceof DesignPreviewError ? error.status : error instanceof InvalidDesignShape || error instanceof InvalidDesignMutation ? 400 : error instanceof PageConflict ? 409 : error instanceof PageMissing ? 404 : 500;
+    res.status(status).json({ error: error instanceof AgentError || error instanceof DesignPreviewError || error instanceof InvalidDesignShape || error instanceof InvalidDesignMutation ? error.message : status === 500 ? 'Integration unavailable' : 'Note unavailable or revision conflict' });
   } finally { client.release(); }
 });
 
