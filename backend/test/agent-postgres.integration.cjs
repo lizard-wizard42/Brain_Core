@@ -155,7 +155,7 @@ test('a pending revocation prevents a write that has already passed the initial 
   } finally { await connection.query('ROLLBACK'); connection.release(); }
 });
 
-test('MCP stdio performs all 12 tools against the real API and PostgreSQL', async () => {
+test('MCP stdio exposes 23 tools and exercises pages and notes against real PostgreSQL', async () => {
   const mcpRequire = createRequire(path.resolve(__dirname, '../../mcp/package.json'));
   const { Client } = mcpRequire('@modelcontextprotocol/client');
   const { StdioClientTransport } = mcpRequire('@modelcontextprotocol/client/stdio');
@@ -173,7 +173,7 @@ test('MCP stdio performs all 12 tools against the real API and PostgreSQL', asyn
   };
   try {
     await client.connect(transport);
-    assert.equal((await client.listTools()).tools.length, 12);
+    assert.equal((await client.listTools()).tools.length, 23);
     const doc = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Original', marks: [{ type: 'bold' }] }] }] };
     for (const kind of ['pages', 'notes']) {
       const input = { ...operation(), title: `MCP synthetic ${kind}`, ...(kind === 'pages' ? { content: doc } : { body: 'Original' }) };

@@ -6,6 +6,7 @@ import { createHash, randomUUID } from 'crypto';
 import { PoolClient } from 'pg';
 import { pool, query } from '../config/database';
 import { PageConflict, PageMissing, savePageRevision } from '../services/pageAccess';
+import { rateLimit } from 'express-rate-limit';
 
 type Kind = 'pages' | 'notes' | 'design';
 type Token = { id: string; user_id: string; scopes: string[] };
@@ -83,6 +84,9 @@ function checkScope(token: Token, kind: Kind, write: boolean) {
 }
 
 const router = Router();
+// Bound unauthenticated credential lookups and authenticated page writes before
+// either path reaches PostgreSQL. The app-wide API limiter remains a backstop.
+router.use(rateLimit({ windowMs: 60_000, limit: 600, standardHeaders: 'draft-7', legacyHeaders: false }));
 // Login JWTs and cookies are deliberately not accepted here.
 router.use(async (req: AgentRequest, res, next) => {
   try {

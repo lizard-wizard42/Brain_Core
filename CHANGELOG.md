@@ -6,6 +6,7 @@
 - Expose Design pages through dedicated MCP tools under the existing page read/write permissions, with ownership checks and saved revisions.
 - Make Settings navigation easier to scan and explain which MCP permissions cover Design.
 - Improve Design card wrapping, layer order for large boards, document-only autosave, 4:5 presets and PNG scale controls.
+- Bound MCP request volume before credential lookup and keep the disposable PostgreSQL integration suite aligned with the expanded tool list.
 
 
 ## Unreleased — page card hover motion
