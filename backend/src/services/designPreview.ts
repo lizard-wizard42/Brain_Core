@@ -42,7 +42,7 @@ function hasFrame(content: unknown, frameId: string): boolean {
   return shape?.typeName === 'shape' && shape.type === 'frame';
 }
 function validPng(bytes: unknown): bytes is Buffer {
-  return Buffer.isBuffer(bytes) && bytes.length >= 24 && bytes.length <= MAX_PNG_BYTES && bytes.subarray(0, 8).equals(pngMagic) &&
+  return typeof bytes === 'object' && bytes !== null && !Array.isArray(bytes) && Buffer.isBuffer(bytes) && bytes.length >= 24 && bytes.length <= MAX_PNG_BYTES && bytes.subarray(0, 8).equals(pngMagic) &&
     bytes.toString('ascii', 12, 16) === 'IHDR' && bytes.readUInt32BE(16) > 0 && bytes.readUInt32BE(16) <= 10000 &&
     bytes.readUInt32BE(20) > 0 && bytes.readUInt32BE(20) <= 10000;
 }
