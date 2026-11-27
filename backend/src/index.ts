@@ -7,6 +7,7 @@ import { Server as SocketIO } from 'socket.io';
 import cors from 'cors';
 import morgan from 'morgan';
 import multer from 'multer';
+import { rateLimit } from 'express-rate-limit';
 
 import { config } from './config/index';
 import { ensureAppSchema } from './config/bootstrap';
@@ -160,7 +161,7 @@ app.use('/api/integrations', authMiddleware, integrationsRouter);
 app.use('/api/contacts', authMiddleware, contactsRouter);
 app.use('/api/terminal', authMiddleware, ownerOnly);
 app.use('/api/folders', authMiddleware, foldersRouter);
-app.use('/api/pages', authMiddleware, designPreviewRouter, pagesRouter);
+app.use('/api/pages', authMiddleware, rateLimit({ windowMs: 60_000, limit: 600, standardHeaders: 'draft-8', legacyHeaders: false }), designPreviewRouter, pagesRouter);
 app.use('/api/emojis', authMiddleware, emojisRouter);
 app.use('/api/remember', authMiddleware, rememberRouter);
 // AI calls a paid upstream on every request — cap per-user so a leaked session

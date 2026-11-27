@@ -41,13 +41,13 @@ function hasFrame(content: unknown, frameId: string): boolean {
   const shape = doc?.data?.document?.store?.[frameId];
   return shape?.typeName === 'shape' && shape.type === 'frame';
 }
-function validPng(bytes: Buffer): boolean {
-  return bytes.length >= 24 && bytes.length <= MAX_PNG_BYTES && bytes.subarray(0, 8).equals(pngMagic) &&
+function validPng(bytes: unknown): bytes is Buffer {
+  return Buffer.isBuffer(bytes) && bytes.length >= 24 && bytes.length <= MAX_PNG_BYTES && bytes.subarray(0, 8).equals(pngMagic) &&
     bytes.toString('ascii', 12, 16) === 'IHDR' && bytes.readUInt32BE(16) > 0 && bytes.readUInt32BE(16) <= 10000 &&
     bytes.readUInt32BE(20) > 0 && bytes.readUInt32BE(20) <= 10000;
 }
 
-export async function storeDesignPreview(userId: string, pageId: string, revision: number, frameId: string, bytes: Buffer): Promise<void> {
+export async function storeDesignPreview(userId: string, pageId: string, revision: number, frameId: string, bytes: unknown): Promise<void> {
   validateId(pageId, frameId);
   if (!Number.isSafeInteger(revision) || revision < 0) throw new DesignPreviewError(400, 'Invalid Design revision');
   if (!validPng(bytes)) throw new DesignPreviewError(400, 'Invalid or oversized PNG');

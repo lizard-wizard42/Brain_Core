@@ -8,8 +8,9 @@ router.post('/:id/design-preview', uploadRateLimit, raw({ type: 'image/png', lim
   try {
     const frameId = req.header('x-design-frame-id') || '';
     const revision = Number(req.header('x-design-revision'));
-    if (!req.userId || !Buffer.isBuffer(req.body)) { res.status(400).json({ error: 'PNG required' }); return; }
-    await storeDesignPreview(req.userId, String(req.params.id), revision, frameId, req.body);
+    const pageId = req.params.id;
+    if (!req.userId || typeof pageId !== 'string' || !Buffer.isBuffer(req.body)) { res.status(400).json({ error: 'PNG required' }); return; }
+    await storeDesignPreview(req.userId, pageId, revision, frameId, req.body);
     res.status(204).end();
   } catch (error) {
     res.status(error instanceof DesignPreviewError ? error.status : 503).json({ error: error instanceof DesignPreviewError ? error.message : 'Preview unavailable' });
