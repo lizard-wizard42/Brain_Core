@@ -25,8 +25,16 @@
   border: 1px solid var(--theme-border);
   flex: 1;
   min-width: 0;
-  padding: 0 8px;
+  padding: 0 4px;
   font-size: var(--tree-font-size);
   font-weight: 600;
+  white-space: nowrap;
 }
-.sidebar-footer-tool { width: var(--sidebar-footer-height); flex-shrink: 0; }
+.sidebar-footer .sidebar-footer-settings {
+  flex: 0 0 var(--sidebar-footer-height);
+  width: var(--sidebar-footer-height);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface);
+}
+.sidebar-footer .sidebar-footer-settings:hover { background: var(--theme-hover); }
+.sidebar-footer-tool { flex: 0 0 var(--sidebar-footer-height); width: var(--sidebar-footer-height); }

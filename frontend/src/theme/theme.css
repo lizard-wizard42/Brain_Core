@@ -219,7 +219,7 @@ html, body, #root { background-color: var(--theme-background); color: var(--them
   --tree-indent: 14px;
   --tree-icon-size: 18px;
   --tree-font-size: 13px;
-  --sidebar-footer-height: 36px;
+  --sidebar-footer-height: 44px;
 }
 @media (max-width: 767px) {
   :root { --sidebar-width: min(86vw, 320px); }

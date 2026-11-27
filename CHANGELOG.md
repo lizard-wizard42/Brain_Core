@@ -8,6 +8,11 @@
 - Improve Design card wrapping, layer order for large boards, document-only autosave, 4:5 presets and PNG scale controls.
 - Bound MCP request volume before credential lookup and keep the disposable PostgreSQL integration suite aligned with the expanded tool list.
 
+## Unreleased — dashboard activity and sidebar footer
+
+- Show exactly 90 local calendar days in the activity grid, align cells to weekdays, and label the total as pages and notes according to the available data.
+- Keep activity cells evenly spaced and use the remaining card width for compact period indicators; keep the current-day and recall panels together so an empty day does not stretch beside recent pages.
+- Keep the sidebar footer on one row with a larger, labeled-for-accessibility gear button that fits beside New page and Trash.
 
 ## Unreleased — page card hover motion
 
