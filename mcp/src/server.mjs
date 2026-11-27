@@ -42,6 +42,12 @@ export function createServer({ base, token }) {
     add_rectangle: 'Add an editable rectangle to a Design page, optionally inside a frame_id. Coordinates are relative to its parent. Returns shape_id.',
     add_image: 'Place an existing raster upload owned by the account on a Design page, optionally inside a frame_id. Upload the image through the web app first; this tool arranges it. Returns shape_id.',
     add_card: 'Add an editable Design card with text and CSS-like appearance (fill, radius, border, shadow, filters) to a frame or page. Returns shape_id.',
+    get_tree: 'List shapes and their parent, order, geometry and editable props in a Design page.',
+    preview: 'Read the current browser-rendered PNG preview for a Design frame. Open the Design page in the browser first to populate the preview cache.',
+    update_shape: 'Update a single owned Design shape with a bounded patch. Requires its current page revision.',
+    delete_shapes: 'Delete selected Design shapes and descendants from one page. Preserves unrelated shapes and page history.',
+    reorder_shape: 'Move a Design shape before a sibling, or to the end when before_shape_id is omitted.',
+    batch: 'Apply up to 100 shape operations atomically in one revision. Use client_id and frame_ref to place later operations inside a frame created earlier in the batch.',
   };
   for (const kind of ['pages', 'notes', 'design']) {
     const editable = kind === 'pages'
@@ -58,14 +64,28 @@ export function createServer({ base, token }) {
       restore: z.object({ id, operation_id: id, expected_revision: revision, saved_revision: revision }).strict(),
       ...(kind === 'design' ? {
         add_frame: z.object({ id, operation_id: id, expected_revision: revision, name: z.string().trim().min(1).max(160), width: z.number().min(1).max(10000), height: z.number().min(1).max(10000), x: z.number().min(-1_000_000).max(1_000_000).optional(), y: z.number().min(-1_000_000).max(1_000_000).optional() }).strict(),
-        add_text: z.object({ id, operation_id: id, expected_revision: revision, frame_id: z.string().regex(/^shape:[A-Za-z0-9_-]{1,128}$/).optional(), text: z.string().trim().min(1).max(5000), x: z.number().min(-1_000_000).max(1_000_000).optional(), y: z.number().min(-1_000_000).max(1_000_000).optional(), color: z.enum(['black', 'grey', 'light-violet', 'violet', 'blue', 'light-blue', 'yellow', 'orange', 'green', 'light-green', 'light-red', 'red', 'white']).optional() }).strict(),
+        add_text: z.object({ id, operation_id: id, expected_revision: revision, frame_id: z.string().regex(/^shape:[A-Za-z0-9_-]{1,128}$/).optional(), text: z.string().trim().min(1).max(5000), x: z.number().min(-1_000_000).max(1_000_000).optional(), y: z.number().min(-1_000_000).max(1_000_000).optional(), width: z.number().min(1).max(10000).optional(), color: z.enum(['black', 'grey', 'light-violet', 'violet', 'blue', 'light-blue', 'yellow', 'orange', 'green', 'light-green', 'light-red', 'red', 'white']).optional() }).strict(),
         add_rectangle: z.object({ id, operation_id: id, expected_revision: revision, frame_id: z.string().regex(/^shape:[A-Za-z0-9_-]{1,128}$/).optional(), width: z.number().min(1).max(10000), height: z.number().min(1).max(10000), x: z.number().min(-1_000_000).max(1_000_000).optional(), y: z.number().min(-1_000_000).max(1_000_000).optional(), color: z.enum(['black', 'grey', 'light-violet', 'violet', 'blue', 'light-blue', 'yellow', 'orange', 'green', 'light-green', 'light-red', 'red', 'white']).optional(), fill: z.enum(['none', 'semi', 'solid', 'pattern', 'fill', 'lined-fill']).optional() }).strict(),
         add_image: z.object({ id, operation_id: id, expected_revision: revision, frame_id: z.string().regex(/^shape:[A-Za-z0-9_-]{1,128}$/).optional(), src: z.string().regex(/^\/uploads\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-]+\.(?:png|jpg|jpeg|webp|gif)$/i).max(500), alt_text: z.string().trim().min(1).max(500).optional(), width: z.number().min(1).max(10000), height: z.number().min(1).max(10000), x: z.number().min(-1_000_000).max(1_000_000).optional(), y: z.number().min(-1_000_000).max(1_000_000).optional() }).strict(),
-        add_card: z.object({ id, operation_id: id, expected_revision: revision, frame_id: z.string().regex(/^shape:[A-Za-z0-9_-]{1,128}$/).optional(), text: z.string().max(5000).optional(), width: z.number().min(1).max(10000), height: z.number().min(1).max(10000), x: z.number().min(-1_000_000).max(1_000_000).optional(), y: z.number().min(-1_000_000).max(1_000_000).optional(), appearance: z.object({ fill: z.string().regex(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/).optional(), textColor: z.string().regex(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/).optional(), borderColor: z.string().regex(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/).optional(), shadowColor: z.string().regex(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/).optional(), fontSize: z.number().min(8).max(160).optional(), radius: z.number().min(0).max(500).optional(), borderWidth: z.number().min(0).max(40).optional(), shadowX: z.number().min(-200).max(200).optional(), shadowY: z.number().min(-200).max(200).optional(), shadowBlur: z.number().min(0).max(200).optional(), blendMode: z.enum(['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten']).optional(), brightness: z.number().min(0).max(200).optional(), contrast: z.number().min(0).max(200).optional(), saturation: z.number().min(0).max(200).optional() }).strict().optional() }).strict(),
+        add_card: z.object({ id, operation_id: id, expected_revision: revision, frame_id: z.string().regex(/^shape:[A-Za-z0-9_-]{1,128}$/).optional(), text: z.string().max(5000).optional(), width: z.number().min(1).max(10000), height: z.number().min(1).max(10000), x: z.number().min(-1_000_000).max(1_000_000).optional(), y: z.number().min(-1_000_000).max(1_000_000).optional(), appearance: z.object({ fill: z.string().regex(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/).optional(), textColor: z.string().regex(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/).optional(), borderColor: z.string().regex(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/).optional(), shadowColor: z.string().regex(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/).optional(), fontSize: z.number().min(8).max(160).optional(), radius: z.number().min(0).max(500).optional(), borderWidth: z.number().min(0).max(40).optional(), shadowX: z.number().min(-200).max(200).optional(), shadowY: z.number().min(-200).max(200).optional(), shadowBlur: z.number().min(0).max(200).optional(), blendMode: z.enum(['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten']).optional(), brightness: z.number().min(0).max(200).optional(), contrast: z.number().min(0).max(200).optional(), saturation: z.number().min(0).max(200).optional(), fontFamily: z.enum(['Inter','Arial','Georgia','monospace']).optional(), fontWeight: z.number().min(100).max(900).optional(), textAlign: z.enum(['left','center','right']).optional(), verticalAlign: z.enum(['top','middle','bottom']).optional(), padding: z.number().min(0).max(200).optional(), lineHeight: z.number().min(0.8).max(3).optional(), letterSpacing: z.number().min(-5).max(20).optional(), gradientTo: z.string().regex(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/).optional() }).strict().optional() }).strict(),
+        get_tree: z.object({ id }).strict(),
+        preview: z.object({ id, frame_id: z.string().regex(/^shape:[A-Za-z0-9_-]{1,128}$/) }).strict(),
+        update_shape: z.object({ id, operation_id: id, expected_revision: revision, shape_id: z.string().regex(/^shape:[A-Za-z0-9_-]{1,128}$/), patch: z.record(z.string(), z.unknown()) }).strict(),
+        delete_shapes: z.object({ id, operation_id: id, expected_revision: revision, shape_ids: z.array(z.string().regex(/^shape:[A-Za-z0-9_-]{1,128}$/)).min(1).max(100) }).strict(),
+        reorder_shape: z.object({ id, operation_id: id, expected_revision: revision, shape_id: z.string().regex(/^shape:[A-Za-z0-9_-]{1,128}$/), before_shape_id: z.string().regex(/^shape:[A-Za-z0-9_-]{1,128}$/).optional() }).strict(),
+        batch: z.object({ id, operation_id: id, expected_revision: revision, operations: z.array(z.object({
+          action: z.enum(['add_frame','add_text','add_rectangle','add_image','add_card','update_shape','delete_shapes','reorder_shape']),
+          client_id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).optional(), frame_ref: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).optional(),
+          frame_id: z.string().regex(/^shape:[A-Za-z0-9_-]{1,128}$/).optional(), shape_id: z.string().regex(/^shape:[A-Za-z0-9_-]{1,128}$/).optional(), before_shape_id: z.string().regex(/^shape:[A-Za-z0-9_-]{1,128}$/).optional(),
+          shape_ids: z.array(z.string().regex(/^shape:[A-Za-z0-9_-]{1,128}$/)).optional(), patch: z.record(z.string(), z.unknown()).optional(),
+          name: z.string().max(160).optional(), text: z.string().max(5000).optional(), width: z.number().min(1).max(10000).optional(), height: z.number().min(1).max(10000).optional(),
+          x: z.number().min(-1_000_000).max(1_000_000).optional(), y: z.number().min(-1_000_000).max(1_000_000).optional(), color: z.string().optional(), fill: z.string().optional(),
+          src: z.string().max(500).optional(), alt_text: z.string().max(500).optional(), appearance: z.record(z.string(), z.unknown()).optional(),
+        }).strict()).min(1).max(100) }).strict(),
       } : {}),
     };
     for (const [action, inputSchema] of Object.entries(schemas)) {
-      const write = ['create', 'update', 'restore', 'add_frame', 'add_text', 'add_rectangle', 'add_image', 'add_card'].includes(action);
+      const write = ['create', 'update', 'restore', 'add_frame', 'add_text', 'add_rectangle', 'add_image', 'add_card', 'update_shape', 'delete_shapes', 'reorder_shape', 'batch'].includes(action);
       server.registerTool(`brain_${kind}_${action}`, {
         description: `${kind === 'pages' ? 'Rich Tiptap note pages (no sections or canvases).' : kind === 'design' ? 'Design canvas pages (separate from Infinite). Use tldraw snapshots; preserve existing shapes and assets.' : 'Quick notes.'} ${descriptions[action]}`,
         inputSchema,
@@ -77,6 +97,10 @@ export function createServer({ base, token }) {
             body: JSON.stringify(args), redirect: 'error', signal: AbortSignal.timeout(15_000),
           });
           const data = await response.json();
+          if (kind === 'design' && action === 'preview' && response.ok) {
+            return { content: [{ type: 'text', text: JSON.stringify({ revision: data.revision }) },
+              { type: 'image', data: data.data, mimeType: 'image/png' }], isError: false };
+          }
           return { content: [{ type: 'text', text: JSON.stringify(data) }], isError: !response.ok };
         } catch (error) {
           const reason = error?.name === 'TimeoutError' || error?.name === 'AbortError' ? 'Request timed out'
@@ -85,6 +109,26 @@ export function createServer({ base, token }) {
         }
       });
     }
+  }
+  const assetTools = {
+    brain_assets_list: { action: 'list', write: false, schema: z.object({ ...pagination }).strict(), description: 'List raster images already owned by this Brain Core account for use with brain_design_add_image.' },
+    brain_assets_upload: { action: 'upload', write: true, schema: z.object({ operation_id: id, name: z.string().min(1).max(160), mime_type: z.enum(['image/png','image/jpeg','image/webp','image/gif']), data_base64: z.string().min(4).max(14_000_000) }).strict(), description: 'Upload a PNG, JPEG, WebP or GIF raster image (up to 10 MiB decoded) to this account; returns an owned /uploads URL usable by brain_design_add_image. Retry uncertain writes with the same operation_id and exact input.' },
+  };
+  for (const [name, tool] of Object.entries(assetTools)) {
+    server.registerTool(name, { description: tool.description, inputSchema: tool.schema,
+      annotations: { readOnlyHint: !tool.write, destructiveHint: tool.write, idempotentHint: true, openWorldHint: false } }, async args => {
+      try {
+        const response = await fetch(new URL(`/api/agent/assets/${tool.action}`, base), {
+          method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+          body: JSON.stringify(args), redirect: 'error', signal: AbortSignal.timeout(30_000),
+        });
+        const data = await response.json();
+        return { content: [{ type: 'text', text: JSON.stringify(data) }], isError: !response.ok };
+      } catch (error) {
+        const reason = error?.name === 'TimeoutError' || error?.name === 'AbortError' ? 'Request timed out' : 'Could not connect to Brain Core';
+        return { content: [{ type: 'text', text: `${reason}. Retry uncertain uploads with the SAME operation_id and identical input.` }], isError: true };
+      }
+    });
   }
   return server;
 }

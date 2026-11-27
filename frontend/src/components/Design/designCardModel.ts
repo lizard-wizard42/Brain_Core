@@ -6,6 +6,9 @@ export interface DesignCardProps {
   fill: string; radius: number; borderWidth: number; borderColor: string;
   shadowX: number; shadowY: number; shadowBlur: number; shadowColor: string;
   blendMode: DesignBlendMode; brightness: number; contrast: number; saturation: number;
+  fontFamily?: string; fontWeight?: number; textAlign?: 'left' | 'center' | 'right';
+  verticalAlign?: 'top' | 'middle' | 'bottom'; padding?: number;
+  lineHeight?: number; letterSpacing?: number; gradientTo?: string;
 }
 
 export const cardDefaults: DesignCardProps = {
@@ -13,6 +16,8 @@ export const cardDefaults: DesignCardProps = {
   fill: '#ffffff', radius: 16, borderWidth: 1, borderColor: '#d9dde5',
   shadowX: 0, shadowY: 8, shadowBlur: 20, shadowColor: '#00000033',
   blendMode: 'normal', brightness: 100, contrast: 100, saturation: 100,
+  fontFamily: 'Inter', fontWeight: 400, textAlign: 'left', verticalAlign: 'top',
+  padding: 16, lineHeight: 1.2, letterSpacing: 0,
 };
 
 const safeHex = (value: string, fallback: string) => /^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(value) ? value : fallback;
@@ -28,5 +33,12 @@ export function cardAppearance(props: DesignCardProps) {
     textColor: safeHex(props.textColor, cardDefaults.textColor), fontSize: safeNumber(props.fontSize, 8, 160),
     blendMode: safeBlend(props.blendMode), brightness: safeNumber(props.brightness, 0, 200),
     contrast: safeNumber(props.contrast, 0, 200), saturation: safeNumber(props.saturation, 0, 200),
+    fontFamily: ['Inter', 'Arial', 'Georgia', 'monospace'].includes(props.fontFamily ?? '') ? props.fontFamily! : 'Inter',
+    fontWeight: safeNumber(props.fontWeight ?? 400, 100, 900),
+    textAlign: ['left', 'center', 'right'].includes(props.textAlign ?? '') ? props.textAlign! : 'left',
+    verticalAlign: ['top', 'middle', 'bottom'].includes(props.verticalAlign ?? '') ? props.verticalAlign! : 'top',
+    padding: safeNumber(props.padding ?? 16, 0, 200), lineHeight: safeNumber(props.lineHeight ?? 1.2, 0.8, 3),
+    letterSpacing: safeNumber(props.letterSpacing ?? 0, -5, 20),
+    gradientTo: props.gradientTo ? safeHex(props.gradientTo, cardDefaults.fill) : undefined,
   };
 }

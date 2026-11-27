@@ -7,6 +7,8 @@
 - Make Settings navigation easier to scan and explain which MCP permissions cover Design.
 - Improve Design card wrapping, layer order for large boards, document-only autosave, 4:5 presets and PNG scale controls.
 - Bound MCP request volume before credential lookup and keep the disposable PostgreSQL integration suite aligned with the expanded tool list.
+- Generate valid tldraw layer indices for large boards; prevent narrow MCP text from covering other content and synchronize open Design pages with external revisions.
+- Add owner-scoped image upload/listing, frame previews, shape tree and atomic batch/edit/delete/reorder MCP tools; expand card typography, alignment and gradients.
 
 ## Unreleased — dashboard activity and sidebar footer
 

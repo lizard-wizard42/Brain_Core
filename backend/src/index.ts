@@ -15,6 +15,7 @@ import { ensureInitialAdmin } from './config/bootstrapAdmin';
 import { seedDemoData } from './config/seedDemo';
 import foldersRouter from './routes/folders';
 import pagesRouter from './routes/pages';
+import designPreviewRouter from './routes/designPreview';
 import emojisRouter from './routes/emojis';
 import rememberRouter from './routes/remember';
 import healthRouter from './routes/health';
@@ -120,12 +121,14 @@ app.use(cors({ origin: allowedOrigins, credentials: true }));
 // larger budget; everything else is small JSON and should be rejected early.
 const largeJson = express.json({ limit: '10mb' });
 const pageJson = express.json({ limit: '32mb' });
+const assetJson = express.json({ limit: '15mb' }); // 10 MiB raster encoded as base64 plus JSON envelope
 const smallJson = express.json({ limit: '256kb' });
 const hasPrefix = (path: string, prefix: string) => path === prefix || path.startsWith(`${prefix}/`);
 app.use((req, res, next) => {
   const parser = hasPrefix(req.path, '/api/pages') || hasPrefix(req.path, '/api/agent/design')
     ? pageJson
-    : ['/api/remember', '/api/mobile'].some(prefix => hasPrefix(req.path, prefix)) ? largeJson : smallJson;
+    : hasPrefix(req.path, '/api/agent/assets') ? assetJson
+      : ['/api/remember', '/api/mobile'].some(prefix => hasPrefix(req.path, prefix)) ? largeJson : smallJson;
   parser(req, res, next);
 });
 app.use(morgan('dev'));
@@ -157,7 +160,7 @@ app.use('/api/integrations', authMiddleware, integrationsRouter);
 app.use('/api/contacts', authMiddleware, contactsRouter);
 app.use('/api/terminal', authMiddleware, ownerOnly);
 app.use('/api/folders', authMiddleware, foldersRouter);
-app.use('/api/pages', authMiddleware, pagesRouter);
+app.use('/api/pages', authMiddleware, designPreviewRouter, pagesRouter);
 app.use('/api/emojis', authMiddleware, emojisRouter);
 app.use('/api/remember', authMiddleware, rememberRouter);
 // AI calls a paid upstream on every request — cap per-user so a leaked session

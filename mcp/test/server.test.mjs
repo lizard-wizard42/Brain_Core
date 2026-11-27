@@ -25,7 +25,7 @@ test('credential files are private and HTTP remains loopback-only', () => {
   } finally { fs.rmSync(dir, { recursive: true }); }
 });
 
-test('official client negotiates stdio, lists 23 tools, forwards exact writes and reports conflicts', async () => {
+test('official client negotiates stdio, lists Design and asset tools, forwards writes and reports conflicts', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'brain-mcp-test-'));
   const file = path.join(dir, 'token.txt');
   const secret = `bc_${randomBytes(32).toString('base64url')}`;
@@ -35,7 +35,8 @@ test('official client negotiates stdio, lists 23 tools, forwards exact writes an
     let body = ''; for await (const chunk of req) body += chunk;
     received.push({ path: req.url, body: JSON.parse(body), authorization: req.headers.authorization });
     res.setHeader('content-type', 'application/json');
-    if (req.url.endsWith('/update')) { res.statusCode = 409; res.end(JSON.stringify({ error: 'Revision conflict' })); }
+    if (req.url.endsWith('/preview')) res.end(JSON.stringify({ revision: 4, mime_type: 'image/png', data: Buffer.from('synthetic-png').toString('base64') }));
+    else if (req.url.endsWith('/update')) { res.statusCode = 409; res.end(JSON.stringify({ error: 'Revision conflict' })); }
     else res.end(JSON.stringify({ items: [{ title: 'Synthetic note', revision: 0 }] }));
   });
   await new Promise(resolve => api.listen(0, '127.0.0.1', resolve));
@@ -47,8 +48,11 @@ test('official client negotiates stdio, lists 23 tools, forwards exact writes an
     await client.connect(transport);
     assert.match(client.getInstructions(), /expected_revision/);
     assert.match(client.getInstructions(), /Create subpages with parent_page_id/);
-    const { tools } = await client.listTools(); assert.equal(tools.length, 23);
-    assert.ok(tools.every(t => !/terminal|memory|audio|delete/.test(t.name)));
+    const { tools } = await client.listTools(); assert.equal(tools.length, 31);
+    assert.ok(tools.every(t => !/terminal|memory|audio|brain_pages_delete|brain_notes_delete/.test(t.name)));
+    for (const name of ['brain_design_batch','brain_design_get_tree','brain_design_preview','brain_assets_upload','brain_assets_list']) {
+      assert.ok(tools.some(tool => tool.name === name), `${name} missing`);
+    }
     const listing = await client.callTool({ name: 'brain_pages_list', arguments: { query: 'Synthetic', limit: 5 } });
     assert.equal(listing.isError, false);
     assert.equal(received[0].authorization, `Bearer ${secret}`);
@@ -77,6 +81,10 @@ test('official client negotiates stdio, lists 23 tools, forwards exact writes an
     assert.equal(received.length, count);
     const invalid = await client.callTool({ name: 'brain_notes_update', arguments: { ...input, expected_revision: -1 } });
     assert.equal(invalid.isError, true); assert.equal(received.length, count);
+    const preview = await client.callTool({ name: 'brain_design_preview', arguments: { id: randomUUID(), frame_id: 'shape:synthetic' } });
+    assert.equal(preview.isError, false);
+    assert.equal(preview.content[1].type, 'image');
+    assert.equal(preview.content[1].mimeType, 'image/png');
   } finally {
     await client.close(); await new Promise(resolve => api.close(resolve)); fs.rmSync(dir, { recursive: true });
   }

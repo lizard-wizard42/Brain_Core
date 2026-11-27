@@ -21,6 +21,13 @@ const designPresets = [
   { label: 'Tela desktop', width: 1440, height: 900 },
 ];
 
+function richTextLength(value: unknown): number {
+  if (!value || typeof value !== 'object') return 0;
+  if (Array.isArray(value)) return value.reduce((total, item) => total + richTextLength(item), 0);
+  const node = value as { text?: unknown; content?: unknown };
+  return (typeof node.text === 'string' ? node.text.length : 0) + richTextLength(node.content);
+}
+
 export function InfiniteRenderer({ page }: InfiniteRendererProps) {
   const isDesign = page.type === 'design';
   const [store] = useState(() => createTLStore({ shapeUtils: isDesign ? [...defaultShapeUtils, DesignCardShapeUtil] : defaultShapeUtils }));
@@ -35,12 +42,27 @@ export function InfiniteRenderer({ page }: InfiniteRendererProps) {
   const [loadError, setLoadError] = useState('');
   const [saveIndicator, setSaveIndicator] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [externalUpdate, setExternalUpdate] = useState(false);
+  const [previewRevision, setPreviewRevision] = useState(page.revision);
   const savingRef = useRef(false);
   const hydratedRef = useRef(false);
   const dirtyRef = useRef(false);
   const pendingFlushRef = useRef(false);
   const pendingKeepaliveRef = useRef(false);
   const lastSavedRef = useRef<string>('');
+  const knownRevisionRef = useRef(page.revision);
+
+  const repairNarrowDesignText = useCallback((current: Editor) => {
+    for (const shape of current.getCurrentPageShapes()) {
+      if (shape.type !== 'text') continue;
+      const props = shape.props as { w?: number; autoSize?: boolean; richText?: unknown };
+      if ((props.w ?? 0) >= 16 || richTextLength(props.richText) < 120) continue;
+      const frame = current.getShape(shape.parentId as TLShapeId);
+      const frameWidth = frame?.type === 'frame' ? Number((frame.props as { w?: number }).w) : 960;
+      const width = Math.max(160, Math.min(400, Math.floor(frameWidth / 2) - 72));
+      current.updateShape({ id: shape.id, type: 'text', props: { w: width, autoSize: false } });
+    }
+  }, []);
 
   const refreshFrames = useCallback((current: Editor) => {
     const next = current.getCurrentPageShapes().filter(shape => shape.type === 'frame').map(shape => {
@@ -136,7 +158,8 @@ export function InfiniteRenderer({ page }: InfiniteRendererProps) {
     setSaveIndicator('saving');
     dirtyRef.current = false;
     try {
-      await api.patchPage(page.id, { content }, { keepalive });
+      const saved = await api.patchPage(page.id, isDesign ? { content, revision: knownRevisionRef.current } : { content }, { keepalive });
+      if (isDesign && Number.isSafeInteger(saved.revision)) { knownRevisionRef.current = saved.revision; setPreviewRevision(saved.revision); }
       lastSavedRef.current = serialized;
       setLastSavedAt(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
       setSaveIndicator('saved');
@@ -158,7 +181,7 @@ export function InfiniteRenderer({ page }: InfiniteRendererProps) {
         void persistSnapshot(force, nextKeepalive);
       }
     }
-  }, [buildContent, logInfiniteEvent, page.id]);
+  }, [buildContent, isDesign, logInfiniteEvent, page.id]);
 
   const flushSnapshotOnHide = useCallback(() => {
     // Use the same revision-aware API and acknowledgement rules as autosave.
@@ -174,6 +197,9 @@ export function InfiniteRenderer({ page }: InfiniteRendererProps) {
     pendingFlushRef.current = false;
     pendingKeepaliveRef.current = false;
     setSaveIndicator('idle');
+    setExternalUpdate(false);
+    knownRevisionRef.current = page.revision;
+    setPreviewRevision(page.revision);
     store.clear();
 
     let canEdit = true;
@@ -209,6 +235,63 @@ export function InfiniteRenderer({ page }: InfiniteRendererProps) {
     setLoading(false);
   }, [page.id, store, page.content, isDesign]);
 
+  useEffect(() => {
+    if (!isDesign) return;
+    let checking = false;
+    let disposed = false;
+    const check = async () => {
+      if (checking || !hydratedRef.current || dirtyRef.current || savingRef.current) return;
+      checking = true;
+      try {
+        const remote = await api.getPage(page.id);
+        if (disposed || remote.revision <= knownRevisionRef.current) return;
+        if (dirtyRef.current || savingRef.current) { setExternalUpdate(true); return; }
+        if (!isInfiniteContent(remote.content)) { setExternalUpdate(true); return; }
+        const remoteSnapshot = remote.content.data;
+        const localSession = getSnapshot(store).session;
+        try {
+          store.mergeRemoteChanges(() => {
+            if (remoteSnapshot) loadSnapshot(store, { ...remoteSnapshot, session: localSession });
+            else store.clear();
+          });
+          knownRevisionRef.current = remote.revision;
+          setPreviewRevision(remote.revision);
+          lastSavedRef.current = JSON.stringify(remote.content);
+          setExternalUpdate(false);
+          if (editor) refreshFrames(editor);
+        } catch { setExternalUpdate(true); }
+      } catch { /* Keep the current canvas during a temporary network failure. */ }
+      finally { checking = false; }
+    };
+    const interval = window.setInterval(() => { void check(); }, 10_000);
+    window.addEventListener('focus', check);
+    return () => { disposed = true; window.clearInterval(interval); window.removeEventListener('focus', check); };
+  }, [isDesign, page.id, store, editor, refreshFrames]);
+
+  // The browser owns the faithful renderer. Publish small, revision-bound PNGs
+  // for MCP readers only after the document is clean and fully synchronized.
+  useEffect(() => {
+    if (!isDesign || !editor || !frames.length || !hydratedRef.current) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        if (dirtyRef.current || savingRef.current || knownRevisionRef.current !== previewRevision) return;
+        for (const frame of frames.slice(0, 40)) {
+          if (cancelled || dirtyRef.current || knownRevisionRef.current !== previewRevision) return;
+          try {
+            let { blob } = await editor.toImage([frame.id], { format: 'png', pixelRatio: 1, background: true });
+            if (blob.size > 3 * 1024 * 1024) {
+              ({ blob } = await editor.toImage([frame.id], { format: 'png', pixelRatio: 0.5, background: true }));
+            }
+            if (cancelled || dirtyRef.current || knownRevisionRef.current !== previewRevision) return;
+            await api.uploadDesignPreview(page.id, frame.id, previewRevision, blob);
+          } catch { /* Preview is optional; never block editing or autosave. */ }
+        }
+      })();
+    }, 800);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [editor, frames, isDesign, page.id, previewRevision]);
+
   // Persist changes
   useEffect(() => {
     const save = throttle(() => { void persistSnapshot(); }, 3000);
@@ -218,7 +301,7 @@ export function InfiniteRenderer({ page }: InfiniteRendererProps) {
       if (!savingRef.current) setSaveIndicator('saving');
       save();
       if (isDesign && editor) refreshFrames(editor);
-    }, { scope: 'document' });
+    }, { scope: 'document', source: 'user' });
 
     return () => cleanup();
   }, [page.id, store, persistSnapshot, isDesign, editor, refreshFrames]);
@@ -276,6 +359,7 @@ export function InfiniteRenderer({ page }: InfiniteRendererProps) {
           {saveIndicator === 'saved' && `Salvo${lastSavedAt ? ` ${lastSavedAt}` : ''}`}
           {saveIndicator === 'error' && 'Erro ao salvar'}
           {saveIndicator === 'idle' && (lastSavedAt ? `Salvo ${lastSavedAt}` : isDesign ? 'Design' : 'Infinite')}
+          {externalUpdate && ' · Atualização externa: recarregue se estiver editando'}
         </div>
       </div>
       {isDesign && <div className="absolute top-3 left-3 z-[120] flex max-w-[min(86vw,690px)] flex-wrap gap-2 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card)] p-2 shadow-xl" aria-label="Ferramentas de Design">
@@ -298,7 +382,7 @@ export function InfiniteRenderer({ page }: InfiniteRendererProps) {
         store={store} 
         shapeUtils={isDesign ? [DesignCardShapeUtil] : undefined}
         autoFocus
-        onMount={current => { setEditor(current); if (isDesign) refreshFrames(current); }}
+        onMount={current => { setEditor(current); if (isDesign) { refreshFrames(current); repairNarrowDesignText(current); } }}
       />
       </div>
       {isDesign && <DesignInspector editor={editor} selectedShapeId={selectedShapeId} onPreview={() => { void exportFrame(true); }} onExport={() => { void exportFrame(false); }} />}
