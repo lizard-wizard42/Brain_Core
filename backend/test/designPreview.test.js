@@ -29,6 +29,8 @@ test('preview cache binds PNG to owner, frame and current revision', async () =>
 
 test('preview rejects malformed PNG and frame identifiers', async () => {
   await assert.rejects(() => storeDesignPreview('owner', pageId, 7, frameId, Buffer.from('not a png')), error => error instanceof DesignPreviewError && error.status === 400);
+  await assert.rejects(() => storeDesignPreview('owner', pageId, 7, frameId, 'not a buffer'), error => error instanceof DesignPreviewError && error.status === 400);
+  await assert.rejects(() => storeDesignPreview('owner', pageId, 7, frameId, [png]), error => error instanceof DesignPreviewError && error.status === 400);
   await assert.rejects(() => getDesignPreview('owner', pageId, '../another-frame'), error => error instanceof DesignPreviewError && error.status === 400);
 });
 
