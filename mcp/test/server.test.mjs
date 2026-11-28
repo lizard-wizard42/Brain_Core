@@ -48,9 +48,9 @@ test('official client negotiates stdio, lists Design and asset tools, forwards w
     await client.connect(transport);
     assert.match(client.getInstructions(), /expected_revision/);
     assert.match(client.getInstructions(), /Create subpages with parent_page_id/);
-    const { tools } = await client.listTools(); assert.equal(tools.length, 31);
+    const { tools } = await client.listTools(); assert.equal(tools.length, 34);
     assert.ok(tools.every(t => !/terminal|memory|audio|brain_pages_delete|brain_notes_delete/.test(t.name)));
-    for (const name of ['brain_design_batch','brain_design_get_tree','brain_design_preview','brain_assets_upload','brain_assets_list']) {
+    for (const name of ['brain_design_batch','brain_design_get_tree','brain_design_preview','brain_design_add_vector','brain_design_group_shapes','brain_design_ungroup_shape','brain_assets_upload','brain_assets_list']) {
       assert.ok(tools.some(tool => tool.name === name), `${name} missing`);
     }
     const listing = await client.callTool({ name: 'brain_pages_list', arguments: { query: 'Synthetic', limit: 5 } });
@@ -76,6 +76,14 @@ test('official client negotiates stdio, lists Design and asset tools, forwards w
     assert.equal((await client.callTool({ name: 'brain_design_add_frame', arguments: artboardInput })).isError, false);
     assert.equal(received.at(-1).path, '/api/agent/design/add_frame');
     assert.deepEqual(received.at(-1).body, artboardInput);
+    const cardInput = { id: randomUUID(), operation_id: randomUUID(), expected_revision: 2, width: 500, height: 300,
+      text: 'Synthetic title', body: 'Synthetic body', appearance: { fontWeight: 700, bodyFontSize: 18, bodyColor: '#123456' } };
+    assert.equal((await client.callTool({ name: 'brain_design_add_card', arguments: cardInput })).isError, false);
+    assert.deepEqual(received.at(-1).body, cardInput);
+    const vectorInput = { id: randomUUID(), operation_id: randomUUID(), expected_revision: 3, kind: 'ellipse', width: 120, height: 120,
+      fill: '#123456', stroke: '#ffffff', stroke_width: 2 };
+    assert.equal((await client.callTool({ name: 'brain_design_add_vector', arguments: vectorInput })).isError, false);
+    assert.deepEqual(received.at(-1).body, vectorInput);
     const count = received.length;
     assert.equal((await client.callTool({ name: 'brain_notes_create', arguments: childInput })).isError, true);
     assert.equal(received.length, count);
@@ -85,6 +93,47 @@ test('official client negotiates stdio, lists Design and asset tools, forwards w
     assert.equal(preview.isError, false);
     assert.equal(preview.content[1].type, 'image');
     assert.equal(preview.content[1].mimeType, 'image/png');
+  } finally {
+    await client.close(); await new Promise(resolve => api.close(resolve)); fs.rmSync(dir, { recursive: true });
+  }
+});
+
+test('optional local image tool reads only a regular image in the configured directory', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'brain-mcp-assets-'));
+  const tokenFile = path.join(dir, 'token.txt');
+  const importDir = path.join(dir, 'imports');
+  fs.mkdirSync(importDir);
+  const secret = `bc_${randomBytes(32).toString('base64url')}`;
+  fs.writeFileSync(tokenFile, secret, { mode: 0o600 });
+  fs.writeFileSync(path.join(importDir, 'synthetic.png'), Buffer.from('synthetic-raster'));
+  fs.symlinkSync(path.join(importDir, 'synthetic.png'), path.join(importDir, 'link.png'));
+  const received = [];
+  const api = createServer(async (req, res) => {
+    let body = ''; for await (const chunk of req) body += chunk;
+    received.push(JSON.parse(body));
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ url: '/uploads/design/synthetic.png' }));
+  });
+  await new Promise(resolve => api.listen(0, '127.0.0.1', resolve));
+  const transport = new StdioClientTransport({ command: process.execPath,
+    args: [fileURLToPath(new URL('../src/server.mjs', import.meta.url))],
+    env: { BRAIN_CORE_TOKEN_FILE: tokenFile, BRAIN_CORE_URL: `http://127.0.0.1:${api.address().port}`,
+      BRAIN_CORE_ASSET_IMPORT_DIR: importDir }, stderr: 'pipe' });
+  const client = new Client({ name: 'synthetic-test', version: '1.0.0' });
+  try {
+    await client.connect(transport);
+    const { tools } = await client.listTools();
+    assert.ok(tools.some(tool => tool.name === 'brain_assets_upload_local'));
+    const input = { operation_id: randomUUID(), file_name: 'synthetic.png' };
+    const result = await client.callTool({ name: 'brain_assets_upload_local', arguments: input });
+    assert.equal(result.isError, false);
+    assert.equal(received[0].data_base64, Buffer.from('synthetic-raster').toString('base64'));
+    assert.equal(received[0].operation_id, input.operation_id);
+    for (const file_name of ['../token.txt', '/etc/passwd', 'link.png']) {
+      const denied = await client.callTool({ name: 'brain_assets_upload_local', arguments: { operation_id: randomUUID(), file_name } });
+      assert.equal(denied.isError, true);
+    }
+    assert.equal(received.length, 1);
   } finally {
     await client.close(); await new Promise(resolve => api.close(resolve)); fs.rmSync(dir, { recursive: true });
   }

@@ -83,7 +83,7 @@ intact and require an explicit conversion before editing.
 Create a Design page for posts, stories or screen layouts. Add artboards at preset
 sizes, arrange shapes and text with the canvas tools, switch between internal
 pages and layers, inspect supported shape properties, then preview or export an
-artboard as PNG. Design uses Fabric.js and retains the existing Design document
+artboard as PNG or export multiple artboards as a ZIP. Design uses Fabric.js and retains the existing Design document
 format for the MCP tools. It does not reproduce Paper's full HTML/CSS layout,
 responsive behavior, shaders or component system.
 
@@ -258,6 +258,7 @@ build. Use fictional data for screenshots and regression tests.
 | Install, update and operate Docker | [Docker](docs/DOCKER.md) |
 | Text editor, navigation, templates and recovery | [Editor and page tree](docs/EDITOR_E_PAINEL.md) |
 | Pen input, paper, sheets and editable copies | [Notebook](docs/NOTEBOOK.md) |
+| Visual artboards, images and export | [Design mode](docs/DESIGN_MODE.md) |
 | Quick notes, checklists, reminders and Trash | [Notes](docs/NOTES.md) |
 | Recording, speakers and local CPU transcription | [Timeline](docs/REMEMBER_TIMELINE.md) |
 | Android and private HTTPS | [Android](docs/ANDROID.md) · [App source](android/README.md) |

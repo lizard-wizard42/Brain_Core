@@ -2,6 +2,8 @@
 
 ## Unreleased — open canvas engines
 
+- Add Design undo/redo, duplicate/delete, group/ungroup, frame centering, image add/replace/resize, multi-image artboard import, title/body card styles, vector shapes with hex colors, and batch PNG ZIP export.
+- Populate Design MCP previews when a saved page opens and allow an optional local-file MCP upload without embedding base64 in tool arguments.
 - Align Fabric card text origins and the initial zoom indicator; accept the full MCP card appearance contract during creation.
 - Decode PNG uploads and Design previews before acceptance so a valid signature cannot hide truncated image data.
 - Add a Pan tool to Design, with temporary Space and middle-button drag, without changing document revisions.

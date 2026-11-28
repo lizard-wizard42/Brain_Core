@@ -1,4 +1,5 @@
 import { getIndexAbove, getIndexBelow, getIndexBetween } from '@tldraw/utils';
+import { randomUUID } from 'crypto';
 import { validDesignDocument } from './designDocument';
 
 type MapValue = Record<string, unknown>;
@@ -41,17 +42,19 @@ function validatePatch(record: MapValue, patch: unknown): MapValue {
       if (!map(value) || !Object.keys(value).length) throw new InvalidDesignMutation('Invalid shape props');
       const type = record.type;
       const allowed = type === 'design-card'
-        ? new Set(['w','h','text','fill','textColor','borderColor','shadowColor','fontSize','radius','borderWidth','shadowX','shadowY','shadowBlur','blendMode','brightness','contrast','saturation','fontFamily','fontWeight','textAlign','verticalAlign','padding','lineHeight','letterSpacing','gradientTo'])
+        ? new Set(['w','h','text','body','fill','textColor','bodyColor','borderColor','shadowColor','fontSize','bodyFontSize','bodyFontWeight','bodyGap','radius','borderWidth','shadowX','shadowY','shadowBlur','blendMode','brightness','contrast','saturation','fontFamily','fontWeight','textAlign','verticalAlign','padding','lineHeight','letterSpacing','gradientTo'])
         : type === 'frame' ? new Set(['w','h','name'])
         : type === 'geo' ? new Set(['w','h','color','fill'])
         : type === 'text' ? new Set(['w','text','color'])
         : type === 'image' ? new Set(['w','h','altText']) : new Set<string>();
+      if (type === 'design-vector') for (const key of ['w','h','kind','fill','stroke','strokeWidth','radius']) allowed.add(key);
+      if (type === 'design-group') allowed.add('name');
       const clean: MapValue = {};
       for (const [prop, item] of Object.entries(value)) {
         if (!allowed.has(prop)) throw new InvalidDesignMutation(`Unsupported ${prop}`);
         if (prop === 'w' || prop === 'h') {
           if (!finite(item, 1, 10000)) throw new InvalidDesignMutation(`Invalid ${prop}`);
-        } else if (prop === 'text') {
+        } else if (prop === 'text' || prop === 'body') {
           if (typeof item !== 'string' || item.length > 5000) throw new InvalidDesignMutation('Invalid text');
           if (type === 'text') {
             clean.richText = { type: 'doc', content: [{ type: 'paragraph', content: item ? [{ type: 'text', text: item }] : [] }] };
@@ -59,8 +62,16 @@ function validatePatch(record: MapValue, patch: unknown): MapValue {
           }
         } else if (prop === 'name' || prop === 'altText') {
           if (typeof item !== 'string' || item.length > 160) throw new InvalidDesignMutation(`Invalid ${prop}`);
-        } else if (['fill','textColor','borderColor','shadowColor','gradientTo'].includes(prop) && type === 'design-card') {
+        } else if (['fill','textColor','bodyColor','borderColor','shadowColor','gradientTo'].includes(prop) && type === 'design-card') {
           if (typeof item !== 'string' || !hex.test(item)) throw new InvalidDesignMutation(`Invalid ${prop}`);
+        } else if ((prop === 'fill' || prop === 'stroke') && type === 'design-vector') {
+          if (typeof item !== 'string' || !hex.test(item)) throw new InvalidDesignMutation(`Invalid ${prop}`);
+        } else if (prop === 'kind' && type === 'design-vector') {
+          if (!['rectangle','ellipse','line'].includes(String(item))) throw new InvalidDesignMutation('Invalid vector kind');
+        } else if (prop === 'strokeWidth' && type === 'design-vector') {
+          if (!finite(item, 0, 40)) throw new InvalidDesignMutation('Invalid strokeWidth');
+        } else if (prop === 'radius' && type === 'design-vector') {
+          if (!finite(item, 0, 500)) throw new InvalidDesignMutation('Invalid radius');
         } else if (prop === 'color') {
           if (typeof item !== 'string' || !colors.has(item)) throw new InvalidDesignMutation('Invalid color');
         } else if (prop === 'fill') {
@@ -73,14 +84,16 @@ function validatePatch(record: MapValue, patch: unknown): MapValue {
           if (typeof item !== 'string' || !['left','center','right'].includes(item)) throw new InvalidDesignMutation('Invalid textAlign');
         } else if (prop === 'verticalAlign') {
           if (typeof item !== 'string' || !['top','middle','bottom'].includes(item)) throw new InvalidDesignMutation('Invalid verticalAlign');
-        } else if (prop === 'fontWeight') {
+        } else if (prop === 'fontWeight' || prop === 'bodyFontWeight') {
           if (!finite(item, 100, 900)) throw new InvalidDesignMutation('Invalid fontWeight');
         } else if (prop === 'lineHeight') {
           if (!finite(item, 0.8, 3)) throw new InvalidDesignMutation('Invalid lineHeight');
         } else if (prop === 'letterSpacing') {
           if (!finite(item, -5, 20)) throw new InvalidDesignMutation('Invalid letterSpacing');
-        } else if (prop === 'padding') {
+        } else if (prop === 'padding' || prop === 'bodyGap') {
           if (!finite(item, 0, 200)) throw new InvalidDesignMutation('Invalid padding');
+        } else if (prop === 'bodyFontSize') {
+          if (!finite(item, 8, 160)) throw new InvalidDesignMutation('Invalid bodyFontSize');
         } else if (!finite(item, -200, 500)) throw new InvalidDesignMutation(`Invalid ${prop}`);
         clean[prop] = item;
       }
@@ -100,11 +113,38 @@ export function designShapeTree(content: unknown) {
   })).sort((a, b) => String(a.parent_id).localeCompare(String(b.parent_id)) || compareIndex(a.index, b.index));
 }
 
-export function mutateDesignShapes(content: unknown, action: 'update_shape' | 'delete_shapes' | 'reorder_shape', input: MapValue) {
+export function mutateDesignShapes(content: unknown, action: 'update_shape' | 'delete_shapes' | 'reorder_shape' | 'group_shapes' | 'ungroup_shape', input: MapValue) {
   const doc = copy(content);
   const store = doc.data?.document.store;
   if (!store) throw new InvalidDesignMutation('Design has no shapes');
-  if (action === 'update_shape') {
+  if (action === 'group_shapes') {
+    const ids = input.shape_ids;
+    if (!Array.isArray(ids) || ids.length < 2 || ids.length > 100 || new Set(ids).size !== ids.length) throw new InvalidDesignMutation('Select 2 to 100 shapes');
+    const items = ids.map(id => shape(store, id));
+    if (items.some(item => item.type === 'frame' || item.parentId !== items[0].parentId)) throw new InvalidDesignMutation('Shapes must share a parent');
+    const parentId = String(items[0].parentId);
+    const x = Math.min(...items.map(item => Number(item.x))), y = Math.min(...items.map(item => Number(item.y)));
+    const right = Math.max(...items.map(item => Number(item.x) + (Number((item.props as MapValue)?.w) || 80)));
+    const bottom = Math.max(...items.map(item => Number(item.y) + (Number((item.props as MapValue)?.h) || 80)));
+    const siblings = Object.values(store).filter(item => item.typeName === 'shape' && item.parentId === parentId)
+      .map(item => String(item.index)).sort();
+    const id = `shape:${randomUUID()}`;
+    store[id] = { id, typeName: 'shape', type: 'design-group', parentId,
+      index: getIndexAbove(siblings.at(-1) as never), x, y, rotation: 0, opacity: 1, isLocked: false,
+      meta: {}, props: { w: Math.max(1, right - x), h: Math.max(1, bottom - y), name: 'Group' } };
+    for (const item of items) { item.parentId = id; item.x = Number(item.x) - x; item.y = Number(item.y) - y; }
+  } else if (action === 'ungroup_shape') {
+    const group = shape(store, input.shape_id);
+    if (group.type !== 'design-group') throw new InvalidDesignMutation('Shape is not a group');
+    const siblings = Object.values(store).filter(item => item.typeName === 'shape' && item.parentId === group.parentId)
+      .map(item => String(item.index)).sort();
+    let index = siblings.at(-1) as Parameters<typeof getIndexAbove>[0];
+    for (const child of Object.values(store).filter(item => item.typeName === 'shape' && item.parentId === group.id)) {
+      index = getIndexAbove(index);
+      child.parentId = group.parentId; child.x = Number(child.x) + Number(group.x); child.y = Number(child.y) + Number(group.y); child.index = index;
+    }
+    delete store[String(group.id)];
+  } else if (action === 'update_shape') {
     const target = shape(store, input.shape_id);
     Object.assign(target, validatePatch(target, input.patch));
   } else if (action === 'delete_shapes') {

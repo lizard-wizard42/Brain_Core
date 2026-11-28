@@ -11,9 +11,10 @@ test('updates, reorders, and deletes only selected shapes in an editable board',
   const moved = mutateDesignShapes(second.content, 'reorder_shape', { shape_id: second.shapeId, before_shape_id: first.shapeId });
   const ordered = designShapeTree(moved).filter(shape => shape.parent_id === frame.shapeId);
   assert.deepEqual(ordered.map(shape => shape.id), [second.shapeId, first.shapeId]);
-  const edited = mutateDesignShapes(moved, 'update_shape', { shape_id: first.shapeId, patch: { x: 42, opacity: 0.7, props: { text: 'Edited', fontWeight: 700 } } });
+  const edited = mutateDesignShapes(moved, 'update_shape', { shape_id: first.shapeId, patch: { x: 42, opacity: 0.7, props: { text: 'Edited', body: 'Second style', fontWeight: 700, bodyFontSize: 18 } } });
   assert.equal(edited.data.document.store[first.shapeId].x, 42);
   assert.equal(edited.data.document.store[first.shapeId].props.text, 'Edited');
+  assert.equal(edited.data.document.store[first.shapeId].props.body, 'Second style');
   assert.equal(second.content.data.document.store[first.shapeId].props.text, 'First');
   assert.throws(() => mutateDesignShapes(edited, 'update_shape', { shape_id: first.shapeId, patch: { props: { fill: 'javascript:bad' } } }), InvalidDesignMutation);
   const deleted = mutateDesignShapes(edited, 'delete_shapes', { shape_ids: [first.shapeId] });
@@ -35,4 +36,21 @@ test('updates native text as rich text while preserving its wrap width', () => {
   assert.equal(props.w, 280);
   assert.equal(props.richText.content[0].content[0].text, 'After\nwrap');
   assert.equal(props.autoSize, false);
+});
+
+test('groups and ungroups sibling shapes without changing their coordinates', () => {
+  const frame = addDesignShape({ tldraw: true, version: 1, data: null }, 'add_frame', { name: 'Board', width: 1080, height: 1080 });
+  const first = addDesignShape(frame.content, 'add_card', { frame_id: frame.shapeId, x: 20, y: 30, width: 100, height: 80, text: 'A' });
+  const second = addDesignShape(first.content, 'add_card', { frame_id: frame.shapeId, x: 200, y: 150, width: 100, height: 80, text: 'B' });
+  const grouped = mutateDesignShapes(second.content, 'group_shapes', { shape_ids: [first.shapeId, second.shapeId] });
+  const group = designShapeTree(grouped).find(item => item.type === 'design-group');
+  assert.ok(group);
+  assert.equal(grouped.data.document.store[first.shapeId].parentId, group.id);
+  assert.equal(grouped.data.document.store[first.shapeId].x + group.x, 20);
+  assert.equal(grouped.data.document.store[second.shapeId].y + group.y, 150);
+  const ungrouped = mutateDesignShapes(grouped, 'ungroup_shape', { shape_id: group.id });
+  assert.equal(ungrouped.data.document.store[group.id], undefined);
+  assert.equal(ungrouped.data.document.store[first.shapeId].x, 20);
+  assert.equal(ungrouped.data.document.store[second.shapeId].y, 150);
+  assert.throws(() => mutateDesignShapes(second.content, 'group_shapes', { shape_ids: [frame.shapeId, first.shapeId] }), InvalidDesignMutation);
 });
