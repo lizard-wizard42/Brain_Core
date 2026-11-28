@@ -62,9 +62,11 @@ function shapeObject(shape: DesignShape, snapshot: DesignSnapshot): FabricObject
   const fill = p.gradientTo ? new Gradient({ type: 'linear', coords: { x1: 0, y1: 0, x2: 0, y2: h },
     colorStops: [{ offset: 0, color: p.fill }, { offset: 1, color: p.gradientTo }] }) : p.fill;
   const surface = new Rect({ left: 0, top: 0, width: w, height: h, rx: p.radius, ry: p.radius,
+    originX: 'left', originY: 'top',
     fill, stroke: p.borderColor, strokeWidth: p.borderWidth,
     shadow: new Shadow({ color: p.shadowColor, offsetX: p.shadowX, offsetY: p.shadowY, blur: p.shadowBlur }) });
   const text = new Textbox(String(shape.props.text ?? ''), { left: p.padding, top: p.padding,
+    originX: 'left', originY: 'top',
     width: Math.max(1, w - 2 * p.padding), fontSize: p.fontSize, fontFamily: p.fontFamily,
     fontWeight: p.fontWeight, textAlign: p.textAlign, fill: p.textColor,
     lineHeight: p.lineHeight, charSpacing: p.letterSpacing * 1000 / p.fontSize,
@@ -205,7 +207,7 @@ export function FabricDesignRenderer({ page }: { page: Page }) {
       const width = host.clientWidth, height = host.clientHeight;
       if (width < 200 || height < 200) return;
       canvas.setDimensions({ width, height });
-      if (!initialized.current) { fitFrames(canvas, snapshotRef.current!); initialized.current = true; }
+      if (!initialized.current) { fitFrames(canvas, snapshotRef.current!); setZoom(Math.round(canvas.getZoom() * 100)); initialized.current = true; }
       canvas.requestRenderAll();
     };
     const observer = new ResizeObserver(resize);

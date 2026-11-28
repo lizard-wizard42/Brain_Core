@@ -37,6 +37,21 @@ test('rejects bad frame, dimensions, colors and unowned URL syntax', () => {
   assert.throws(() => addDesignShape(frame.content, 'add_card', { width: 100, height: 100, appearance: { fill: 'red' } }), InvalidDesignShape);
 });
 
+test('accepts the full MCP card appearance contract and rejects invalid values', () => {
+  const appearance = {
+    fontFamily: 'Inter', fontWeight: 700, textAlign: 'center', verticalAlign: 'middle',
+    padding: 24, lineHeight: 1.4, letterSpacing: 2, gradientTo: '#176FA8',
+  };
+  const result = addDesignShape(blank(), 'add_card', { width: 300, height: 180, text: 'Synthetic', appearance });
+  const props = result.content.data.document.store[result.shapeId].props;
+  for (const [key, value] of Object.entries(appearance)) assert.equal(props[key], value);
+  for (const bad of [{ fontWeight: 1000 }, { fontFamily: 'Unknown' }, { textAlign: 'justify' },
+    { verticalAlign: 'baseline' }, { padding: -1 }, { lineHeight: 0.1 },
+    { letterSpacing: 50 }, { gradientTo: 'red' }]) {
+    assert.throws(() => addDesignShape(blank(), 'add_card', { width: 300, height: 180, appearance: bad }), InvalidDesignShape);
+  }
+});
+
 test('places consecutive frames beside each other unless coordinates are supplied', () => {
   const first = addDesignShape(blank(), 'add_frame', { name: 'First', width: 1080, height: 1080 });
   const second = addDesignShape(first.content, 'add_frame', { name: 'Second', width: 1080, height: 1080 });

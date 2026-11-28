@@ -1,9 +1,9 @@
 import { query } from '../config/database';
+import { hasValidPngPixels } from '../utils/pngIntegrity';
 
 const MAX_PNG_BYTES = 3 * 1024 * 1024;
 const MAX_CACHE_BYTES = 48 * 1024 * 1024;
 const TTL_MS = 30 * 60 * 1000;
-const pngMagic = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const frameIdPattern = /^shape:[A-Za-z0-9_-]{1,128}$/;
 
@@ -42,9 +42,8 @@ function hasFrame(content: unknown, frameId: string): boolean {
   return shape?.typeName === 'shape' && shape.type === 'frame';
 }
 function validPng(bytes: unknown): bytes is Buffer {
-  return typeof bytes === 'object' && bytes !== null && !Array.isArray(bytes) && Buffer.isBuffer(bytes) && bytes.length >= 24 && bytes.length <= MAX_PNG_BYTES && bytes.subarray(0, 8).equals(pngMagic) &&
-    bytes.toString('ascii', 12, 16) === 'IHDR' && bytes.readUInt32BE(16) > 0 && bytes.readUInt32BE(16) <= 10000 &&
-    bytes.readUInt32BE(20) > 0 && bytes.readUInt32BE(20) <= 10000;
+  return typeof bytes === 'object' && bytes !== null && !Array.isArray(bytes) &&
+    Buffer.isBuffer(bytes) && bytes.length <= MAX_PNG_BYTES && hasValidPngPixels(bytes);
 }
 
 export async function storeDesignPreview(userId: string, pageId: string, revision: number, frameId: string, bytes: unknown): Promise<void> {

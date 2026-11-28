@@ -15,6 +15,7 @@ const {
   ensureUploadStorageCapacity,
 } = require('../dist/utils/uploadPolicy');
 const { config } = require('../dist/config');
+const validPng = require('./fixtures/validPng.cjs');
 
 test('accepts supported raster images when extension and MIME agree', () => {
   assert.equal(isAllowedImageUpload('photo.PNG', 'image/png'), true);
@@ -31,7 +32,7 @@ test('checks file signatures instead of trusting multipart metadata', async (t) 
   const fakePdf = path.join(dir, 'fake.pdf');
   const realPdf = path.join(dir, 'real.pdf');
   fs.writeFileSync(fakePng, '<script>alert(1)</script>');
-  fs.writeFileSync(realPng, Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex'));
+  fs.writeFileSync(realPng, validPng);
   fs.writeFileSync(fakePdf, '<html><script>alert(1)</script></html>');
   fs.writeFileSync(realPdf, '%PDF-1.4\n%%EOF\n');
 
@@ -39,6 +40,20 @@ test('checks file signatures instead of trusting multipart metadata', async (t) 
   assert.equal(await hasValidUploadContent(realPng, 'real.png'), true);
   assert.equal(await hasValidUploadContent(fakePdf, 'fake.pdf'), false);
   assert.equal(await hasValidUploadContent(realPdf, 'real.pdf'), true);
+});
+
+test('rejects PNG files with intact headers but corrupted or truncated IDAT pixels', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'brain-corrupt-png-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const corrupt = Buffer.from(validPng);
+  const idat = corrupt.indexOf(Buffer.from('IDAT'));
+  corrupt[idat + 4] ^= 0xff;
+  const corruptPath = path.join(dir, 'corrupt.png');
+  const truncatedPath = path.join(dir, 'truncated.png');
+  fs.writeFileSync(corruptPath, corrupt);
+  fs.writeFileSync(truncatedPath, validPng.subarray(0, validPng.length - 8));
+  assert.equal(await hasValidUploadContent(corruptPath, 'corrupt.png'), false);
+  assert.equal(await hasValidUploadContent(truncatedPath, 'truncated.png'), false);
 });
 
 test('rejects active formats and mismatched image metadata', () => {

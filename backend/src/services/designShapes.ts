@@ -15,8 +15,12 @@ const blendModes = new Set(['normal', 'multiply', 'screen', 'overlay', 'darken',
 const cardNumberRanges: Record<string, [number, number]> = {
   fontSize: [8, 160], radius: [0, 500], borderWidth: [0, 40], shadowX: [-200, 200], shadowY: [-200, 200],
   shadowBlur: [0, 200], brightness: [0, 200], contrast: [0, 200], saturation: [0, 200],
+  fontWeight: [100, 900], padding: [0, 200], lineHeight: [0.8, 3], letterSpacing: [-5, 20],
 };
-const cardHexFields = new Set(['fill', 'textColor', 'borderColor', 'shadowColor']);
+const cardHexFields = new Set(['fill', 'textColor', 'borderColor', 'shadowColor', 'gradientTo']);
+const cardFonts = new Set(['Inter', 'Arial', 'Georgia', 'monospace']);
+const textAlignments = new Set(['left', 'center', 'right']);
+const verticalAlignments = new Set(['top', 'middle', 'bottom']);
 const map = (value: unknown): value is JsonMap => !!value && typeof value === 'object' && !Array.isArray(value);
 const number = (value: unknown, name: string, min: number, max: number): number => {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) throw new InvalidDesignShape(`Invalid ${name}`);
@@ -43,6 +47,15 @@ function cardAppearance(value: unknown): JsonMap {
       result[key] = item;
     } else if (key === 'blendMode') {
       if (typeof item !== 'string' || !blendModes.has(item)) throw new InvalidDesignShape('Invalid blendMode');
+      result[key] = item;
+    } else if (key === 'fontFamily') {
+      if (typeof item !== 'string' || !cardFonts.has(item)) throw new InvalidDesignShape('Invalid fontFamily');
+      result[key] = item;
+    } else if (key === 'textAlign') {
+      if (typeof item !== 'string' || !textAlignments.has(item)) throw new InvalidDesignShape('Invalid textAlign');
+      result[key] = item;
+    } else if (key === 'verticalAlign') {
+      if (typeof item !== 'string' || !verticalAlignments.has(item)) throw new InvalidDesignShape('Invalid verticalAlign');
       result[key] = item;
     } else throw new InvalidDesignShape(`Unsupported card property: ${key}`);
   }
