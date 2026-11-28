@@ -41,13 +41,15 @@ test('accepts the full MCP card appearance contract and rejects invalid values',
   const appearance = {
     fontFamily: 'Inter', fontWeight: 700, textAlign: 'center', verticalAlign: 'middle',
     padding: 24, lineHeight: 1.4, letterSpacing: 2, gradientTo: '#176FA8',
+    bodyColor: '#E2E8F0', bodyFontSize: 18, bodyFontWeight: 400, bodyGap: 12,
   };
-  const result = addDesignShape(blank(), 'add_card', { width: 300, height: 180, text: 'Synthetic', appearance });
+  const result = addDesignShape(blank(), 'add_card', { width: 300, height: 180, text: 'Synthetic title', body: 'Synthetic body', appearance });
   const props = result.content.data.document.store[result.shapeId].props;
+  assert.equal(props.body, 'Synthetic body');
   for (const [key, value] of Object.entries(appearance)) assert.equal(props[key], value);
   for (const bad of [{ fontWeight: 1000 }, { fontFamily: 'Unknown' }, { textAlign: 'justify' },
     { verticalAlign: 'baseline' }, { padding: -1 }, { lineHeight: 0.1 },
-    { letterSpacing: 50 }, { gradientTo: 'red' }]) {
+    { letterSpacing: 50 }, { gradientTo: 'red' }, { bodyFontSize: 2 }, { bodyColor: 'red' }]) {
     assert.throws(() => addDesignShape(blank(), 'add_card', { width: 300, height: 180, appearance: bad }), InvalidDesignShape);
   }
 });
@@ -57,6 +59,15 @@ test('places consecutive frames beside each other unless coordinates are supplie
   const second = addDesignShape(first.content, 'add_frame', { name: 'Second', width: 1080, height: 1080 });
   assert.equal(second.content.data.document.store[second.shapeId].x, 1160);
   assert.equal(second.content.data.document.store[first.shapeId].x, 0);
+});
+
+test('creates bounded vector ellipse and line with exact hex colors', () => {
+  const ellipse = addDesignShape(blank(), 'add_vector', { kind: 'ellipse', width: 120, height: 120, fill: '#123456', stroke: '#abcdef', stroke_width: 2 });
+  assert.equal(ellipse.content.data.document.store[ellipse.shapeId].props.fill, '#123456');
+  const line = addDesignShape(ellipse.content, 'add_vector', { kind: 'line', width: 300, height: 1, stroke: '#ffffff' });
+  assert.equal(line.content.data.document.store[line.shapeId].props.kind, 'line');
+  assert.throws(() => addDesignShape(blank(), 'add_vector', { kind: 'script', width: 100, height: 100 }), InvalidDesignShape);
+  assert.throws(() => addDesignShape(blank(), 'add_vector', { kind: 'ellipse', width: 100, height: 100, fill: 'url(bad)' }), InvalidDesignShape);
 });
 
 test('supports hundreds of siblings without growing index keys per insertion', () => {

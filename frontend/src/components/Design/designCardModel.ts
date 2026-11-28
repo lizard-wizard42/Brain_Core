@@ -9,6 +9,7 @@ export interface DesignCardProps {
   fontFamily?: string; fontWeight?: number; textAlign?: 'left' | 'center' | 'right';
   verticalAlign?: 'top' | 'middle' | 'bottom'; padding?: number;
   lineHeight?: number; letterSpacing?: number; gradientTo?: string;
+  body?: string; bodyColor?: string; bodyFontSize?: number; bodyFontWeight?: number; bodyGap?: number;
 }
 
 export const cardDefaults: DesignCardProps = {
@@ -18,6 +19,7 @@ export const cardDefaults: DesignCardProps = {
   blendMode: 'normal', brightness: 100, contrast: 100, saturation: 100,
   fontFamily: 'Inter', fontWeight: 400, textAlign: 'left', verticalAlign: 'top',
   padding: 16, lineHeight: 1.2, letterSpacing: 0,
+  body: '', bodyColor: '#111827', bodyFontSize: 16, bodyFontWeight: 400, bodyGap: 8,
 };
 
 const safeHex = (value: string, fallback: string) => /^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(value) ? value : fallback;
@@ -40,5 +42,9 @@ export function cardAppearance(props: DesignCardProps) {
     padding: safeNumber(props.padding ?? 16, 0, 200), lineHeight: safeNumber(props.lineHeight ?? 1.2, 0.8, 3),
     letterSpacing: safeNumber(props.letterSpacing ?? 0, -5, 20),
     gradientTo: props.gradientTo ? safeHex(props.gradientTo, cardDefaults.fill) : undefined,
+    bodyColor: safeHex(props.bodyColor ?? cardDefaults.bodyColor!, cardDefaults.bodyColor!),
+    bodyFontSize: safeNumber(props.bodyFontSize ?? 16, 8, 160),
+    bodyFontWeight: safeNumber(props.bodyFontWeight ?? 400, 100, 900),
+    bodyGap: safeNumber(props.bodyGap ?? 8, 0, 200),
   };
 }

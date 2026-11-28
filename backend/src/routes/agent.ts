@@ -152,8 +152,8 @@ router.post('/:kind/:action', async (req: AgentRequest, res) => {
   try {
     const kind = String(req.params.kind) as Kind;
     const action = String(req.params.action);
-    const addActions = ['add_frame', 'add_text', 'add_rectangle', 'add_image', 'add_card'];
-    const mutationActions = ['update_shape', 'delete_shapes', 'reorder_shape'];
+    const addActions = ['add_frame', 'add_text', 'add_rectangle', 'add_vector', 'add_image', 'add_card'];
+    const mutationActions = ['update_shape', 'delete_shapes', 'reorder_shape', 'group_shapes', 'ungroup_shape'];
     const shapeAction = kind === 'design' && addActions.includes(action);
     const designAction = kind === 'design' && (shapeAction || mutationActions.includes(action) || ['get_tree', 'batch', 'preview'].includes(action));
     if (!['pages', 'notes', 'design'].includes(kind) || (!['list', 'get', 'versions', 'create', 'update', 'restore'].includes(action) && !designAction)) {
@@ -170,13 +170,16 @@ router.post('/:kind/:action', async (req: AgentRequest, res) => {
       add_frame: ['id', 'operation_id', 'expected_revision', 'name', 'width', 'height', 'x', 'y'],
       add_text: ['id', 'operation_id', 'expected_revision', 'frame_id', 'text', 'x', 'y', 'color', 'width'],
       add_rectangle: ['id', 'operation_id', 'expected_revision', 'frame_id', 'width', 'height', 'x', 'y', 'color', 'fill'],
+      add_vector: ['id', 'operation_id', 'expected_revision', 'frame_id', 'kind', 'width', 'height', 'x', 'y', 'fill', 'stroke', 'stroke_width', 'radius'],
       add_image: ['id', 'operation_id', 'expected_revision', 'frame_id', 'src', 'alt_text', 'width', 'height', 'x', 'y'],
-      add_card: ['id', 'operation_id', 'expected_revision', 'frame_id', 'text', 'width', 'height', 'x', 'y', 'appearance'],
+      add_card: ['id', 'operation_id', 'expected_revision', 'frame_id', 'text', 'body', 'width', 'height', 'x', 'y', 'appearance'],
       get_tree: ['id'],
       preview: ['id', 'frame_id'],
       update_shape: ['id', 'operation_id', 'expected_revision', 'shape_id', 'patch'],
       delete_shapes: ['id', 'operation_id', 'expected_revision', 'shape_ids'],
       reorder_shape: ['id', 'operation_id', 'expected_revision', 'shape_id', 'before_shape_id'],
+      group_shapes: ['id', 'operation_id', 'expected_revision', 'shape_ids'],
+      ungroup_shape: ['id', 'operation_id', 'expected_revision', 'shape_id'],
       batch: ['id', 'operation_id', 'expected_revision', 'operations'],
     };
     if (Object.keys(body).some(key => !allowed[action].includes(key))) throw new AgentError(400, 'Unsupported field');
@@ -271,11 +274,11 @@ router.post('/:kind/:action', async (req: AgentRequest, res) => {
       changes = row;
     } else if (shapeAction) {
       if (action === 'add_image') await requireOwnedImage(body.src);
-      const result = addDesignShape(current!.content, action as 'add_frame' | 'add_text' | 'add_rectangle' | 'add_image' | 'add_card', body);
+      const result = addDesignShape(current!.content, action as 'add_frame' | 'add_text' | 'add_rectangle' | 'add_vector' | 'add_image' | 'add_card', body);
       changes = { content: result.content };
       createdShapeId = result.shapeId;
     } else if (kind === 'design' && mutationActions.includes(action)) {
-      changes = { content: mutateDesignShapes(current!.content, action as 'update_shape' | 'delete_shapes' | 'reorder_shape', body) };
+      changes = { content: mutateDesignShapes(current!.content, action as 'update_shape' | 'delete_shapes' | 'reorder_shape' | 'group_shapes' | 'ungroup_shape', body) };
     } else if (kind === 'design' && action === 'batch') {
       const operations = body.operations;
       if (!Array.isArray(operations) || !operations.length || operations.length > 100) throw new AgentError(400, 'Batch must have 1 to 100 operations');
@@ -298,10 +301,10 @@ router.post('/:kind/:action', async (req: AgentRequest, res) => {
         }
         if (addActions.includes(stepAction)) {
           if (stepAction === 'add_image') await requireOwnedImage(step.src);
-          const result = addDesignShape(content, stepAction as 'add_frame' | 'add_text' | 'add_rectangle' | 'add_image' | 'add_card', input);
+          const result = addDesignShape(content, stepAction as 'add_frame' | 'add_text' | 'add_rectangle' | 'add_vector' | 'add_image' | 'add_card', input);
           content = result.content;
           if (clientId) createdShapes[clientId] = result.shapeId;
-        } else content = mutateDesignShapes(content, stepAction as 'update_shape' | 'delete_shapes' | 'reorder_shape', input);
+        } else content = mutateDesignShapes(content, stepAction as 'update_shape' | 'delete_shapes' | 'reorder_shape' | 'group_shapes' | 'ungroup_shape', input);
       }
       changes = { content };
     } else { changes = changesFor(kind, body); }

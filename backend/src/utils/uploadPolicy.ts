@@ -89,7 +89,7 @@ export async function hasValidUploadContent(filePath: string, originalName: stri
 
     if (ext === '.png') {
       const { size } = await handle.stat();
-      if (size > 10 * 1024 * 1024) return false;
+      if (size > 20 * 1024 * 1024) return false;
       return hasValidPngPixels(await handle.readFile());
     }
     if (ext === '.jpg' || ext === '.jpeg') return startsWithBytes(head, [0xff, 0xd8, 0xff]);

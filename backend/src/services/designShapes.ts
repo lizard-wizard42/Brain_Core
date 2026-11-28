@@ -3,7 +3,7 @@ import { getIndexAbove } from '@tldraw/utils';
 import seed from './designSnapshotSeed.json';
 import { validDesignDocument } from './designDocument';
 
-type ShapeAction = 'add_frame' | 'add_text' | 'add_rectangle' | 'add_image' | 'add_card';
+type ShapeAction = 'add_frame' | 'add_text' | 'add_rectangle' | 'add_vector' | 'add_image' | 'add_card';
 type JsonMap = Record<string, unknown>;
 type Shape = JsonMap & { id: string; type: string; parentId: string; index: string; x: number; y: number; props: JsonMap };
 type DesignDoc = { tldraw: true; version: 1; data: null | { document: { store: Record<string, JsonMap>; schema: JsonMap }; session: JsonMap } };
@@ -16,8 +16,9 @@ const cardNumberRanges: Record<string, [number, number]> = {
   fontSize: [8, 160], radius: [0, 500], borderWidth: [0, 40], shadowX: [-200, 200], shadowY: [-200, 200],
   shadowBlur: [0, 200], brightness: [0, 200], contrast: [0, 200], saturation: [0, 200],
   fontWeight: [100, 900], padding: [0, 200], lineHeight: [0.8, 3], letterSpacing: [-5, 20],
+  bodyFontSize: [8, 160], bodyFontWeight: [100, 900], bodyGap: [0, 200],
 };
-const cardHexFields = new Set(['fill', 'textColor', 'borderColor', 'shadowColor', 'gradientTo']);
+const cardHexFields = new Set(['fill', 'textColor', 'borderColor', 'shadowColor', 'gradientTo', 'bodyColor']);
 const cardFonts = new Set(['Inter', 'Arial', 'Georgia', 'monospace']);
 const textAlignments = new Set(['left', 'center', 'right']);
 const verticalAlignments = new Set(['top', 'middle', 'bottom']);
@@ -125,9 +126,11 @@ export function addDesignShape(content: unknown, action: ShapeAction, input: Jso
     const parentId = parentFor(store, pageId, input.frame_id);
     const width = number(input.width, 'width', 1, 10000), height = number(input.height, 'height', 1, 10000);
     const label = input.text === undefined ? '' : typeof input.text === 'string' && input.text.length <= 5000 ? input.text : null;
+    const body = input.body === undefined ? '' : typeof input.body === 'string' && input.body.length <= 5000 ? input.body : null;
     if (label === null) throw new InvalidDesignShape('Invalid card text');
+    if (body === null) throw new InvalidDesignShape('Invalid card body');
     shape = baseShape('design-card', parentId, nextIndex(store, parentId), x, y,
-      { ...seed.templates['design-card'], w: width, h: height, text: label, ...cardAppearance(input.appearance) });
+      { ...seed.templates['design-card'], w: width, h: height, text: label, body, ...cardAppearance(input.appearance) });
   } else if (action === 'add_image') {
     const parentId = parentFor(store, pageId, input.frame_id);
     const width = number(input.width, 'width', 1, 10000), height = number(input.height, 'height', 1, 10000);
@@ -142,6 +145,18 @@ export function addDesignShape(content: unknown, action: ShapeAction, input: Jso
     const altText = input.alt_text === undefined ? '' : text(input.alt_text, 'alt_text', 500);
     shape = baseShape('image', parentId, nextIndex(store, parentId), x, y,
       { w: width, h: height, assetId, playing: true, url: '', crop: null, flipX: false, flipY: false, altText });
+  } else if (action === 'add_vector') {
+    const parentId = parentFor(store, pageId, input.frame_id);
+    const width = number(input.width, 'width', 1, 10000), height = number(input.height, 'height', 1, 10000);
+    const kind = input.kind;
+    if (kind !== 'rectangle' && kind !== 'ellipse' && kind !== 'line') throw new InvalidDesignShape('Unsupported vector kind');
+    const fill = input.fill ?? '#ffffff', stroke = input.stroke ?? '#111827';
+    if (typeof fill !== 'string' || typeof stroke !== 'string' ||
+        !/^#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?$/.test(fill) || !/^#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?$/.test(stroke)) throw new InvalidDesignShape('Invalid vector color');
+    const strokeWidth = input.stroke_width === undefined ? 1 : number(input.stroke_width, 'stroke_width', 0, 40);
+    const radius = input.radius === undefined ? 0 : number(input.radius, 'radius', 0, 500);
+    shape = baseShape('design-vector', parentId, nextIndex(store, parentId), x, y,
+      { w: width, h: height, kind, fill, stroke, strokeWidth, radius });
   } else {
     const parentId = parentFor(store, pageId, input.frame_id);
     const width = number(input.width, 'width', 1, 10000), height = number(input.height, 'height', 1, 10000);
