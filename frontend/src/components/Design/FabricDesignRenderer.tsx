@@ -7,6 +7,7 @@ import { cardAppearance, cardDefaults } from './designCardModel';
 import type { DesignCardProps } from './designCardModel';
 import { absolutePosition, addDesignCard, addDesignFrame, changeDesignShape, designFrames, designShapes, openDesignSnapshot } from './designSnapshotAdapter';
 import type { DesignShape, DesignSnapshot } from './designSnapshotAdapter';
+import { attachDesignPan } from './designPan';
 import './designInspector.css';
 
 const presets = [
@@ -133,6 +134,9 @@ export function FabricDesignRenderer({ page }: { page: Page }) {
   const [previewError, setPreviewError] = useState('');
   const [scale, setScale] = useState<1 | 2>(1);
   const [zoom, setZoom] = useState(100);
+  const [panEnabled, setPanEnabled] = useState(false);
+  const panModeRef = useRef(false);
+  const panControlsRef = useRef<ReturnType<typeof attachDesignPan> | null>(null);
   const initialized = useRef(false);
 
   const apply = useCallback((next: DesignSnapshot) => { snapshotRef.current = next; setSnapshot(next); }, []);
@@ -196,6 +200,7 @@ export function FabricDesignRenderer({ page }: { page: Page }) {
     const host = canvasElement.current.parentElement!;
     const canvas = new Canvas(canvasElement.current, { selection: true, backgroundColor: '#161616', preserveObjectStacking: true });
     canvasRef.current = canvas;
+    panControlsRef.current = attachDesignPan(canvas, panModeRef);
     const resize = () => {
       const width = host.clientWidth, height = host.clientHeight;
       if (width < 200 || height < 200) return;
@@ -257,7 +262,8 @@ export function FabricDesignRenderer({ page }: { page: Page }) {
       canvas.zoomToPoint(new Point(wheel.offsetX, wheel.offsetY), next);
       setZoom(Math.round(next * 100));
     });
-    return () => { observer.disconnect(); objectIds.current.clear(); shapeObjects.current.clear(); canvasRef.current = null; void canvas.dispose(); };
+    return () => { observer.disconnect(); panControlsRef.current?.dispose(); panControlsRef.current = null;
+      objectIds.current.clear(); shapeObjects.current.clear(); canvasRef.current = null; void canvas.dispose(); };
   }, [apply, initial.snapshot]);
 
   useEffect(() => {
@@ -369,6 +375,11 @@ export function FabricDesignRenderer({ page }: { page: Page }) {
     </aside>
     <div className="relative min-w-0 flex-1 overflow-hidden">
       <div className="absolute left-3 top-3 z-10 flex max-w-[calc(100%-24px)] flex-wrap gap-2 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card)] p-2 shadow-xl" aria-label="Ferramentas de Design">
+        <button type="button" aria-pressed={panEnabled} title="Arraste o canvas; também funciona com Espaço ou botão do meio" className={`rounded px-2 py-1 text-xs ${panEnabled ? 'bg-[var(--theme-primary)] text-white' : 'hover:bg-[var(--theme-hover)]'}`} onClick={() => {
+          panModeRef.current = !panModeRef.current;
+          setPanEnabled(panModeRef.current);
+          panControlsRef.current?.sync();
+        }}>✋ Pan</button>
         {presets.map(preset => <button key={preset.name} type="button" className="rounded px-2 py-1 text-xs hover:bg-[var(--theme-hover)]" onClick={() => { const result = addDesignFrame(snapshotRef.current!, preset.name, preset.w, preset.h); apply(result.snapshot); setActiveFrameId(result.id); setSelectedId(result.id); }}>+ {preset.name}</button>)}
         <button type="button" disabled={!frameId} className="rounded px-2 py-1 text-xs hover:bg-[var(--theme-hover)] disabled:opacity-40" onClick={() => { const result = addDesignCard(snapshotRef.current!, frameId!); apply(result.snapshot); setSelectedId(result.id); }}>+ Cartão</button>
         <button type="button" disabled={!frames.length} className="rounded px-2 py-1 text-xs disabled:opacity-40" onClick={() => exportFrame(false)}>Prévia</button>
