@@ -133,6 +133,7 @@ it('moves the legacy native test annotation off the canvas while preserving its 
     store: { listen: vi.fn(() => () => undefined) }, user: { getUserPreferences: vi.fn(() => ({ isSnapMode: false })) },
     getInstanceState: vi.fn(() => ({ isGridMode: false })),
   };
+  vi.mocked(api.patchPage).mockClear();
   render(<InfiniteRenderer page={{ ...page, type: 'design' }} />);
   await screen.findByRole('status');
   act(() => state.mounted?.(editor));
@@ -140,6 +141,7 @@ it('moves the legacy native test annotation off the canvas while preserving its 
     unrelated: 'kept', brainCoreArchivedAnnotations: [{ shapeId: 'shape:legacy-note', text: annotation }],
   } });
   expect(editor.deleteShapes).toHaveBeenCalledWith(['shape:legacy-note']);
+  await waitFor(() => expect(api.patchPage).toHaveBeenCalledWith('p1', expect.objectContaining({ content: expect.any(Object) }), expect.any(Object)));
 });
 
 it('refreshes a clean Design document after an external MCP revision', async () => {

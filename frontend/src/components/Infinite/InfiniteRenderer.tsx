@@ -71,7 +71,7 @@ export function InfiniteRenderer({ page }: InfiniteRendererProps) {
     }
   }, []);
 
-  const archiveImportedAnnotation = useCallback((current: Editor) => {
+  const archiveImportedAnnotation = useCallback((current: Editor): boolean => {
     const page = current.getCurrentPage();
     const previous = Array.isArray(page.meta.brainCoreArchivedAnnotations)
       ? page.meta.brainCoreArchivedAnnotations as Array<{ shapeId: string; text: string }> : [];
@@ -89,6 +89,7 @@ export function InfiniteRenderer({ page }: InfiniteRendererProps) {
     }
     if (additions.length) current.updatePage({ id: page.id, meta: { ...page.meta, brainCoreArchivedAnnotations: [...previous, ...additions] } });
     if (toRemove.length) current.deleteShapes(toRemove);
+    return toRemove.length > 0;
   }, []);
 
   const refreshFrames = useCallback((current: Editor) => {
@@ -420,7 +421,20 @@ export function InfiniteRenderer({ page }: InfiniteRendererProps) {
         store={store} 
         shapeUtils={isDesign ? [DesignCardShapeUtil] : undefined}
         autoFocus
-        onMount={current => { setEditor(current); if (isDesign) { archiveImportedAnnotation(current); repairNarrowDesignText(current); refreshFrames(current); } }}
+        onMount={current => {
+          setEditor(current);
+          if (!isDesign) return;
+          const archived = archiveImportedAnnotation(current);
+          repairNarrowDesignText(current);
+          refreshFrames(current);
+          // tldraw mounts in a layout effect, before the autosave listener's
+          // passive effect. Explicitly persist this one-time migration.
+          if (archived) {
+            dirtyRef.current = true;
+            const timer = window.setTimeout(() => { void persistSnapshot(); }, 0);
+            return () => window.clearTimeout(timer);
+          }
+        }}
       />
       </div>
       {isDesign && <DesignInspector editor={editor} selectedShapeId={selectedShapeId} onPreview={() => { void exportFrame(true); }} onExport={() => { void exportFrame(false); }} />}
