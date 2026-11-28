@@ -10,4 +10,6 @@ Enquanto o Design está aberto, o editor consulta revisões externas a cada trê
 
 **Prévia** e **Baixar PNG** exportam o quadro ativo. **Baixar quadros ZIP** empacota até 50 quadros da página, em PNG, no tamanho definido por cada quadro e na escala selecionada. O lote é limitado a 250 MiB para proteger a memória do navegador. A prévia MCP é gerada ao abrir ou salvar um Design no navegador e fica vinculada à revisão atual; o servidor não renderiza quadros que ainda não foram abertos no editor.
 
+O tracejado de seleção dos grupos é apenas um guia do editor e não aparece nas imagens exportadas. Os atalhos do editor funcionam enquanto o foco está na página; depois de clicar na barra de endereço ou em controles do navegador, clique novamente no Brain Core antes de usá-los.
+
 Para arquivos em outro computador, a seleção de imagens funciona pelo navegador local. A ferramenta MCP opcional `brain_assets_upload_local` lê arquivos apenas da pasta configurada no computador onde o adaptador MCP está executando; veja [o guia MCP](NOTES_MCP.md).

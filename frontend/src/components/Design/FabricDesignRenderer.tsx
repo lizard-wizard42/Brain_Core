@@ -5,6 +5,7 @@ import { api } from '../../api/client';
 import type { Page } from '../../types';
 import { cardAppearance, cardDefaults } from './designCardModel';
 import type { DesignCardProps } from './designCardModel';
+import { dimensionsAfterTransform } from './designFabricGeometry';
 import { absolutePosition, addDesignCard, addDesignFrame, addDesignImage, addDesignVector, changeDesignShape, designFrames, designShapes, duplicateDesignShape, groupDesignShapes, openDesignSnapshot, removeDesignShape, replaceDesignImage, ungroupDesignShape } from './designSnapshotAdapter';
 import type { DesignShape, DesignSnapshot } from './designSnapshotAdapter';
 import { attachDesignPan } from './designPan';
@@ -61,7 +62,7 @@ function shapeObject(shape: DesignShape, snapshot: DesignSnapshot): FabricObject
     lockMovementX: shape.isLocked, lockMovementY: shape.isLocked, selectable: !shape.isLocked });
   if (shape.type === 'design-group') return new Rect({ left: x, top: y, width: w, height: h,
     fill: 'transparent', stroke: '#60a5fa', strokeWidth: 1, strokeDashArray: [8, 6],
-    originX: 'left', originY: 'top', selectable: !shape.isLocked,
+    originX: 'left', originY: 'top', selectable: !shape.isLocked, excludeFromExport: true,
     lockMovementX: shape.isLocked, lockMovementY: shape.isLocked, lockScalingX: true, lockScalingY: true });
   if (shape.type === 'text') return new Textbox(plainText(shape.props.richText) || String(shape.props.text ?? ''), {
     left: x, top: y, width: Math.max(1, w), fontFamily: 'Inter', fontSize: 24,
@@ -156,6 +157,7 @@ function renderFramePng(canvas: Canvas, frame: DesignShape, multiplier: number):
   try {
     canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
     return canvas.toBlob({ format: 'png', multiplier, left: frame.x, top: frame.y,
+      filter: object => !object.excludeFromExport,
       width: Number(frame.props.w), height: Number(frame.props.h) }).then(blob => {
       if (!blob) throw new Error('Falha ao gerar imagem do quadro');
       return blob;
@@ -324,12 +326,10 @@ export function FabricDesignRenderer({ page }: { page: Page }) {
       const parent = designShapes(doc).find(item => item.id === shape.parentId);
       const parentPosition = parent ? absolutePosition(parent, doc) : { x: 0, y: 0 };
       const parentX = parentPosition.x, parentY = parentPosition.y;
+      const dimensions = dimensionsAfterTransform(shape, object, event.action);
       apply(changeDesignShape(doc, id, { x: (object.left ?? 0) - parentX, y: (object.top ?? 0) - parentY,
         rotation: (object.angle ?? 0) * Math.PI / 180,
-        ...(shape.type === 'frame' || shape.type === 'design-card' || shape.type === 'design-vector' || shape.type === 'image' ? { props: {
-          w: Math.max(1, Math.min(10000, Math.round(object.getScaledWidth()))),
-          h: Math.max(1, Math.min(10000, Math.round(object.getScaledHeight()))),
-        } } : {}) }));
+        ...(dimensions ? { props: dimensions } : {}) }));
     });
     canvas.on('mouse:wheel', event => {
       const wheel = event.e as WheelEvent;
@@ -652,7 +652,9 @@ export function FabricDesignRenderer({ page }: { page: Page }) {
       {preview && <div role="dialog" aria-modal="true" aria-label="Prévia do quadro" className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/85 p-4"><button type="button" onClick={() => setPreview(null)} className="self-end rounded bg-white/15 px-3 py-1 text-sm text-white">Fechar</button><img src={preview} alt="Prévia do quadro Design" className="max-h-[85vh] max-w-full object-contain" /></div>}
     </div>
     <aside className="design-inspector" aria-label="Propriedades de Design">
-      <div className="design-inspector-heading"><strong>Design</strong><span>{selected ? selected.type === 'frame' ? 'Quadro selecionado' : 'Cartão selecionado' : 'Selecione um elemento'}</span></div>
+      <div className="design-inspector-heading"><strong>Design</strong><span>{selected ? selected.type === 'frame' ? 'Quadro selecionado'
+        : selected.type === 'design-card' ? 'Cartão selecionado' : selected.type === 'design-group' ? 'Grupo selecionado'
+          : selected.type === 'image' ? 'Imagem selecionada' : 'Elemento selecionado' : 'Selecione um elemento'}</span></div>
       {selected && <><section className="design-inspector-section" aria-label="Layout"><h3>Layout</h3><div className="design-inspector-grid">
         <NumberField label="X" value={selected.x} onChange={x => change({ x })} />
         <NumberField label="Y" value={selected.y} onChange={y => change({ y })} />
