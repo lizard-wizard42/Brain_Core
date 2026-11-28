@@ -7,7 +7,7 @@ const path = require('node:path');
 process.env.JWT_SECRET = 'synthetic-test-only-jwt-secret-for-agent-assets';
 const { uploadAgentAsset, listAgentAssets, InvalidAgentAsset } = require('../dist/services/agentAssets');
 const { config } = require('../dist/config');
-const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lXcAAAAASUVORK5CYII=';
+const png = require('./fixtures/validPng.cjs').toString('base64');
 const owner = '00000000-0000-4000-8000-000000000001';
 
 test('uploads a valid owned image and lists only rows scoped to the owner', async () => {

@@ -235,7 +235,7 @@ test('MCP image uploads preserve ownership, idempotency and Design image boundar
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'brain-agent-assets-e2e-'));
   const previous = config.UPLOADS_DIR;
   config.UPLOADS_DIR = directory;
-  const image = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lXcAAAAASUVORK5CYII=';
+  const image = require('./fixtures/validPng.cjs').toString('base64');
   const input = { ...operation(), name: 'synthetic.png', mime_type: 'image/png', data_base64: image };
   const otherToken = await token(['pages:read', 'pages:write'], { user: other });
   try {

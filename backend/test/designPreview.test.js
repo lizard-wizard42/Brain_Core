@@ -8,7 +8,7 @@ const express = require('express');
 
 const pageId = '11111111-1111-4111-8111-111111111111';
 const frameId = 'shape:synthetic_frame';
-const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4//8/AwAI/AL+XG5qAAAAAElFTkSuQmCC', 'base64');
+const png = require('./fixtures/validPng.cjs');
 let revision = 7;
 
 test('preview cache binds PNG to owner, frame and current revision', async () => {
@@ -29,6 +29,9 @@ test('preview cache binds PNG to owner, frame and current revision', async () =>
 
 test('preview rejects malformed PNG and frame identifiers', async () => {
   await assert.rejects(() => storeDesignPreview('owner', pageId, 7, frameId, Buffer.from('not a png')), error => error instanceof DesignPreviewError && error.status === 400);
+  const brokenPixels = Buffer.from(png);
+  brokenPixels[brokenPixels.length - 20] ^= 0xff;
+  await assert.rejects(() => storeDesignPreview('owner', pageId, 7, frameId, brokenPixels), error => error instanceof DesignPreviewError && error.status === 400);
   await assert.rejects(() => storeDesignPreview('owner', pageId, 7, frameId, 'not a buffer'), error => error instanceof DesignPreviewError && error.status === 400);
   await assert.rejects(() => storeDesignPreview('owner', pageId, 7, frameId, [png]), error => error instanceof DesignPreviewError && error.status === 400);
   await assert.rejects(() => getDesignPreview('owner', pageId, '../another-frame'), error => error instanceof DesignPreviewError && error.status === 400);

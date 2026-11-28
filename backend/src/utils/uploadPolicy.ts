@@ -2,6 +2,7 @@ import path from 'path';
 import { open, readdir, stat, unlink } from 'fs/promises';
 import type { NextFunction, Request, Response } from 'express';
 import { config } from '../config';
+import { hasValidPngPixels } from './pngIntegrity';
 
 const IMAGE_TYPES = new Map<string, ReadonlySet<string>>([
   ['.png', new Set(['image/png'])],
@@ -86,7 +87,11 @@ export async function hasValidUploadContent(filePath: string, originalName: stri
     const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
     const head = buffer.subarray(0, bytesRead);
 
-    if (ext === '.png') return startsWithBytes(head, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    if (ext === '.png') {
+      const { size } = await handle.stat();
+      if (size > 10 * 1024 * 1024) return false;
+      return hasValidPngPixels(await handle.readFile());
+    }
     if (ext === '.jpg' || ext === '.jpeg') return startsWithBytes(head, [0xff, 0xd8, 0xff]);
     if (ext === '.gif') return head.subarray(0, 6).toString('ascii') === 'GIF87a' || head.subarray(0, 6).toString('ascii') === 'GIF89a';
     if (ext === '.webp') return head.subarray(0, 4).toString('ascii') === 'RIFF' && head.subarray(8, 12).toString('ascii') === 'WEBP';
