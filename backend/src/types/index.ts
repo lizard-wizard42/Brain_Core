@@ -65,11 +65,9 @@ export interface PageVersion {
   created_at: string;
 }
 
-export interface InfiniteDoc {
-  tldraw: true;
-  version: number;
-  data: unknown;
-}
+export type InfiniteDoc =
+  | { tldraw: true; version: number; data: unknown }
+  | { excalidraw: true; version: 1; data: { elements: unknown[]; appState?: Record<string, unknown>; files?: Record<string, unknown> } };
 
 /** Fixed-size sheets; backgrounds are independent from editable ink and text. */
 export type NotebookPaper = 'blank' | 'ruled' | 'grid' | 'dots' | 'oxford';

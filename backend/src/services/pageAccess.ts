@@ -1,5 +1,6 @@
 import { isNotebookDoc, InvalidNotebook } from './notebookDocument';
 import { validDesignDocument } from './designDocument';
+import { validInfiniteDocument } from './infiniteDocument';
 import { PoolClient } from 'pg';
 import { pool, query } from '../config/database';
 import { createHash } from 'crypto';
@@ -23,6 +24,7 @@ export function canEdit(role: PageRole | null): boolean { return role === 'owner
 export class PageConflict extends Error { constructor() { super('Page revision conflict'); } }
 export class PageMissing extends Error { constructor() { super('Page not found'); } }
 export class InvalidDesign extends Error { constructor() { super('Invalid Design document'); } }
+export class InvalidInfinite extends Error { constructor() { super('Invalid Infinite document'); } }
 
 async function trimPageVersions(client: PoolClient, pageId: string): Promise<void> {
   const requested = config.PAGE_VERSION_RETENTION;
@@ -73,6 +75,7 @@ export async function savePageRevision(pageId: string, userId: string, revision:
     if (!Number.isSafeInteger(revision) || revision !== Number(current.revision)) throw new PageConflict();
     if (current.type === 'notebook' && 'content' in changes && !isNotebookDoc(changes.content)) throw new InvalidNotebook();
     if (current.type === 'design' && 'content' in changes && !validDesignDocument(changes.content)) throw new InvalidDesign();
+    if (current.type === 'infinite' && 'content' in changes && !validInfiniteDocument(changes.content)) throw new InvalidInfinite();
     if (Object.prototype.hasOwnProperty.call(changes, 'parent_page_id')) {
       if (current.owner_user_id !== userId) throw new PageMissing();
       const parent = changes.parent_page_id;

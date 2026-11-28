@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — open canvas engines
+
+- Use Excalidraw for new Infinite pages and Fabric.js for Design pages, so HTTPS editing no longer depends on the tldraw editor license gate.
+- Preserve existing Design snapshots and page metadata while rendering artboards, cards, text, shapes and owned images with Fabric.js. Keep revision-aware saves and MCP frame previews.
+- Keep legacy Infinite snapshots intact and show a conversion notice instead of replacing unknown content. Validate the new Infinite document format and keep unsaved drafts available after conflicts.
+
 ## Unreleased — Design workspace
 
 - Add a separate Design page type while preserving existing Infinite pages. Design offers fixed-size artboards, internal pages and layers, editable canvas shapes, a property inspector, PNG preview/export and revision-aware autosave.
