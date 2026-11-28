@@ -91,11 +91,9 @@ export interface TiptapNode {
   text?: string;
 }
 
-export interface InfiniteDoc {
-  tldraw: true;
-  version: number;
-  data: unknown;
-}
+export type InfiniteDoc =
+  | { tldraw: true; version: number; data: unknown }
+  | { excalidraw: true; version: 1; data: { elements: unknown[]; appState?: Record<string, unknown>; files?: Record<string, unknown> } };
 
 export interface TreePage extends PageSummary {
   children: TreePage[];

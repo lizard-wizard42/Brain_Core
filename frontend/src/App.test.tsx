@@ -40,6 +40,7 @@ vi.mock('./hooks/useTabs', () => ({
     tabs: [],
     activeTabId: null,
     openTab: openTabSpy,
+    replaceActiveTab: openTabSpy,
     closeTab: closeTabSpy,
     setActiveTab: setActiveTabSpy,
   }),
@@ -69,8 +70,12 @@ vi.mock('./pages/RememberPage', () => ({
   RememberPage: () => <div>Remember Mock</div>,
 }));
 
-vi.mock('./components/Infinite/InfiniteRenderer', () => ({
-  InfiniteRenderer: () => <div>Infinite Mock</div>,
+vi.mock('./components/Infinite/ExcalidrawRenderer', () => ({
+  ExcalidrawRenderer: () => <div>Excalidraw Mock</div>,
+}));
+
+vi.mock('./components/Design/FabricDesignRenderer', () => ({
+  FabricDesignRenderer: () => <div>Fabric Design Mock</div>,
 }));
 
 vi.mock('./components/Terminal/TerminalDrawer', () => ({
@@ -78,10 +83,13 @@ vi.mock('./components/Terminal/TerminalDrawer', () => ({
 }));
 
 import App from './App';
+import { api } from './api/client';
+import type { Page } from './types';
 
 describe('App routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(api.getPage).mockResolvedValue({ id: 'p1', title: 'Page 1', type: 'note' } as Page);
     vi.stubEnv('VITE_TERMINAL_ENABLED', 'true');
     authState.isAuthenticated = true;
     authState.role = 'owner';
@@ -113,6 +121,22 @@ describe('App routes', () => {
     render(<App />);
     expect(await screen.findByText(/, Alex/)).toBeInTheDocument();
     expect(screen.getByText('Gravações hoje')).toBeInTheDocument();
+  });
+
+  it('abre Infinite com Excalidraw', async () => {
+    vi.mocked(api.getPage).mockResolvedValue({ id: 'p1', title: 'Quadro', type: 'infinite', revision: 1,
+      content: { excalidraw: true, version: 1, data: { elements: [] } } } as unknown as Page);
+    window.history.pushState({}, '', '/page/p1');
+    render(<App />);
+    expect(await screen.findByText('Excalidraw Mock')).toBeInTheDocument();
+  });
+
+  it('abre Design com Fabric sem carregar o editor tldraw', async () => {
+    vi.mocked(api.getPage).mockResolvedValue({ id: 'p1', title: 'Design', type: 'design', revision: 1,
+      content: { tldraw: true, version: 1, data: null } } as Page);
+    window.history.pushState({}, '', '/page/p1');
+    render(<App />);
+    expect(await screen.findByText('Fabric Design Mock')).toBeInTheDocument();
   });
 
   it('registra a aba Memória ao entrar em /remember', async () => {

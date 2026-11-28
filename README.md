@@ -26,8 +26,8 @@ English localization. See [screenshot provenance](docs/SCREENSHOTS.md).*
 | --- | --- |
 | **Rich-text pages** | Format text, tables, checklists and highlighted code. Copy an entire code block with its corner icon. Organize pages and subpages in a tree; drop a card onto another card to nest it, or use its edges to reorder. Insert real text between cards. |
 | **Notebook** | Write with editable vector pen/highlighter strokes and typed text boxes. Choose blank, ruled, grid, dotted or Oxford paper; use multiple sheets, selection, whole-stroke erasing, undo/redo, zoom and focus mode. |
-| **Infinite** | Sketch and arrange ideas freely on a tldraw canvas, with automatic snapshot saving. Its SDK has separate production licensing requirements; see below. |
-| **Design** | Compose editable visual pieces on fixed-size artboards, inspect supported properties, preview and export PNGs. Design is a separate page type; existing Infinite canvases remain unchanged. |
+| **Infinite** | Sketch and arrange ideas freely with Excalidraw, with automatic snapshot saving. |
+| **Design** | Compose editable visual pieces on fixed-size artboards with Fabric.js, inspect supported properties, preview and export PNGs. |
 | **Quick notes** | Capture ideas, checklists and reminders on a searchable board. Toggle checklist items directly, filter and sort notes, and recover deleted notes through Undo or Trash. |
 | **Knowledge and navigation** | Search page and quick-note text, browse breadcrumbs and heading outlines, follow page references, or explore the interactive knowledge graph. Expand/collapse the tree and keep work open in app tabs. |
 | **Memory** | Record deliberately, then review optional local transcriptions as a conversation. Search transcripts, correct speakers, copy/download the conversation or turn it into a note or reminder. |
@@ -75,15 +75,16 @@ keep the draft for retry. Reminder dates follow the device's local calendar.
 ![Infinite canvas with fictional English idea cards and a visual workflow](docs/images/infinite-canvas-demo.jpg)
 
 Use a free-form canvas when the relationship between ideas matters as much as
-the words. Infinite is a separate page format from text notes and Notebook.
+the words. New Infinite pages use Excalidraw. Legacy tldraw snapshots are kept
+intact and require an explicit conversion before editing.
 
 ### Design: compose and preview visual pieces
 
 Create a Design page for posts, stories or screen layouts. Add artboards at preset
 sizes, arrange shapes and text with the canvas tools, switch between internal
 pages and layers, inspect supported shape properties, then preview or export an
-artboard as PNG. Design uses the same canvas engine as Infinite but has its own
-page type and workspace. It does not reproduce Paper's full HTML/CSS layout,
+artboard as PNG. Design uses Fabric.js and retains the existing Design document
+format for the MCP tools. It does not reproduce Paper's full HTML/CSS layout,
 responsive behavior, shaders or component system.
 
 Design checks for external edits while a page is open. A revision that cannot be
@@ -238,7 +239,7 @@ the original notes.
 
 ## Development
 
-**Web:** React 19, TypeScript, Vite, Tailwind CSS, Tiptap and tldraw.
+**Web:** React 19, TypeScript, Vite, Tailwind CSS, Tiptap, Excalidraw and Fabric.js.
 
 **Server:** Node.js, Express, Socket.IO and PostgreSQL.
 
@@ -275,7 +276,7 @@ It is available under the [MIT License](LICENSE), including commercial use,
 while preserving the license notice. The project name and visual identity do
 not imply endorsement or affiliation.
 
-Third-party dependencies retain their own licenses. In particular, Infinite uses
-the tldraw SDK, whose [versioned license](https://github.com/tldraw/tldraw/blob/v5.1.1/LICENSE.md)
-sets separate production-use and license-key requirements. Brain Core’s MIT
-license does not replace those terms. The Notebook editor is a separate surface.
+Third-party dependencies retain their own licenses. Excalidraw and Fabric.js use
+MIT licenses. Legacy Design document utilities still use tldraw packages; the
+tldraw editor is no longer mounted in the web app. The Notebook editor is a
+separate surface.

@@ -1,13 +1,14 @@
 import { Request, Response } from 'express';
 import { defaultNotebook, isNotebookDoc, InvalidNotebook } from '../services/notebookDocument';
 import { validDesignDocument } from '../services/designDocument';
+import { emptyInfiniteDocument, validInfiniteDocument } from '../services/infiniteDocument';
 import { createHash } from 'crypto';
 import { pool, query } from '../config/database';
 import { InfiniteDoc, NotebookDoc, Page, PageSummary, PageVersion, TiptapDoc, TiptapNode } from '../types';
 import { AuthRequest } from '../middleware/auth';
 import { logError, logInfo } from '../utils/logger';
 import { recordUploadedAsset } from '../services/uploadOwnership';
-import { savePageRevision, PageConflict, PageMissing, InvalidDesign, pageRole } from '../services/pageAccess';
+import { savePageRevision, PageConflict, PageMissing, InvalidDesign, InvalidInfinite, pageRole } from '../services/pageAccess';
 import { indexItemEmbeddings, clearItemEmbeddings } from '../services/embeddingService';
 
 export function extractDocPlainText(node: unknown): string {
@@ -164,22 +165,6 @@ function normalizeTags(raw: unknown): string[] {
     .slice(0, 20);
 }
 
-function isInfiniteDoc(content: unknown): content is InfiniteDoc {
-  return typeof content === 'object'
-    && content !== null
-    && 'tldraw' in content
-    && (content as { tldraw?: unknown }).tldraw === true;
-}
-
-function normalizeInfiniteContent(content: unknown): InfiniteDoc {
-  if (isInfiniteDoc(content)) return content;
-  return {
-    tldraw: true,
-    version: 1,
-    data: null,
-  };
-}
-
 function computeSnapshotHash(title: string, content: TiptapDoc | InfiniteDoc | NotebookDoc): string {
   return createHash('sha1').update(JSON.stringify({ title, content })).digest('hex');
 }
@@ -233,16 +218,6 @@ export async function getPage(req: Request, res: Response): Promise<void> {
       res.json({ ...redactPageForRole(page as unknown as Record<string, unknown>, role), access_role: role }); return;
     }
 
-    if (page.type === 'infinite' && !isInfiniteDoc(page.content)) {
-      const normalized = normalizeInfiniteContent(page.content);
-      await query(
-        `UPDATE pages SET content = $1 WHERE id = $2 AND deleted_at IS NULL`,
-        [JSON.stringify(normalized), id]
-      );
-      res.json({ ...page, content: normalized });
-      return;
-    }
-
     res.json({ ...page, access_role: role });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch page', detail: String(err) });
@@ -263,10 +238,14 @@ export async function createPage(req: Request, res: Response): Promise<void> {
   if (type === 'design' && content !== undefined && !validDesignDocument(content)) {
     res.status(400).json({ error: 'Invalid Design document' }); return;
   }
+  if (type === 'infinite' && content !== undefined && !validInfiniteDocument(content)) {
+    res.status(400).json({ error: 'Invalid Infinite document' }); return;
+  }
   let defaultContent: TiptapDoc | InfiniteDoc | NotebookDoc = { type: 'doc', content: [] };
-  if (type === 'infinite' || type === 'design') {
+  if (type === 'design') {
     defaultContent = { tldraw: true, version: 1, data: null };
   }
+  if (type === 'infinite') defaultContent = emptyInfiniteDocument();
 
   if (type === 'notebook') defaultContent = defaultNotebook();
 
@@ -455,6 +434,7 @@ export async function savePage(req: Request, res: Response): Promise<void> {
   } catch (error) {
     if (error instanceof InvalidNotebook) res.status(400).json({ error: 'Invalid notebook document' });
     else if (error instanceof InvalidDesign) res.status(400).json({ error: 'Invalid Design document' });
+    else if (error instanceof InvalidInfinite) res.status(400).json({ error: 'Invalid Infinite document' });
     else if (error instanceof PageConflict) res.status(409).json({ error: 'Page revision conflict' });
     else if (error instanceof PageMissing) res.status(404).json({ error: 'Page not found' });
     else res.status(503).json({ error: 'Failed to save page' });
@@ -475,6 +455,7 @@ export async function patchPage(req: Request, res: Response): Promise<void> {
   } catch (error) {
     if (error instanceof InvalidNotebook) res.status(400).json({ error: 'Invalid notebook document' });
     else if (error instanceof InvalidDesign) res.status(400).json({ error: 'Invalid Design document' });
+    else if (error instanceof InvalidInfinite) res.status(400).json({ error: 'Invalid Infinite document' });
     else if (error instanceof PageConflict) res.status(409).json({ error: 'Page revision conflict' });
     else if (error instanceof PageMissing) res.status(404).json({ error: 'Page not found' });
     else res.status(503).json({ error: 'Failed to patch page' });

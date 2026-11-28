@@ -68,12 +68,13 @@ function createNotesTab(): Tab {
 const TERMINAL_ICON_URL = terminalIconUrl;
 const REMEMBER_ICON_URL = notesIconUrl;
 const isTerminalEnabled = () => import.meta.env.VITE_TERMINAL_ENABLED === 'true';
-// Heavy surfaces (rich editor, tldraw canvas, xterm, settings) load on demand so the
+// Heavy surfaces (rich editor, canvases, xterm, settings) load on demand so the
 // first paint on mobile/Tailnet does not pay for code the user may never open.
 const RememberPage = lazy(() => import('./pages/RememberPage').then((module) => ({ default: module.RememberPage })));
 const Editor = lazy(() => import('./components/Editor/Editor').then((module) => ({ default: module.Editor })));
 const NotebookEditor = lazy(() => import('./components/Notebook/NotebookEditor').then((module) => ({ default: module.NotebookEditor })));
-const InfiniteRenderer = lazy(() => import('./components/Infinite/InfiniteRenderer').then((module) => ({ default: module.InfiniteRenderer })));
+const FabricDesignRenderer = lazy(() => import('./components/Design/FabricDesignRenderer').then((module) => ({ default: module.FabricDesignRenderer })));
+const ExcalidrawRenderer = lazy(() => import('./components/Infinite/ExcalidrawRenderer').then((module) => ({ default: module.ExcalidrawRenderer })));
 const TerminalDrawer = lazy(() => import('./components/Terminal/TerminalDrawer').then((module) => ({ default: module.TerminalDrawer })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then((module) => ({ default: module.SettingsPage })));
 const NotesPage = lazy(() => import('./pages/NotesPage').then((module) => ({ default: module.NotesPage })));
@@ -199,10 +200,14 @@ function PageView({ onRefresh, onPageOpen, tabs, onOpenTab, onPageNavigate }: Pa
     return <Suspense fallback={<RouteFallback />}><NotebookEditor key={page.id} page={page} onRefresh={onRefresh} /></Suspense>;
   }
 
-  if (page.type === 'infinite' || page.type === 'design') {
+  if (page.type === 'infinite') {
+    return <Suspense fallback={<RouteFallback />}><ExcalidrawRenderer key={page.id} page={page} /></Suspense>;
+  }
+
+  if (page.type === 'design') {
     return (
       <Suspense fallback={<RouteFallback />}>
-        <InfiniteRenderer
+        <FabricDesignRenderer
           key={page.id}
           page={page}
         />
