@@ -9,6 +9,7 @@
 - Bound MCP request volume before credential lookup and keep the disposable PostgreSQL integration suite aligned with the expanded tool list.
 - Generate valid tldraw layer indices for large boards; prevent narrow MCP text from covering other content and synchronize open Design pages with external revisions.
 - Add owner-scoped image upload/listing, frame previews, shape tree and atomic batch/edit/delete/reorder MCP tools; expand card typography, alignment and gradients.
+- Validate external Design revisions in an isolated canvas before applying them, so a bad revision cannot clear an open board. Move a legacy narrow MCP test annotation into the page's preserved annotations instead of leaving it over the artwork.
 
 ## Unreleased — dashboard activity and sidebar footer
 

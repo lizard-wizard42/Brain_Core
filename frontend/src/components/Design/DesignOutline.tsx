@@ -37,12 +37,16 @@ export function DesignOutline({ editor }: { editor: Editor | null }) {
   const [pages, setPages] = useState<CanvasPage[]>([]);
   const [activePageId, setActivePageId] = useState<TLPageId | null>(null);
   const [layers, setLayers] = useState<CanvasLayer[]>([]);
+  const [archivedAnnotations, setArchivedAnnotations] = useState<Array<{ shapeId: string; text: string }>>([]);
   const [renamingId, setRenamingId] = useState<TLPageId | null>(null);
   const [draftName, setDraftName] = useState('');
 
   const refresh = useCallback(() => {
-    if (!editor) { setPages([]); setLayers([]); setActivePageId(null); return; }
+    if (!editor) { setPages([]); setLayers([]); setActivePageId(null); setArchivedAnnotations([]); return; }
     const current = editor.getCurrentPageId();
+    const archive = editor.getCurrentPage().meta.brainCoreArchivedAnnotations;
+    setArchivedAnnotations(Array.isArray(archive) ? archive.filter((item): item is { shapeId: string; text: string } =>
+      !!item && typeof item === 'object' && !Array.isArray(item) && typeof item.shapeId === 'string' && typeof item.text === 'string') : []);
     setPages(editor.getPages().map(page => ({ id: page.id, name: page.name })));
     setActivePageId(current);
     setLayers(collectLayers(editor.getCurrentPageShapes(), current));
@@ -93,6 +97,10 @@ export function DesignOutline({ editor }: { editor: Editor | null }) {
       {layers.length === 0 && <p className="design-outline-empty">Crie um quadro ou desenhe no canvas para começar.</p>}
       {layers.map(layer => <button type="button" key={layer.id} className="design-outline-layer" style={{ paddingLeft: `${12 + Math.min(layer.depth, 5) * 16}px` }} onClick={() => selectLayer(layer.id)} title={`${layer.title} · ${layer.type}`} aria-label={`Camada: ${layer.title}`}><span aria-hidden="true">{layer.type === 'frame' ? '▣' : layer.type === 'image' ? '▧' : layer.type === 'text' ? 'Aa' : '◇'}</span><span>{layer.title}</span></button>)}
     </div>
+    {archivedAnnotations.length > 0 && <details className="design-outline-archive">
+      <summary>Anotações preservadas ({archivedAnnotations.length})</summary>
+      {archivedAnnotations.map(item => <p key={item.shapeId}>{item.text}</p>)}
+    </details>}
     <div className="design-outline-tools" role="group" aria-label="Ferramentas do canvas">
       {[{ label: 'Selecionar', tool: 'select', icon: '↖' }, { label: 'Mover canvas', tool: 'hand', icon: '✋' }, { label: 'Quadro', tool: 'frame', icon: '▣' }, { label: 'Forma', tool: 'geo', icon: '□' }, { label: 'Texto', tool: 'text', icon: 'Aa' }, { label: 'Desenhar', tool: 'draw', icon: '✎' }].map(item => <button type="button" key={item.tool} title={item.label} aria-label={item.label} disabled={!editor} onClick={() => editor?.setCurrentTool(item.tool)}>{item.icon}</button>)}
     </div>
