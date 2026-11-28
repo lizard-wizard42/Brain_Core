@@ -9,6 +9,7 @@ import { prepareBrowserSession } from './api/browserSession';
 import { LoginPage } from './pages/LoginPage';
 import { SetupPage } from './pages/SetupPage';
 import { RememberErrorBoundary } from './components/Remember/RememberErrorBoundary';
+import { CanvasErrorBoundary } from './components/Infinite/CanvasErrorBoundary';
 import { DashboardHome } from './components/Dashboard/DashboardHome';
 import { SharedPagesProvider } from './components/Shared/SharedPagesProvider';
 import { Tabs } from './components/Tabs/Tabs';
@@ -201,17 +202,16 @@ function PageView({ onRefresh, onPageOpen, tabs, onOpenTab, onPageNavigate }: Pa
   }
 
   if (page.type === 'infinite') {
-    return <Suspense fallback={<RouteFallback />}><ExcalidrawRenderer key={page.id} page={page} /></Suspense>;
+    return <CanvasErrorBoundary key={page.id}><Suspense fallback={<RouteFallback />}><ExcalidrawRenderer page={page} /></Suspense></CanvasErrorBoundary>;
   }
 
   if (page.type === 'design') {
     return (
-      <Suspense fallback={<RouteFallback />}>
+      <CanvasErrorBoundary key={page.id}><Suspense fallback={<RouteFallback />}>
         <FabricDesignRenderer
-          key={page.id}
           page={page}
         />
-      </Suspense>
+      </Suspense></CanvasErrorBoundary>
     );
   }
 

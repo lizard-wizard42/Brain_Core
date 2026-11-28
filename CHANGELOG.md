@@ -2,6 +2,7 @@
 
 ## Unreleased — open canvas engines
 
+- Keep the app visible when a canvas module from an earlier deployment is missing, and serve the HTML shell without cache while giving hashed assets an explicit 404.
 - Use Excalidraw for new Infinite pages and Fabric.js for Design pages, so HTTPS editing no longer depends on the tldraw editor license gate.
 - Preserve existing Design snapshots and page metadata while rendering artboards, cards, text, shapes and owned images with Fabric.js. Keep revision-aware saves and MCP frame previews.
 - Keep legacy Infinite snapshots intact and show a conversion notice instead of replacing unknown content. Validate the new Infinite document format and keep unsaved drafts available after conflicts.
